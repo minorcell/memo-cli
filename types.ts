@@ -1,4 +1,4 @@
-/* 消息类型 */
+// 类型定义：模型消息、工具声明、Agent 结果等
 
 export type DeepSeekMessage = { content?: string }
 
@@ -18,7 +18,7 @@ export type AgentResult = {
     logEntries: string[]
 }
 
-/* 工具类型 */
+// 工具类型
 export type ToolName = "bash" | "read" | "write" | "getTime" | "fetch"
 
 export type ToolFn = (input: string) => Promise<string>

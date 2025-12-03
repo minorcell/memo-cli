@@ -1,3 +1,4 @@
+// 工具方法：提示词读取、LLM 解析、历史记录、DeepSeek 调用
 import type { ParsedAssistant, ToolName, ChatMessage, DeepSeekResponse } from "./types"
 export const HISTORY_FILE = "history.xml"
 
@@ -10,6 +11,7 @@ export async function loadSystemPrompt() {
 }
 
 export function parseAssistant(content: string): ParsedAssistant {
+    // 基于简单正则抽取 XML 片段；确保 action/final 都可被识别
     const actionMatch = content.match(
         /<action[^>]*tool="([^"]+)"[^>]*>([\s\S]*?)<\/action>/i,
     )
@@ -46,6 +48,7 @@ export function escapeCData(content: string) {
 }
 
 export function wrapMessage(role: string, content: string) {
+    // 使用 CDATA 包裹，避免模型输出中的特殊符号破坏 XML
     return `  <message role="${role}">\n    <![CDATA[\n${escapeCData(content)}\n    ]]>\n  </message>`
 }
 

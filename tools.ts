@@ -1,3 +1,4 @@
+// 工具层：提供 LLM 可调用的基础工具（bash/read/write/getTime/fetch）
 import { appendFile, writeFile, mkdir } from "node:fs/promises"
 import { dirname } from "node:path"
 import type { WriteParseResult, ToolName, ToolFn } from "./types"

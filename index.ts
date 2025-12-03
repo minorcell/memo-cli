@@ -1,7 +1,4 @@
-/**
- * Demo agent using DeepSeek with a simple ReAct-style XML loop.
- * Run with: DEEPSEEK_API_KEY=xxx bun run index.ts "你的问题"
- */
+// 入口：运行 ReAct Agent，调用 DeepSeek 与工具集，落盘对话到 history.xml
 import { TOOLKIT } from "./tools"
 import type { ToolName, AgentResult, ChatMessage } from "./types"
 import { loadSystemPrompt, parseAssistant, writeHistory, wrapMessage, callDeepSeek, HISTORY_FILE } from "./utils"
@@ -38,7 +35,7 @@ async function runAgent(question: string): Promise<AgentResult> {
             let observation: string
 
             if (toolFn) {
-                observation = await toolFn(parsed.action.input)
+                observation = await toolFn(parsed.action.input) // 只支持单工具调用
             } else {
                 observation = `未知工具: ${parsed.action.tool}`
             }
