@@ -7,6 +7,7 @@
 - `index.ts`：Agent 主循环，加载系统提示词、调用 DeepSeek、解析 XML（thought/action/observation/final），串联工具调用。
 - `prompt.tmpl`：系统提示模板，定义 Agent 定位、工具列表和 ReAct XML 格式。
 - `tools.ts`：内置工具集（bash/read/write/getTime/fetch），均返回字符串结果，便于直接纳入 `<observation>`。
+- `history.xml`：每次运行完成后写入完整 XML 对话日志（系统提示、用户问题、LLM 输出、工具 observation）。
 - 运行流程：用户问题 → DeepSeek 生成 `<action>` → 调用对应工具 → 将 `<observation>` 回传模型 → 直到生成 `<final>`。
 
 ### 环境准备

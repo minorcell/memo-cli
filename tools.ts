@@ -1,13 +1,6 @@
 import { appendFile, writeFile, mkdir } from "node:fs/promises"
 import { dirname } from "node:path"
-
-export type ToolName = "bash" | "read" | "write" | "getTime" | "fetch"
-export type ToolFn = (input: string) => Promise<string>
-
-type WriteMode = "append" | "overwrite"
-type WriteParseResult =
-    | { error: string }
-    | { path: string; content: string; mode: WriteMode }
+import type { WriteParseResult, ToolName, ToolFn } from "./types"
 
 function parseWriteInput(input: string): WriteParseResult {
     try {
