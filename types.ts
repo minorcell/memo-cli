@@ -1,9 +1,4 @@
-export type ParsedAssistant = {
-    action?: { tool: string; input: string }
-    final?: string
-}
-
-/* Deepseek 消息类型 */
+/* 消息类型 */
 
 export type DeepSeekMessage = { content?: string }
 
@@ -18,6 +13,11 @@ export type ChatMessage = {
     content: string
 }
 
+export type AgentResult = {
+    answer: string
+    logEntries: string[]
+}
+
 /* 工具类型 */
 export type ToolName = "bash" | "read" | "write" | "getTime" | "fetch"
 
@@ -29,9 +29,7 @@ export type WriteParseResult =
     | { error: string }
     | { path: string; content: string; mode: WriteMode }
 
-/*  */
-
-export type AgentResult = {
-    answer: string
-    logEntries: string[]
+export type ParsedAssistant = {
+    action?: { tool: string; input: string }
+    final?: string
 }

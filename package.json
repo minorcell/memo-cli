@@ -1,5 +1,5 @@
 {
-  "name": "demo-agent",
+  "name": "react-demo",
   "module": "index.ts",
   "type": "module",
   "private": true,
