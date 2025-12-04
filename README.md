@@ -1,6 +1,6 @@
 # memo-cli
 
-一个使用 Bun、DeepSeek 模型和 XML 格式的命令行 Agent（MemoAgent）示例。
+使用 Bun 构建的运行在终端里面的 ReAct Agent
 
 ## 快速开始
 
