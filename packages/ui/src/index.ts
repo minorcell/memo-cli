@@ -5,20 +5,20 @@ import {
     loadSystemPrompt,
     writeHistory,
     HISTORY_FILE,
-    callDeepSeek,
+    callLLM,
     type AgentResult,
     type AgentDeps,
 } from "@memo/core"
 
 /**
  * 包装一套默认依赖，供 CLI 调用 Agent。
- * - 使用 DeepSeek 作为默认 LLM。
+ * - 使用 OpenAI 兼容接口，默认 DeepSeek 模型。
  * - 将工具注册表与日志回调传入。
  */
 async function run(question: string): Promise<AgentResult> {
     const deps: AgentDeps = {
         tools: TOOLKIT,
-        callLLM: callDeepSeek,
+        callLLM: callLLM,
         loadPrompt: loadSystemPrompt,
         writeHistory: (logs: string[]) => writeHistory(logs, HISTORY_FILE),
         onAssistantStep: (text: string, step: number) => {

@@ -11,7 +11,7 @@
 ## 核心接口与数据流
 
 - `ToolFn`: `(input: string) => Promise<string>`；`ToolName` 受控枚举。Tools 包提供 `getToolkit(): Record<ToolName, ToolFn>`。
-- `LLMClient`: `chat(messages: ChatMessage[], options?): Promise<string>`；Core 注入具体实现（如 DeepSeek、后续其他模型）。
+- `LLMClient`: `chat(messages: ChatMessage[], options?): Promise<string>`；Core 注入具体实现（如 OpenAI 兼容接口，默认指向 DeepSeek，后续其他模型）。
 - `runAgent(question, deps)`：Core 暴露的主调度函数，依赖注入 `{ tools, llmClient, logger, historyWriter, promptLoader, maxSteps }`；可扩展为 async generator 以便 UI 流式渲染。
 - 历史记录与提示词：Core 内部通过接口 `loadPrompt()`、`writeHistory(logs)`，由 UI/上层提供路径或实现，避免硬编码。
 - 错误与日志：Core 提供结构化 log 回调（如 `onStep`, `onTool`, `onFinal`），UI 可订阅绘制。
@@ -28,7 +28,7 @@
 
 - ReAct 循环：解析 `<action>/<final>`，调度工具，处理 observation，控制 MAX_STEPS。
 - Prompt/History：加载系统提示词，落盘 XML/JSON 历史（可插拔 writer）。
-- LLM 客户端：抽象接口，DeepSeek 实现只是其中之一；可插流式输出。
+- LLM 客户端：抽象接口，默认用 OpenAI 兼容接口（指向 DeepSeek）；可替换为其他模型或流式实现。
 - 防御性逻辑：未知工具提示、超步数退出、错误兜底。
 
 ### Tools
@@ -39,7 +39,7 @@
 
 ## 目录/包建议（Monorepo）
 
-- `packages/core`: `index.ts`（runAgent）、`llm/`（DeepSeek 实现）、`prompt/`、`history/`、`parser/`、`types/`。
+- `packages/core`: `index.ts`（runAgent）、`llm/`（OpenAI 兼容实现，默认 DeepSeek）、`prompt/`、`history/`、`parser/`、`types/`。
 - `packages/tools`: `tools/`（各工具实现）、`mcp/`（适配器）、`types/`。
 - `packages/ui`: Ink 界面、CLI 入口、配置加载。
 - 根目录：workspace 配置（pnpm/bun workspaces）、通用脚本（lint/test/build）。
@@ -48,7 +48,7 @@
 
 1. 抽 Core：将现有主循环/提示词/历史/解析迁移到 `packages/core`，暴露 `runAgent` 与类型。
 2. 抽 Tools：将工具实现移至 `packages/tools`，暴露 `getToolkit`。
-3. 抽 LLM：将 DeepSeek 客户端移至 Core 的 `llm/deepseek`，Core 通过接口依赖注入。
+3. 抽 LLM：将 OpenAI 兼容客户端移至 Core 的 `llm/`（默认 DeepSeek），Core 通过接口依赖注入。
 4. UI 替换：新增 `packages/ui`（Ink），封装 CLI 输入与渲染，调用 Core。
 5. MCP 接入：在 Tools 包添加 MCP 适配器，统一注册。
 6. 配置与测试：统一配置加载（API Key、路径、超时），补充单元测试（解析、工具、防御逻辑），为工具/LLM 添加模拟实现以便离线测试。

@@ -6,7 +6,7 @@
 
 [] 建立 packages 结构（core/tools/ui），迁移主循环、工具实现与类型到对应包，保留现有 CLI 入口可运行。
 [] 定义 Core 对外接口（runAgent / 事件流）、ToolRegistry 接口与 ToolFn 约束，整理 prompt/history 配置注入点。
-[] 抽离 DeepSeek 客户端到 core/apis，使用 request 封装；补充类型与错误处理。
+[] 抽离 OpenAI 兼容客户端到 core/apis（默认指向 DeepSeek），使用 request 封装；补充类型与错误处理。
 
 ## 阶段二：MCP 适配与双协议准备
 
