@@ -1,5 +1,5 @@
 {
-  "name": "react-demo",
+  "name": "memo-cli",
   "type": "module",
   "private": true,
   "scripts": {
@@ -10,8 +10,8 @@
     "packages/*"
   ],
   "imports": {
-    "@demo/core": "./packages/core/src/index.ts",
-    "@demo/tools": "./packages/tools/src/index.ts"
+    "@memo/core": "./packages/core/src/index.ts",
+    "@memo/tools": "./packages/tools/src/index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

@@ -1,5 +1,5 @@
 {
-  "name": "@demo/tools",
+  "name": "@memo/tools",
   "type": "module",
   "module": "src/index.ts",
   "private": true

@@ -1,4 +1,4 @@
-import type { ParsedAssistant } from "./types"
+import type { ParsedAssistant } from "@memo/core/types"
 
 export function parseAssistant(content: string): ParsedAssistant {
     // 基于简单正则抽取 XML 片段；确保 action/final 都可被识别

@@ -1,4 +1,4 @@
-import type { ToolFn } from "./types"
+import type { ToolFn } from "@memo/tools/tools/types"
 
 export const fetchUrl: ToolFn = async (rawUrl: string) => {
     const url = rawUrl.trim()

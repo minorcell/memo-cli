@@ -1,14 +1,14 @@
 // 简易 CLI（占位 UI 层）：调用 Core 的 runAgent 与 Tools 集合
-import { TOOLKIT } from "@demo/tools"
+import { TOOLKIT } from "@memo/tools"
 import {
     runAgent,
     loadSystemPrompt,
     writeHistory,
     HISTORY_FILE,
+    callDeepSeek,
     type AgentResult,
     type AgentDeps,
-} from "@demo/core"
-import { callDeepSeek } from "@demo/core/llm/deepseek"
+} from "@memo/core"
 
 async function run(question: string): Promise<AgentResult> {
     const deps: AgentDeps = {

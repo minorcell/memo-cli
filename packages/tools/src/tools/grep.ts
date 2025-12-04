@@ -1,5 +1,5 @@
-import type { ToolFn } from "./types"
-import { normalizePath } from "./helpers"
+import type { ToolFn } from "@memo/tools/tools/types"
+import { normalizePath } from "@memo/tools/tools/helpers"
 
 type OutputMode = "content" | "files_with_matches" | "count"
 type GrepInput =

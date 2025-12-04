@@ -1,5 +1,5 @@
-import type { ChatMessage } from "../types"
-import { requestJson } from "../utils/request"
+import type { ChatMessage } from "@memo/core/types"
+import { requestJson } from "@memo/core/utils/request"
 
 type DeepSeekMessage = { content?: string }
 type DeepSeekChoice = { message?: DeepSeekMessage }

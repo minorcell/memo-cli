@@ -1,5 +1,5 @@
 {
-  "name": "@demo/core",
+  "name": "@memo/core",
   "type": "module",
   "module": "src/index.ts",
   "private": true

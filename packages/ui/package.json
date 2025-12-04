@@ -1,10 +1,10 @@
 {
-  "name": "@demo/ui",
+  "name": "memo-cli-ui",
   "type": "module",
   "module": "src/index.ts",
   "private": true,
   "dependencies": {
-    "@demo/core": "workspace:*",
-    "@demo/tools": "workspace:*"
+    "@memo/core": "workspace:*",
+    "@memo/tools": "workspace:*"
   }
 }

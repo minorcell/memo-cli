@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises"
-import type { ToolFn } from "./types"
-import { ensureParentDir, normalizePath } from "./helpers"
+import type { ToolFn } from "@memo/tools/tools/types"
+import { ensureParentDir, normalizePath } from "@memo/tools/tools/helpers"
 
 type WriteInput =
     | { file_path?: string; content?: string }

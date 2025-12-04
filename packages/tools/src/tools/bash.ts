@@ -1,4 +1,4 @@
-import type { ToolFn } from "./types"
+import type { ToolFn } from "@memo/tools/tools/types"
 
 export const bash: ToolFn = async (rawCmd: string) => {
     const cmd = rawCmd.trim()

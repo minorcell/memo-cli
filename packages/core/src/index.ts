@@ -1,8 +1,8 @@
 // Agent 核心：ReAct 循环与依赖注入
-import { loadSystemPrompt as defaultLoadPrompt } from "./prompt"
-import { writeHistory as defaultWriteHistory, HISTORY_FILE } from "./history"
-import { parseAssistant, wrapMessage } from "./utils"
-import type { AgentDeps, AgentResult, ChatMessage } from "./types"
+import { loadSystemPrompt as defaultLoadPrompt } from "@memo/core/prompt"
+import { writeHistory as defaultWriteHistory, HISTORY_FILE } from "@memo/core/history"
+import { parseAssistant, wrapMessage } from "@memo/core/utils"
+import type { AgentDeps, AgentResult, ChatMessage } from "@memo/core/types"
 
 export const MAX_STEPS = 100
 
@@ -69,7 +69,8 @@ export async function runAgent(
     return { answer: fallback, logEntries }
 }
 
-export * from "./types"
-export * from "./prompt"
-export * from "./history"
-export * from "./utils"
+export * from "@memo/core/types"
+export * from "@memo/core/prompt"
+export * from "@memo/core/history"
+export * from "@memo/core/utils"
+export * from "@memo/core/llm/deepseek"

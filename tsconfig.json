@@ -29,10 +29,10 @@
     // Workspace path aliases
     "baseUrl": ".",
     "paths": {
-      "@demo/core": ["packages/core/src/index.ts"],
-      "@demo/core/*": ["packages/core/src/*"],
-      "@demo/tools": ["packages/tools/src/index.ts"],
-      "@demo/tools/*": ["packages/tools/src/*"]
+      "@memo/core": ["packages/core/src/index.ts"],
+      "@memo/core/*": ["packages/core/src/*"],
+      "@memo/tools": ["packages/tools/src/index.ts"],
+      "@memo/tools/*": ["packages/tools/src/*"]
     }
   }
 }

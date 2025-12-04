@@ -1,6 +1,6 @@
-# ReAct Demo
+# memo-cli
 
-一个使用 Bun、DeepSeek 模型和 XML 格式的 ReAct Agent 示例。
+一个使用 Bun、DeepSeek 模型和 XML 格式的命令行 Agent（MemoAgent）示例。
 
 ## 快速开始
 
@@ -17,18 +17,15 @@
    bun start "你的问题"
    ```
 
-## 内置工具
+## 项目结构（monorepo）
 
-- `bash`: 执行 shell 命令
-- `read`: 读取文件
-- `write`: 创建/覆盖文件
-- `edit`: 替换文本
-- `glob`: 文件匹配
-- `grep`: 代码搜索
-- `fetch`: HTTP GET 请求
+- `packages/core`：Agent 核心（ReAct 循环、提示词/历史、LLM 客户端、类型）。
+- `packages/tools`：内置工具集合（bash/read/write/edit/glob/grep/fetch 等），统一导出 `@memo/tools`。
+- `packages/ui`：CLI 入口（后续可替换为 Ink UI），从 `@memo/core`、`@memo/tools` 组装运行。
+- `packages/core/prompt.tmpl`：系统提示词模板。
 
 ## 自定义
 
-- 修改 `packages/core/prompt.tmpl` 调整行为
-- 在 `packages/tools/src/` 添加新工具或调整现有工具
-- Core 主循环在 `packages/core/src/index.ts`，UI 入口在 `packages/ui/src/index.ts`
+- 修改 `packages/core/prompt.tmpl` 调整行为。
+- 在 `packages/tools/src/` 添加新工具或调整现有工具，统一注册于 `@memo/tools`。
+- Core 主循环在 `packages/core/src/index.ts`，UI 入口在 `packages/ui/src/index.ts`（使用 Bun 运行）。
