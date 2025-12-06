@@ -62,6 +62,12 @@ export const grep: ToolFn = async (rawInput: string) => {
     const parsed = parseGrepInput(rawInput.trim())
     if ("error" in parsed) return parsed.error
 
+    // 环境前置校验：缺少 rg 直接返回提示。
+    const rgPath = Bun.which("rg")
+    if (!rgPath) {
+        return "rg 未安装或不在 PATH"
+    }
+
     const basePath = parsed.path ? normalizePath(parsed.path) : process.cwd()
     const args = ["rg", "--color", "never"] // 使用 ripgrep，禁用颜色方便解析
     const mode = parsed.output_mode ?? "content"

@@ -17,11 +17,6 @@ import {
 
 type CliOptions = {
     once: boolean
-    logDir: string
-    tokenizerModel?: string
-    maxPromptTokens?: number
-    warnPromptTokens?: number
-    sessionId?: string
 }
 
 type ParsedArgs = {
@@ -29,22 +24,12 @@ type ParsedArgs = {
     options: CliOptions
 }
 
-/** 将字符串解析为数字，非法时返回 undefined，避免 NaN 污染配置。 */
-function parseNumber(value?: string): number | undefined {
-    if (!value) return undefined
-    const num = Number(value)
-    return Number.isFinite(num) ? num : undefined
-}
-
-/** 简易 argv 解析，支持 --once、日志格式与 token 限制等参数。 */
+/** 简易 argv 解析，仅支持 --once 开关。 */
 function parseArgs(argv: string[]): ParsedArgs {
     const options: CliOptions = {
         once: false,
-        logDir: HISTORY_DIR,
     }
     const questionParts: string[] = []
-
-    const takeNext = (idx: number) => argv[idx + 1]
 
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i]
@@ -55,76 +40,25 @@ function parseArgs(argv: string[]): ParsedArgs {
             options.once = true
             continue
         }
-        if (arg === "--log-dir") {
-            options.logDir = takeNext(i) ?? options.logDir
-            i += 1
-            continue
-        }
-        if (arg.startsWith("--log-dir=")) {
-            options.logDir = arg.split("=")[1] || options.logDir
-            continue
-        }
-        if (arg === "--tokenizer-model") {
-            options.tokenizerModel = takeNext(i)
-            i += 1
-            continue
-        }
-        if (arg.startsWith("--tokenizer-model=")) {
-            options.tokenizerModel = arg.split("=")[1]
-            continue
-        }
-        if (arg === "--max-prompt-tokens") {
-            options.maxPromptTokens = parseNumber(takeNext(i))
-            i += 1
-            continue
-        }
-        if (arg.startsWith("--max-prompt-tokens=")) {
-            options.maxPromptTokens = parseNumber(arg.split("=")[1])
-            continue
-        }
-        if (arg === "--warn-prompt-tokens") {
-            options.warnPromptTokens = parseNumber(takeNext(i))
-            i += 1
-            continue
-        }
-        if (arg.startsWith("--warn-prompt-tokens=")) {
-            options.warnPromptTokens = parseNumber(arg.split("=")[1])
-            continue
-        }
-        if (arg === "--session-id") {
-            options.sessionId = takeNext(i)
-            i += 1
-            continue
-        }
-        if (arg.startsWith("--session-id=")) {
-            options.sessionId = arg.split("=")[1]
-            continue
-        }
         questionParts.push(arg)
     }
 
     return { question: questionParts.join(" "), options }
 }
 
-function buildHistorySinks(
-    sessionId: string,
-    options: CliOptions
-): { sinks: HistorySink[] } {
+function buildHistorySinks(sessionId: string): { sinks: HistorySink[] } {
     const sinks: HistorySink[] = []
-    const jsonlPath = join(options.logDir, `${sessionId}.jsonl`)
+    const jsonlPath = join(HISTORY_DIR, `${sessionId}.jsonl`)
     sinks.push(new JsonlHistorySink(jsonlPath))
     return { sinks }
 }
 
 async function runInteractive(parsed: ParsedArgs) {
-    const sessionId = parsed.options.sessionId ?? randomUUID()
-    const { sinks } = buildHistorySinks(sessionId, parsed.options)
+    const sessionId = randomUUID()
+    const { sinks } = buildHistorySinks(sessionId)
     const sessionOptions: AgentSessionOptions = {
         sessionId,
         mode: parsed.options.once ? "once" : "interactive",
-        tokenizerModel: parsed.options.tokenizerModel,
-        maxPromptTokens: parsed.options.maxPromptTokens,
-        warnPromptTokens: parsed.options.warnPromptTokens,
     }
 
     const deps: AgentSessionDeps = {
