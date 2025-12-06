@@ -49,8 +49,7 @@ function parseGrepInput(input: string): GrepInput {
         return parsed as GrepInput
     } catch {
         return {
-            error:
-                'grep 参数需为 JSON，如 {"pattern":"TODO","path":".","output_mode":"content","glob":"src/**/*.ts","-i":false,"-A":2}',
+            error: 'grep 参数需为 JSON，如 {"pattern":"TODO","path":".","output_mode":"content","glob":"src/**/*.ts","-i":false,"-A":2}',
         }
     }
 }

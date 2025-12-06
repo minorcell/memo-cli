@@ -6,9 +6,7 @@ import type { ParsedAssistant } from "@memo/core/types"
  */
 export function parseAssistant(content: string): ParsedAssistant {
     // 基于简单正则抽取 XML 片段；确保 action/final 都可被识别
-    const actionMatch = content.match(
-        /<action[^>]*tool="([^"]+)"[^>]*>([\s\S]*?)<\/action>/i,
-    )
+    const actionMatch = content.match(/<action[^>]*tool="([^"]+)"[^>]*>([\s\S]*?)<\/action>/i)
     const finalMatch = content.match(/<final>([\s\S]*?)<\/final>/i)
 
     const parsed: ParsedAssistant = {}

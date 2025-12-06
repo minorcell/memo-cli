@@ -9,17 +9,17 @@
 ## 快速开始
 
 1. 安装依赖：
-   ```bash
-   bun install
-   ```
+    ```bash
+    bun install
+    ```
 2. 设置 API 密钥：
-   ```bash
-   export DEEPSEEK_API_KEY=your_key_here
-   ```
+    ```bash
+    export DEEPSEEK_API_KEY=your_key_here
+    ```
 3. 运行：
-   ```bash
-   bun start "你的问题"
-   ```
+    ```bash
+    bun start "你的问题"
+    ```
 
 ## 项目结构（monorepo）
 

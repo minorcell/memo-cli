@@ -1,6 +1,6 @@
 {
-  "name": "@memo/tools",
-  "type": "module",
-  "module": "src/index.ts",
-  "private": true
+    "name": "@memo/tools",
+    "type": "module",
+    "module": "src/index.ts",
+    "private": true
 }

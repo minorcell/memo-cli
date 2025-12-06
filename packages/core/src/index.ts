@@ -16,10 +16,7 @@ export const MAX_STEPS = 100
  * 2. 循环调用 LLM，解析 action/final。
  * 3. 调用工具并回写 observation，直到得到最终回答或超出步数。
  */
-export async function runAgent(
-    question: string,
-    deps: AgentDeps,
-): Promise<AgentResult> {
+export async function runAgent(question: string, deps: AgentDeps): Promise<AgentResult> {
     const {
         tools,
         callLLM,

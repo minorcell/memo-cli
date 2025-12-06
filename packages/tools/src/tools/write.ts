@@ -1,9 +1,7 @@
 import type { ToolFn } from "@memo/tools/tools/types"
 import { normalizePath } from "@memo/tools/tools/helpers"
 
-type WriteInput =
-    | { file_path?: string; content?: string }
-    | { error: string }
+type WriteInput = { file_path?: string; content?: string } | { error: string }
 
 /** 解析 write 入参，确保路径和内容存在。 */
 function parseWriteInput(input: string): WriteInput {
@@ -18,8 +16,7 @@ function parseWriteInput(input: string): WriteInput {
         return parsed as WriteInput
     } catch {
         return {
-            error:
-                'write 参数需为 JSON，如 {"file_path":"/abs/file","content":"..."}',
+            error: 'write 参数需为 JSON，如 {"file_path":"/abs/file","content":"..."}',
         }
     }
 }

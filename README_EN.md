@@ -7,17 +7,17 @@ A ReAct Agent built with Bun that runs in the terminal.
 ## Quick Start
 
 1. Install dependencies:
-   ```bash
-   bun install
-   ```
+    ```bash
+    bun install
+    ```
 2. Set API key:
-   ```bash
-   export DEEPSEEK_API_KEY=your_key_here
-   ```
+    ```bash
+    export DEEPSEEK_API_KEY=your_key_here
+    ```
 3. Run:
-   ```bash
-   bun start "your question"
-   ```
+    ```bash
+    bun start "your question"
+    ```
 
 ## Project Structure (monorepo)
 

@@ -1,10 +1,10 @@
 {
-  "name": "@memo/ui",
-  "type": "module",
-  "module": "src/index.ts",
-  "private": true,
-  "dependencies": {
-    "@memo/core": "workspace:*",
-    "@memo/tools": "workspace:*"
-  }
+    "name": "@memo/ui",
+    "type": "module",
+    "module": "src/index.ts",
+    "private": true,
+    "dependencies": {
+        "@memo/core": "workspace:*",
+        "@memo/tools": "workspace:*"
+    }
 }

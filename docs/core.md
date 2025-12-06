@@ -4,16 +4,17 @@
 
 ## 核心机制：XML 协议驱动的状态机
 
-1) **系统提示词约束输出**：`prompt.xml` 明确要求模型使用 `<thought>` 解释思考、`<action tool="...">` 触发工具、或 `<final>` 给出答案。  
-2) **解析模型输出**：`parseAssistant` 用正则抽取 `<action>` 与 `<final>`，二者都有可能同时存在。  
-3) **状态流转**：
-   - 抽到 `<final>`：流程结束，返回答案。
-   - 抽到 `<action tool="X">payload</action>`：查找工具 `X` 并执行，得到 observation。
-   - 无法解析出 action/final：视为模型失效，跳出循环，走兜底答案。
-4) **Observation 回写**：工具结果被包装成 `<observation>...</observation>` 写回对话（作为 user 消息），逼迫模型在下一轮基于观察继续推理或收敛到 `<final>`。
-5) **循环防护**：最多 `MAX_STEPS`（默认 100）轮，避免死循环；缺少匹配工具时也会以 `"未知工具: X"` 的 observation 继续，让模型自我纠正。
+1. **系统提示词约束输出**：`prompt.xml` 明确要求模型使用 `<thought>` 解释思考、`<action tool="...">` 触发工具、或 `<final>` 给出答案。
+2. **解析模型输出**：`parseAssistant` 用正则抽取 `<action>` 与 `<final>`，二者都有可能同时存在。
+3. **状态流转**：
+    - 抽到 `<final>`：流程结束，返回答案。
+    - 抽到 `<action tool="X">payload</action>`：查找工具 `X` 并执行，得到 observation。
+    - 无法解析出 action/final：视为模型失效，跳出循环，走兜底答案。
+4. **Observation 回写**：工具结果被包装成 `<observation>...</observation>` 写回对话（作为 user 消息），逼迫模型在下一轮基于观察继续推理或收敛到 `<final>`。
+5. **循环防护**：最多 `MAX_STEPS`（默认 100）轮，避免死循环；缺少匹配工具时也会以 `"未知工具: X"` 的 observation 继续，让模型自我纠正。
 
 ### 标签职责一览
+
 - `<thought>`：模型自我思考，纯文本，不被程序消费，仅供人类/日志阅读。
 - `<action tool="name">input</action>`：被解析为待执行的工具调用，input 直接传入工具函数。
 - `<observation>...</observation>`：程序生成，写回历史，告诉模型工具产物。
@@ -59,6 +60,7 @@ return { answer: "未能生成最终回答，请重试或调整问题。", logEn
 ```
 
 要点：
+
 - **注入式依赖**：`tools`（工具注册表）、`callLLM`（模型客户端）、`loadPrompt`、`writeHistory`、`historyFilePath`、`onAssistantStep` 均从 `AgentDeps` 传入，Core 不直接依赖外部环境变量或 IO。
 - **循环与防护**：`MAX_STEPS` 默认 100，避免模型进入死循环；若既无 `<action>` 也无 `<final>`，立即跳出。
 - **Observation 回写**：工具输出被包装为 `<observation>...` 重新写入对话，诱导模型继续推理或收敛到 `<final>`。
@@ -68,9 +70,9 @@ return { answer: "未能生成最终回答，请重试或调整问题。", logEn
 
 - `loadSystemPrompt()` 读取内置的 XML 模板 `prompt.xml`，可被依赖注入覆盖。
 - 模板中定义：
-  - 可用工具列表及参数约定（bash/read/write/edit/glob/grep/fetch）。
-  - 响应格式：`<thought>`、`<action tool="...">`、等待 `<observation>`、或 `<final>`。
-  - 约束：每轮仅用一个工具、未知工具时也需保持 XML 格式等。
+    - 可用工具列表及参数约定（bash/read/write/edit/glob/grep/fetch）。
+    - 响应格式：`<thought>`、`<action tool="...">`、等待 `<observation>`、或 `<final>`。
+    - 约束：每轮仅用一个工具、未知工具时也需保持 XML 格式等。
 
 ## 模型输出解析（packages/core/src/utils.ts）
 
@@ -93,8 +95,8 @@ return { answer: "未能生成最终回答，请重试或调整问题。", logEn
 ## 工具协议与注册表
 
 - 类型定义见 `packages/core/src/types.ts`：
-  - `ToolFn = (input: string) => Promise<string>`，`ToolRegistry = Record<string, ToolFn>`。
-  - `CallLLM` 与 `AgentDeps` 约束了 runAgent 所需的全部依赖。
+    - `ToolFn = (input: string) => Promise<string>`，`ToolRegistry = Record<string, ToolFn>`。
+    - `CallLLM` 与 `AgentDeps` 约束了 runAgent 所需的全部依赖。
 - 默认工具集合由 `packages/tools` 暴露的 `TOOLKIT` 提供（bash/read/write/edit/glob/grep/fetch），Core 仅按名称查找，不关心具体实现。
 
 ## 上层如何使用（packages/ui/src/index.ts 示例）
@@ -103,14 +105,13 @@ CLI 层组装依赖并调用：
 
 ```ts
 const deps = {
-  tools: TOOLKIT,
-  callLLM: callOpenAICompatible,
-  loadPrompt: loadSystemPrompt,
-  writeHistory: logs => writeHistory(logs, HISTORY_FILE),
-  onAssistantStep: (text, step) => console.log(`[LLM 第 ${step + 1} 轮输出]\\n${text}`),
+    tools: TOOLKIT,
+    callLLM: callOpenAICompatible,
+    loadPrompt: loadSystemPrompt,
+    writeHistory: (logs) => writeHistory(logs, HISTORY_FILE),
+    onAssistantStep: (text, step) => console.log(`[LLM 第 ${step + 1} 轮输出]\\n${text}`),
 }
 const result = await runAgent(userQuestion, deps)
 ```
 
 这样 Core 保持纯调度与协议处理，UI/工具/模型均可被替换或扩展。
- 

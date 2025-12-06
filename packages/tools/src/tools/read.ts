@@ -1,9 +1,7 @@
 import type { ToolFn } from "@memo/tools/tools/types"
 import { normalizePath } from "@memo/tools/tools/helpers"
 
-type ReadInput =
-    | { file_path?: string; offset?: number; limit?: number }
-    | { error: string }
+type ReadInput = { file_path?: string; offset?: number; limit?: number } | { error: string }
 
 /** 解析 read 入参，限制偏移与行数为正整数。 */
 function parseReadInput(input: string): ReadInput {
@@ -18,10 +16,7 @@ function parseReadInput(input: string): ReadInput {
         ) {
             return { error: "offset 需为正整数" }
         }
-        if (
-            parsed.limit !== undefined &&
-            (!Number.isInteger(parsed.limit) || parsed.limit < 1)
-        ) {
+        if (parsed.limit !== undefined && (!Number.isInteger(parsed.limit) || parsed.limit < 1)) {
             return { error: "limit 需为正整数" }
         }
         return parsed as ReadInput
@@ -55,9 +50,7 @@ export const read: ToolFn = async (rawInput: string) => {
         const endIdx = Math.min(lines.length, startIdx + limit)
         const sliced = lines.slice(startIdx, endIdx)
         // 输出加上行号，便于定位
-        const withNumbers = sliced
-            .map((line, i) => `${startIdx + i + 1}: ${line}`)
-            .join("\n")
+        const withNumbers = sliced.map((line, i) => `${startIdx + i + 1}: ${line}`).join("\n")
         return withNumbers
     } catch (err) {
         return `读取失败: ${(err as Error).message}`

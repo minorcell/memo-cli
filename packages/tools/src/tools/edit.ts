@@ -25,17 +25,13 @@ function parseEditInput(input: string): EditInput {
         if (typeof parsed.new_string !== "string") {
             return { error: "edit 需要 new_string 字符串" }
         }
-        if (
-            parsed.replace_all !== undefined &&
-            typeof parsed.replace_all !== "boolean"
-        ) {
+        if (parsed.replace_all !== undefined && typeof parsed.replace_all !== "boolean") {
             return { error: "replace_all 需为布尔值" }
         }
         return parsed as EditInput
     } catch {
         return {
-            error:
-                'edit 参数需为 JSON，如 {"file_path":"/abs/file","old_string":"a","new_string":"b","replace_all":false}',
+            error: 'edit 参数需为 JSON，如 {"file_path":"/abs/file","old_string":"a","new_string":"b","replace_all":false}',
         }
     }
 }

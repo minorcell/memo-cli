@@ -1,9 +1,7 @@
 import type { ToolFn } from "@memo/tools/tools/types"
 import { normalizePath } from "@memo/tools/tools/helpers"
 
-type GlobInput =
-    | { pattern?: string; path?: string }
-    | { error: string }
+type GlobInput = { pattern?: string; path?: string } | { error: string }
 
 /** 解析 glob 入参，限定 pattern 与 path 的类型。 */
 function parseGlobInput(input: string): GlobInput {
