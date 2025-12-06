@@ -21,50 +21,16 @@
 - `<final>...</final>`：终止信号，直接作为最终回答。
 - `<message role="..."><![CDATA[...]]></message>`：日志包装格式，用于落盘历史，防止特殊符号破坏 XML。
 
-## 入口：runAgent（packages/core/src/index.ts）
+## 入口：Session/Turn API（createAgentSession）
 
-`runAgent(question, deps)` 是主调度函数，按「读取提示词 → 建立初始对话 → 循环解析 XML → 调度工具/终止」的流程运行。外部通过依赖注入传入工具集、模型调用、提示词/日志实现等。伪代码（强调状态转移而非具体代码）：
-
-```ts
-const systemPrompt = await loadPrompt()
-log("system", systemPrompt)
-log("user", question)
-history = [
-  { role: "system", content: systemPrompt },
-  { role: "user", content: question },
-]
-
-for step in [0..MAX_STEPS):
-  assistantText = await callLLM(history)
-  onAssistantStep?.(assistantText, step)
-  log("assistant", assistantText)
-  parsed = parseAssistant(assistantText)
-
-  if parsed.final:
-    return { answer: parsed.final, logEntries }      // 终止
-
-  if parsed.action:
-    toolFn = tools[parsed.action.tool]
-    observation = toolFn ? await toolFn(parsed.action.input) : `未知工具: ${...}`
-    log("observation", observation)
-    history.push({                                    // 将 observation 作为 user 消息回写
-      role: "user",
-      content: `<observation>${observation}</observation>`,
-    })
-    continue                                          // 下一轮
-
-  break // 未产生 action/final，防止空转
-
-// 兜底失败提示
-return { answer: "未能生成最终回答，请重试或调整问题。", logEntries }
-```
+核心入口是 `createAgentSession(deps, options)`，返回 Session 对象，调用 `runTurn` 执行单轮 ReAct 循环。UI 自行决定跑多少 turn（如 `--once` 只跑一轮），Core 只在 turn 内通过 `MAX_STEPS` 限制 step 数，防止模型空转。
 
 要点：
 
-- **注入式依赖**：`tools`（工具注册表）、`callLLM`（模型客户端）、`loadPrompt`、`onAssistantStep`、`historySinks` 等均从依赖注入传入，Core 不直接依赖外部环境变量或 IO。
-- **循环与防护**：`MAX_STEPS` 默认 100，避免模型进入死循环；若既无 `<action>` 也无 `<final>`，立即跳出。
-- **Observation 回写**：工具输出被包装为 `<observation>...` 重新写入对话，诱导模型继续推理或收敛到 `<final>`。
-- **未知工具提示**：当模型要求的工具未注册时，直接写入 `"未知工具: xxx"`，保持协议完整。
+- **注入式依赖**：`tools`（默认内置工具集）、`callLLM`（默认 OpenAI/DeepSeek）、`loadPrompt`（默认 prompt.xml）、`historySinks`（默认 JSONL）、`tokenCounter` 等可省略，Core 会补齐默认实现；`onAssistantStep/onObservation` 供 UI 订阅。
+- **循环与防护**：`MAX_STEPS` 默认 100，限制单个 turn 的 step 数；若既无 `<action>` 也无 `<final>`，立即跳出。
+- **Observation 回写**：工具输出被包装为 `<observation>...` 写回对话，促使模型收敛。
+- **未知工具提示**：未注册的工具会写入 `"未知工具: xxx"` 继续引导模型修正。
 
 ## 提示词加载（packages/core/src/runtime/prompt.ts & prompt.xml）
 
