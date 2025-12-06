@@ -68,7 +68,7 @@
 
 - CLI 入口变为 REPL：监听 stdin、维持 Session 实例、逐 Turn 调用 `runTurn`；`--once` 则跳过循环。
 - 渲染策略：沿用 `onAssistantStep` 打印每次模型输出；工具调用与 observation 也同步打印，便于可视化。
-- 命令行参数：`--once`、`--session-id`（可选复用外部 ID）、`--log-format=xml|jsonl|both`、`--log-dir`。
+- 命令行参数：`--once`（单轮后退出）；其余参数通过代码配置或默认值控制。
 
 ## Token 计数与预算策略
 
