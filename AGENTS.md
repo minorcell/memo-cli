@@ -13,15 +13,16 @@
 
 - Install deps: `bun install`.
 - Run locally: `bun start "你的问题"` (runs `packages/ui/src/index.ts` via Bun; requires API key set).
-- Bundle for distribution: `bun build` (outputs Bun-targeted build to `dist/`).
+- Bundle for distribution: `bun build` (outputs Bun-targeted build to `dist/`; script includes `--minify` by default).
 - Direct entry for debugging: `bun run packages/ui/src/index.ts "question"` to bypass scripts.
+- Format code: `bun run format` (write) or `bun run format:check` (verify).
 
 ## Coding Style & Naming Conventions
 
 - TypeScript + ESM modules; prefer explicit named exports from package entrypoints.
 - Use camelCase for variables/functions, PascalCase for types/interfaces/classes, and CONSTANT_CASE for shared constants (e.g., `MAX_STEPS`).
 - Keep functions small and pure in `packages/core`; side effects live in UI/tools layers.
-- No lint/format config checked in; align with existing 4-space indentation and concise comments (current comments are bilingual—keep them short and relevant).
+- Prettier config lives in `prettier.config.mjs` (4-space indent, no semicolons); use the provided format scripts. Keep comments concise (bilingual style in codebase).
 
 ## Testing Guidelines
 
