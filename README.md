@@ -1,5 +1,9 @@
 # memo-cli
 
+[English Version](./README_EN.md)
+
+使用 Bun 构建的运行在终端里面的 ReAct Agent
+
 使用 Bun 构建的运行在终端里面的 ReAct Agent
 
 ## 快速开始
