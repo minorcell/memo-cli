@@ -12,14 +12,6 @@ export type ChatMessage = {
     content: string
 }
 
-/** Agent 运行得到的结果，包括最终答案与全量日志。 */
-export type AgentResult = {
-    /** 模型最终输出的文本。 */
-    answer: string
-    /** 兼容旧 XML 记录的日志片段。 */
-    logEntries: string[]
-}
-
 /** 单步调试记录，便于回放与可观测。 */
 export type AgentStepTrace = {
     /** 步骤索引，从 0 开始。 */
@@ -148,8 +140,6 @@ export type TurnResult = {
     errorMessage?: string
     /** 本轮 token 统计。 */
     tokenUsage: TokenUsage
-    /** 兼容 XML 的日志片段。 */
-    logEntries: string[]
 }
 
 /** Session 对象，持有历史并可执行多轮对话。 */

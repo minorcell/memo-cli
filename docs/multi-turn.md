@@ -47,7 +47,7 @@
 3. **ReAct 循环**（复用 `runAgent` 内部逻辑，或将其下沉为 `runTurn`）：
     - 调用 `callLLM(history)` 得到 `assistantText`，记 `assistant` 事件。
     - `parseAssistant`：若有 `<action>`，执行工具，写入 `action` / `observation` 事件，并将 `<observation>` 作为 user 消息回写；若有 `<final>`，写入 `final` 事件并结束 Turn。
-    - 仍受 `MAX_STEPS`（step 数）限制，超限写 `turn_end`（status=max_steps）。
+    - 仍受 `max_steps`（配置项，默认 100）限制，超限写 `turn_end`（status=max_steps）。
 4. **Turn End**：
     - 将最终 `<final>` 内容以 assistant 消息写入 `chatHistory`，方便下一轮续对话。
     - 写入 `turn_end` 事件（status、stepCount、durationMs、errorMessage?）。

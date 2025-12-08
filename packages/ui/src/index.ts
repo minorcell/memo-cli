@@ -2,7 +2,14 @@
 import { randomUUID } from "node:crypto"
 import { createInterface } from "node:readline/promises"
 import { stdin as input, stdout as output } from "node:process"
-import { createAgentSession, type AgentSessionDeps, type AgentSessionOptions } from "@memo/core"
+import {
+    createAgentSession,
+    loadMemoConfig,
+    writeMemoConfig,
+    type AgentSessionDeps,
+    type AgentSessionOptions,
+    type MemoConfig,
+} from "@memo/core"
 
 type CliOptions = {
     once: boolean
@@ -35,7 +42,48 @@ function parseArgs(argv: string[]): ParsedArgs {
     return { question: questionParts.join(" "), options }
 }
 
+async function ensureProviderConfig() {
+    const loaded = await loadMemoConfig()
+    if (!loaded.needsSetup) return loaded
+
+    const rl = createInterface({ input, output })
+    const ask = async (prompt: string, fallback: string) => {
+        const ans = (await rl.question(prompt)).trim()
+        return ans || fallback
+    }
+
+    try {
+        console.log("未检测到可用的 provider 配置，请按提示输入：")
+        const name = await ask("Provider 名称 [deepseek]: ", "deepseek")
+        const envKey = await ask("API Key 环境变量名 [DEEPSEEK_API_KEY]: ", "DEEPSEEK_API_KEY")
+        const model = await ask("模型名称 [deepseek-chat]: ", "deepseek-chat")
+        const baseUrl = await ask(
+            "Base URL [https://api.deepseek.com]: ",
+            "https://api.deepseek.com",
+        )
+
+        const config: MemoConfig = {
+            current_provider: name,
+            max_steps: loaded.config.max_steps ?? 100,
+            providers: [
+                {
+                    name,
+                    env_api_key: envKey,
+                    model,
+                    base_url: baseUrl || undefined,
+                },
+            ],
+        }
+        await writeMemoConfig(loaded.configPath, config)
+        console.log(`配置已写入 ${loaded.configPath}\n`)
+        return { ...loaded, config, needsSetup: false }
+    } finally {
+        rl.close()
+    }
+}
+
 async function runInteractive(parsed: ParsedArgs) {
+    await ensureProviderConfig()
     const sessionId = randomUUID()
     const sessionOptions: AgentSessionOptions = {
         sessionId,

@@ -49,42 +49,47 @@ function serializeConfig(config: MemoConfig) {
 name = "${p.name}"
 env_api_key = "${p.env_api_key}"
 model = "${p.model}"
-${p.base_url ? `base_url = "${p.base_url}"\n` : ""}`
+${p.base_url ? `base_url = "${p.base_url}"\n` : ""}`,
         )
-        .join("\n")
-    return `# Memo config (auto-generated). Edit to change provider/model/base_url.
+        .join("\n\n")
+    return `# Memo config. Edit to change provider/model/base_url.
 current_provider = "${config.current_provider}"
 max_steps = ${config.max_steps ?? 100}
 
 ${providers}`.trim()
 }
 
-async function writeConfig(path: string, config: MemoConfig) {
+export async function writeMemoConfig(path: string, config: MemoConfig) {
     await mkdir(dirname(path), { recursive: true })
     await Bun.write(path, serializeConfig(config))
 }
 
-export async function loadMemoConfig(): Promise<MemoConfig & { home: string; configPath: string }> {
+export type LoadedConfig = {
+    config: MemoConfig
+    home: string
+    configPath: string
+    needsSetup: boolean
+}
+
+export async function loadMemoConfig(): Promise<LoadedConfig> {
     const home = process.env.MEMO_HOME ? expandHome(process.env.MEMO_HOME) : DEFAULT_MEMO_HOME
     const configPath = join(home, "config.toml")
     try {
         const file = Bun.file(configPath)
         if (!(await file.exists())) {
-            await writeConfig(configPath, DEFAULT_CONFIG)
-            return { ...DEFAULT_CONFIG, home, configPath }
+            return { config: DEFAULT_CONFIG, home, configPath, needsSetup: true }
         }
         const text = await file.text()
-        const parsed = parse(text) as MemoConfig
-        // 粗校验：至少需要 provider
-        if (!parsed.providers?.length) {
-            await writeConfig(configPath, DEFAULT_CONFIG)
-            return { ...DEFAULT_CONFIG, home, configPath }
+        const parsed = parse(text) as Partial<MemoConfig>
+        const merged: MemoConfig = {
+            current_provider: parsed.current_provider ?? DEFAULT_CONFIG.current_provider,
+            max_steps: parsed.max_steps ?? DEFAULT_CONFIG.max_steps,
+            providers: parsed.providers ?? [],
         }
-        return { ...parsed, home, configPath }
+        const needsSetup = !merged.providers.length
+        return { config: needsSetup ? DEFAULT_CONFIG : merged, home, configPath, needsSetup }
     } catch {
-        // 解析失败时回退默认配置
-        await writeConfig(configPath, DEFAULT_CONFIG)
-        return { ...DEFAULT_CONFIG, home, configPath }
+        return { config: DEFAULT_CONFIG, home, configPath, needsSetup: true }
     }
 }
 
@@ -95,8 +100,8 @@ export function selectProvider(config: MemoConfig, preferred?: string): Provider
     return config.providers?.[0] ?? DEFAULT_CONFIG.providers[0]!
 }
 
-export function getSessionsDir(config: MemoConfig & { home: string }, options: AgentSessionOptions) {
-    const base = options.historyDir ?? join(config.home, DEFAULT_SESSIONS_DIR)
+export function getSessionsDir(loaded: LoadedConfig, options: AgentSessionOptions) {
+    const base = options.historyDir ?? join(loaded.home, DEFAULT_SESSIONS_DIR)
     return expandHome(base)
 }
 

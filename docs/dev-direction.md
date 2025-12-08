@@ -8,7 +8,7 @@
 - **无 UI 耦合**：Core 不依赖 stdin/stdout/DOM，只暴露纯函数/事件流；Tools 也保持无 UI 偏好。
 - **可观察性优先**：统一 JSONL 事件（assistant/action/observation/final/turn/session），便于任意前端/后端复用日志、调试。
 - **安全与确定性**：工具输入校验、路径规范化、外部依赖前置检测（如 rg），避免 UI 层重做防护。
-- **默认依赖内建**：Core 提供默认的 LLM/prompt/tokenizer/history sink/工具集装配，UI 只需提供回调，保持薄 UI。
+- **默认依赖内建**：Core 提供默认的 LLM/prompt/tokenizer/history sink/工具集装配，UI 只需提供回调，保持薄 UI（配置来自 `~/.memo/config.toml`）。
 
 ## 近期优先事项
 

@@ -1,82 +1,83 @@
-# Core 实现解读
+# Core 实现解读（现状）
 
-本文聚焦「XML 约定 + 状态机」这一核心运行机制，解释模型输出如何被解析成动作或终止信号，以及 `runAgent` 如何据此驱动工具调用。希望读者即使脱离代码，也能理解代理的协议和执行流程。
+核心聚焦「XML 协议 + 状态机」，通过 Session/Turn API 驱动工具调用、记录 JSONL 事件，依赖默认从 `~/.memo/config.toml` 补齐（provider、max_steps、日志路径等），UI 只需处理交互与回调。
+
+## 目录/模块
+
+- `config/`：配置与路径
+    - `config.ts`：读取/写入 `~/.memo/config.toml`，provider 选择（name/env_api_key/model/base_url）、会话路径 `sessions/YY/MM/DD/<uuid>.jsonl`、sessionId 生成。
+    - `constants.ts`：兜底默认（如 MAX_STEPS）。
+- `runtime/`：运行时与日志
+    - `prompt.xml/prompt.ts`：系统提示词加载。
+    - `history.ts`：JSONL sink 与事件构造。
+    - `defaults.ts`：补全工具集、LLM、prompt、history sink、tokenizer、maxSteps（基于配置）。
+    - `session.ts`：Session/Turn 状态机，执行 ReAct 循环、写事件、统计 token、触发回调。
+- `llm/`：模型与 tokenizer
+    - `openai.ts`：OpenAI SDK 适配，`createOpenAIClient(provider)` 基于配置生成客户端，兼容 DeepSeek/OpenAI。
+    - `tokenizer.ts`：tiktoken 封装。
+- `utils/`：解析工具（assistant 输出解析、消息包装）。
+- `types.ts`：公共类型。
+- `index.ts`：包入口，导出上述模块。
 
 ## 核心机制：XML 协议驱动的状态机
 
-1. **系统提示词约束输出**：`prompt.xml` 明确要求模型使用 `<thought>` 解释思考、`<action tool="...">` 触发工具、或 `<final>` 给出答案。
-2. **解析模型输出**：`parseAssistant` 用正则抽取 `<action>` 与 `<final>`，二者都有可能同时存在。
-3. **状态流转**：
-    - 抽到 `<final>`：流程结束，返回答案。
-    - 抽到 `<action tool="X">payload</action>`：查找工具 `X` 并执行，得到 observation。
-    - 无法解析出 action/final：视为模型失效，跳出循环，走兜底答案。
-4. **Observation 回写**：工具结果被包装成 `<observation>...</observation>` 写回对话（作为 user 消息），逼迫模型在下一轮基于观察继续推理或收敛到 `<final>`。
-5. **循环防护**：最多 `MAX_STEPS`（默认 100）轮，避免死循环；缺少匹配工具时也会以 `"未知工具: X"` 的 observation 继续，让模型自我纠正。
+1. 系统提示词要求模型使用 `<thought>`、`<action tool="...">`、`<final>`。
+2. `parseAssistant` 抽取 `<action>` / `<final>`。
+3. 状态流转：
+    - `<final>`：结束，返回答案。
+    - `<action tool="X">payload</action>`：执行工具，得到 observation。
+    - 无 action/final：跳出，走兜底。
+4. Observation 回写：`<observation>...</observation>` 作为 user 消息写回，引导模型继续。
+5. 循环防护：`max_steps` 来自配置（默认 100），限制单个 turn 内 step 数；未知工具写 `"未知工具: X"` 继续纠偏。
 
-### 标签职责一览
+标签职责：
 
-- `<thought>`：模型自我思考，纯文本，不被程序消费，仅供人类/日志阅读。
-- `<action tool="name">input</action>`：被解析为待执行的工具调用，input 直接传入工具函数。
-- `<observation>...</observation>`：程序生成，写回历史，告诉模型工具产物。
-- `<final>...</final>`：终止信号，直接作为最终回答。
-- `<message role="..."><![CDATA[...]]></message>`：日志包装格式，用于落盘历史，防止特殊符号破坏 XML。
+- `<thought>`：思考，程序不消费。
+- `<action tool="name">input</action>`：要调用的工具和入参。
+- `<observation>...</observation>`：程序生成，告诉模型工具产物。
+- `<final>...</final>`：终止信号。
+- `<message role="..."><![CDATA[...]]></message>`：历史包装，防止字符破坏 XML。
 
 ## 入口：Session/Turn API（createAgentSession）
 
-核心入口是 `createAgentSession(deps, options)`，返回 Session 对象，调用 `runTurn` 执行单轮 ReAct 循环。UI 自行决定跑多少 turn（如 `--once` 只跑一轮），Core 只在 turn 内通过 `MAX_STEPS` 限制 step 数，防止模型空转。
+- `createAgentSession(deps, options)` 返回 Session；`runTurn` 执行单轮 ReAct，UI 控制轮次（如 `--once` 只跑一轮）。
+- 默认依赖补全：`tools`（内置工具集）、`callLLM`（基于 provider 的 OpenAI 客户端）、`loadPrompt`、`historySinks`（写 `~/.memo/sessions/...`）、`tokenCounter`、`maxSteps` 均可省略。
+- 配置来源：`~/.memo/config.toml`（`MEMO_HOME` 可覆盖），字段 `current_provider`、`providers` 数组、`max_steps`。缺失时 UI 会交互式引导生成。
+- 回调：`onAssistantStep`、`onObservation` 供 UI 实时渲染。
 
-要点：
+简例：
 
-- **注入式依赖**：`tools`（默认内置工具集）、`callLLM`（默认 OpenAI/DeepSeek）、`loadPrompt`（默认 prompt.xml）、`historySinks`（默认 JSONL）、`tokenCounter` 等可省略，Core 会补齐默认实现；`onAssistantStep/onObservation` 供 UI 订阅。
-- **循环与防护**：`MAX_STEPS` 默认 100，限制单个 turn 的 step 数；若既无 `<action>` 也无 `<final>`，立即跳出。
-- **Observation 回写**：工具输出被包装为 `<observation>...` 写回对话，促使模型收敛。
-- **未知工具提示**：未注册的工具会写入 `"未知工具: xxx"` 继续引导模型修正。
+```ts
+import { createAgentSession } from "@memo/core"
 
-## 提示词加载（packages/core/src/runtime/prompt.ts & prompt.xml）
+const session = await createAgentSession({ onAssistantStep: console.log }, { mode: "once" })
+const turn = await session.runTurn("你好")
+await session.close()
+```
 
-- `loadSystemPrompt()` 读取内置的 XML 模板 `prompt.xml`，可被依赖注入覆盖。
-- 模板中定义：
-    - 可用工具列表及参数约定（bash/read/write/edit/glob/grep/fetch）。
-    - 响应格式：`<thought>`、`<action tool="...">`、等待 `<observation>`、或 `<final>`。
-    - 约束：每轮仅用一个工具、未知工具时也需保持 XML 格式等。
+## 历史与日志（runtime/history.ts）
 
-## 模型输出解析（packages/core/src/utils.ts）
+- 事件：`session_start/turn_start/assistant/action/observation/final/turn_end/session_end`。
+- 默认写入 `~/.memo/sessions/YY/MM/DD/<uuid>.jsonl`；包含 provider、模型、tokenizer、token 用量等元数据。
+- XML 落盘已废弃；`logEntries` 仅为兼容用途。
 
-- `parseAssistant(content)` 使用正则抽取 `<action tool="...">...</action>` 与 `<final>...</final>`，返回 `{ action?, final? }`，两者可能同时存在，调用方自行判断优先级。
-- `escapeCData` 与 `wrapMessage` 将任意消息包装成 `<message role="..."><![CDATA[...]]></message>`，确保日志中的特殊符号不会破坏 XML。
-- 解析策略是「宽松正则」而非严格 XML 解析器，优点是简单鲁棒，缺点是无法校验嵌套/属性正确性；因此提示词中需清晰告知模型格式要求。
+## LLM 适配（llm/openai.ts）
 
-## 历史与日志（packages/core/src/runtime/history.ts）
-
-- 提供 JSONL 历史 sink（`JsonlHistorySink`）和事件构造器 `createHistoryEvent`，用于结构化落盘。
-- `runAgent` 返回的 `logEntries` 仅用于兼容旧 XML 复盘需求，默认 CLI 不再写 XML。
-
-## LLM 适配（packages/core/src/llm/openai.ts）
-
-- `callOpenAICompatible(messages)` 使用 OpenAI Chat Completions 协议，默认 Base URL 指向 DeepSeek（`https://api.deepseek.com`），默认模型 `deepseek-chat`。
-- API Key 读取顺序：`OPENAI_API_KEY` → `DEEPSEEK_API_KEY`（便于兼容 OpenAI/DeepSeek）。
-- 可用环境变量：`OPENAI_BASE_URL`（默认 DeepSeek）、`OPENAI_MODEL`（默认 deepseek-chat）。
-- 模型请求由 OpenAI SDK 发送（默认 BaseURL 深度寻址 https://api.deepseek.com），调用方可通过 `OPENAI_BASE_URL/OPENAI_MODEL` 覆盖。
+- `createOpenAIClient(provider)` 基于 provider 配置（env_api_key/model/base_url）构建 OpenAI SDK 客户端。
+- 环境变量只存 API key，不写入配置；可用 `OPENAI_BASE_URL/OPENAI_MODEL` 临时覆盖。
 
 ## 工具协议与注册表
 
-- 类型定义见 `packages/core/src/types.ts`：
-    - `ToolFn = (input: string) => Promise<string>`，`ToolRegistry = Record<string, ToolFn>`。
-    - `CallLLM` 与 `AgentDeps` 约束了 runAgent 所需的全部依赖。
-- 默认工具集合由 `packages/tools` 暴露的 `TOOLKIT` 提供（bash/read/write/edit/glob/grep/fetch），Core 仅按名称查找，不关心具体实现。
+- `ToolFn = (input: string) => Promise<string>`，`ToolRegistry = Record<string, ToolFn>`。
+- 默认工具集来自 `packages/tools` (`TOOLKIT`)，Core 按名称查找，未知工具会提示 `"未知工具: name"`。
 
-## 上层如何使用（packages/ui/src/index.ts 示例）
+## 配置与路径（config/config.ts）
 
-CLI 层组装依赖并调用：
+- `loadMemoConfig`：读取 `~/.memo/config.toml`，返回配置/路径以及 `needsSetup` 标记。
+- `writeMemoConfig`：将配置写回。
+- `buildSessionPath`：生成日期分桶的 JSONL 路径。
+- `selectProvider`：按名称选择 provider，回退默认。
 
-```ts
-const deps = {
-    tools: TOOLKIT,
-    callLLM: callOpenAICompatible,
-    loadPrompt: loadSystemPrompt,
-    onAssistantStep: (text, step) => console.log(`[LLM 第 ${step + 1} 轮输出]\\n${text}`),
-}
-const result = await runAgent(userQuestion, deps)
-```
+## 小结
 
-这样 Core 保持纯调度与协议处理，UI/工具/模型均可被替换或扩展。
+Core 提供“一站式默认装配 + 可插拔依赖”，UI 只关心交互。配置/日志放在用户目录，避免污染仓库，支持多 provider 与 token 预算控制。

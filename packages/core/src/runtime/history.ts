@@ -2,9 +2,6 @@ import { appendFile, mkdir } from "node:fs/promises"
 import { dirname } from "node:path"
 import type { HistoryEvent, HistorySink, Role } from "@memo/core/types"
 
-/** JSONL 默认存储目录。 */
-export const HISTORY_DIR = "history"
-
 /** JSONL 历史写入器：一行一个事件。 */
 export class JsonlHistorySink implements HistorySink {
     private ready = false
