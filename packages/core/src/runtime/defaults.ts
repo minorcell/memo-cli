@@ -1,7 +1,12 @@
 import { TOOLKIT } from "@memo/tools"
 import { createOpenAIClient } from "@memo/core/llm/openai"
 import { createTokenCounter } from "@memo/core/llm/tokenizer"
-import { buildSessionPath, getSessionsDir, loadMemoConfig, selectProvider } from "@memo/core/config/config"
+import {
+    buildSessionPath,
+    getSessionsDir,
+    loadMemoConfig,
+    selectProvider,
+} from "@memo/core/config/config"
 import { JsonlHistorySink } from "@memo/core/runtime/history"
 import { loadSystemPrompt as defaultLoadPrompt } from "@memo/core/runtime/prompt"
 import type {
@@ -43,16 +48,9 @@ export async function withDefaultDeps(
                 return client(messages)
             }),
         loadPrompt,
-        historySinks:
-            deps.historySinks ??
-            [
-                new JsonlHistorySink(
-                    buildSessionPath(
-                        getSessionsDir(loaded, options),
-                        sessionId,
-                    ),
-                ),
-            ],
+        historySinks: deps.historySinks ?? [
+            new JsonlHistorySink(buildSessionPath(getSessionsDir(loaded, options), sessionId)),
+        ],
         tokenCounter: deps.tokenCounter ?? createTokenCounter(options.tokenizerModel),
         maxSteps: options.maxSteps ?? config.max_steps ?? 100,
     }

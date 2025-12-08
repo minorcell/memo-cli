@@ -11,10 +11,14 @@ function resolveApiKey(envKey?: string) {
 }
 
 /** 根据 provider 配置创建一个 LLM 调用函数。 */
-export function createOpenAIClient(provider: Pick<ProviderConfig, "env_api_key" | "model" | "base_url">) {
+export function createOpenAIClient(
+    provider: Pick<ProviderConfig, "env_api_key" | "model" | "base_url">,
+) {
     const apiKey = resolveApiKey(provider.env_api_key)
     if (!apiKey) {
-        throw new Error(`缺少环境变量 ${provider.env_api_key}（或 OPENAI_API_KEY/DEEPSEEK_API_KEY）`)
+        throw new Error(
+            `缺少环境变量 ${provider.env_api_key}（或 OPENAI_API_KEY/DEEPSEEK_API_KEY）`,
+        )
     }
     const client = new OpenAI({
         apiKey,

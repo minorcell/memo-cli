@@ -2,18 +2,18 @@
 
 [中文版本](./README.md)
 
-A Bun + TypeScript ReAct agent for the terminal. Supports multi-turn sessions, JSONL logs, built-in tools, and token budgeting (DeepSeek by default via OpenAI-compatible API).
+Terminal ReAct agent built with Bun + TypeScript. Supports multi-turn sessions, JSONL logging, built-in tools, and OpenAI-compatible LLMs (DeepSeek by default).
 
 ## Highlights
 
 - Multi-turn REPL with `--once` for single-turn exits.
 - Tool-driven ReAct: built-in bash/read/write/edit/glob/grep/fetch.
-- Structured logs: JSONL per session under `history/<sessionId>.jsonl` with token stats and events.
-- Token budget controls: local tiktoken estimation + LLM usage reconciliation; configurable warnings/hard limits.
+- Structured logs: JSONL per session (token stats + events).
+- Token budgeting: local tiktoken estimation + LLM usage reconciliation.
 
 ## Quick Start
 
-1. Install dependencies:
+1. Install deps:
     ```bash
     bun install
     ```
@@ -23,7 +23,7 @@ A Bun + TypeScript ReAct agent for the terminal. Supports multi-turn sessions, J
     ```
 3. Single-turn run:
     ```bash
-    bun start "your question"
+    bun start "your question" --once
     ```
 4. Interactive REPL (multi-turn):
     ```bash
@@ -35,19 +35,26 @@ A Bun + TypeScript ReAct agent for the terminal. Supports multi-turn sessions, J
 
 - `--once`: single-turn then exit (interactive by default).
 
-## Project Structure (monorepo)
+## Project Structure
 
 - `packages/core`
-    - `config/`: constants.
-    - `runtime/`: session/turn runtime, prompt loader, history events.
-    - `llm/`: model adapter (DeepSeek via OpenAI) and tokenizer helper.
-    - `utils/`: parsing and request helpers.
-- `packages/tools`: Built-in toolset, exported as `TOOLKIT`.
+    - `config/`: constants, config loader (`~/.memo/config.toml`), path helpers.
+    - `runtime/`: session/turn runtime (logging, prompt loader, history events, default deps).
+    - `llm/`: OpenAI-compatible adapter + tokenizer (DeepSeek by default).
+    - `utils/`: parsing helpers.
+- `packages/tools`: built-in toolset, exported as `TOOLKIT`.
 - `packages/ui`: CLI entry wiring Core + Tools, handles interaction.
 - `docs/`: architecture and design notes.
 
+## Scripts
+
+- `bun install` — install deps
+- `bun start "question" --once` — run CLI
+- `bun run format` / `bun run format:check` — format
+- `bun build` — bundle
+
 ## Customization
 
-- Tweak system prompt: `packages/core/src/runtime/prompt.xml`.
-- Add tools: implement under `packages/tools/src/tools/` and register in `packages/tools/src/index.ts`.
-- Change model/params: set `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY`/`DEEPSEEK_API_KEY`.
+- System prompt: `packages/core/src/runtime/prompt.xml`
+- Add tools: implement under `packages/tools/src/tools/` and register in `src/index.ts`.
+- Providers/models: configure `~/.memo/config.toml` (`providers` array with name/env_api_key/model/base_url), or override temporarily via `OPENAI_BASE_URL` / `OPENAI_MODEL`.

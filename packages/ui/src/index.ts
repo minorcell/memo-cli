@@ -57,7 +57,10 @@ async function ensureProviderConfig() {
         const name = await ask("Provider 名称 [deepseek]: ", "deepseek")
         const envKey = await ask("API Key 环境变量名 [DEEPSEEK_API_KEY]: ", "DEEPSEEK_API_KEY")
         const model = await ask("模型名称 [deepseek-chat]: ", "deepseek-chat")
-        const baseUrl = await ask("Base URL [https://api.deepseek.com]: ", "https://api.deepseek.com")
+        const baseUrl = await ask(
+            "Base URL [https://api.deepseek.com]: ",
+            "https://api.deepseek.com",
+        )
 
         const config: MemoConfig = {
             current_provider: name,

@@ -4,34 +4,40 @@
 
 ## 项目概述
 
-使用 Bun 构建的终端 ReAct Agent，采用 Bun workspaces 管理的 monorepo 结构。Agent 遵循 ReAct（推理与行动）循环模式，LLM 基于工具观察结果生成思考、行动和最终回答。
+使用 Bun 构建的终端 ReAct Agent，monorepo 结构。支持多轮对话、JSONL 事件日志、默认工具集，LLM 通过 OpenAI 兼容接口（默认 DeepSeek），配置与会话日志放在 `~/.memo`。
 
-## 核心架构
+## 包结构（简版）
 
-### 包结构
+- `packages/core`: 核心 ReAct 循环、会话状态、默认依赖装配
+    - `runtime/`: Session/Turn、事件、提示词加载、默认依赖注入
+    - `config/`: `~/.memo/config.toml` 读取（providers、max_steps、sessions 路径）
+    - `llm/`: OpenAI SDK 适配（DeepSeek 默认）、tokenizer
+    - `utils/`: 解析工具
+    - `types.ts`: 公共类型（AgentDeps/Session 等）
+- `packages/tools`: 内置工具（bash/read/write/edit/glob/grep/fetch），导出 `TOOLKIT`
+- `packages/ui`: 简易 CLI（REPL + `--once`），主要做 I/O 与回调订阅
+- `docs/`: 架构、配置、设计说明
 
-- **`packages/core`**: Agent 核心逻辑，实现 ReAct 循环
-    - `src/index.ts`: 主函数 `runAgent()`，包含 MAX_STEPS 安全限制
-    - `src/prompt.xml`: 系统提示词模板（以文本形式导入）
-    - `src/prompt.ts`: 加载系统提示词模板
-    - `src/history.ts`: 将对话日志写入根目录的 `history.xml`（XML 格式）
-    - `src/llm/openai.ts`: OpenAI 兼容 API 客户端（默认使用 DeepSeek）
-    - `src/utils.ts`: 消息包装和 assistant 响应解析工具函数
-    - `src/types.ts`: 共享 TypeScript 接口（AgentDeps、ChatMessage 等）
+## 配置与日志
 
-- **`packages/tools`**: 内置工具实现
-    - `src/tools/`: 各工具实现文件（bash、read、write、edit、glob、grep、fetch）
-    - `src/index.ts`: 导出 TOOLKIT 对象，将工具名称映射到函数
-    - 通过在 `src/tools/` 创建文件并在 `src/index.ts` 注册来添加新工具
+- 配置文件：`~/.memo/config.toml`（current_provider、providers 列表、max_steps 等）
+- 会话日志：JSONL，按日期分桶 `~/.memo/sessions/YY/MM/DD/<uuid>.jsonl`
+- Provider 不存 API key，只存环境变量名；默认 DeepSeek（env: `DEEPSEEK_API_KEY`）
 
-- **`packages/ui`**: CLI 入口点
-    - `src/index.ts`: 整合 core 和 tools，处理控制台输出，运行 agent
+## 工作流提示
 
-### 关键设计模式
+- 默认依赖由 Core 自动补齐（工具集、LLM、prompt、历史 sink、tokenizer）；UI 只传回调。
+- `MAX_STEPS` 由配置 `max_steps` 控制（默认 100）；每个 turn 内步数限制。
+- CLI 解析 `--once`，交互式引导缺省 provider 配置写入 `config.toml`。
 
-- **依赖注入**: `runAgent()` 函数接受包含 tools、LLM 调用器、提示词加载器和历史写入器的 `AgentDeps` 对象。便于定制和测试。
-- **ReAct 循环**: 系统最多迭代 MAX_STEPS 次，执行：调用 LLM → 解析响应 → 执行工具 → 将观察结果作为 user 消息反馈，直到生成 `<final>` 答案。
-- **Workspace 导入**: 根目录 `package.json` 定义了 `@memo/core` 和 `@memo/tools` 导入路径，实现跨包引用而无需相对路径。
+## 开发命令（保持不变）
+
+```bash
+bun install
+bun start "question" --once
+bun build
+bun run format
+```
 
 ## 开发命令
 

@@ -1,7 +1,5 @@
 # memo-cli
 
-[English Version](./README_EN.md)
-
 在终端运行的 ReAct Agent，基于 Bun + TypeScript。支持多轮对话（Session/Turn）、JSONL 结构化日志、内置工具调用，默认使用 DeepSeek（OpenAI 兼容接口）。
 
 ## 特性
@@ -38,10 +36,10 @@
 ## 项目结构
 
 - `packages/core`
-    - `config/`：常量等配置。
-    - `runtime/`：Session/Turn 运行时（日志、提示词加载、历史事件）。
+    - `config/`：常量、配置加载（~/.memo/config.toml）、路径工具。
+    - `runtime/`：Session/Turn 运行时（日志、提示词加载、历史事件、默认依赖补全）。
     - `llm/`：模型适配与 tokenizer（OpenAI 兼容 DeepSeek、tiktoken）。
-    - `utils/`：解析与请求工具。
+    - `utils/`：解析工具。
 - `packages/tools`：内置工具集合，统一导出 `TOOLKIT`。
 - `packages/ui`：CLI 入口，组装 Core + Tools 并处理交互。
 - `docs/`：架构与设计文档。
@@ -57,4 +55,4 @@
 
 - 调整系统提示词：`packages/core/src/runtime/prompt.xml`
 - 新增工具：在 `packages/tools/src/tools/` 添加实现并注册到 `src/index.ts`。
-- 更换模型或参数：设置 `OPENAI_BASE_URL`、`OPENAI_MODEL`、`OPENAI_API_KEY`/`DEEPSEEK_API_KEY`。
+- 模型/Provider：在 `~/.memo/config.toml` 配置 `providers`（name/env_api_key/model/base_url），或用 `OPENAI_BASE_URL`、`OPENAI_MODEL` 环境变量临时覆盖。

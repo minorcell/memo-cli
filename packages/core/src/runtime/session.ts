@@ -78,7 +78,7 @@ class AgentSessionImpl implements AgentSession {
         private options: AgentSessionOptions,
         systemPrompt: string,
         tokenCounter: TokenCounter,
-        maxSteps: number
+        maxSteps: number,
     ) {
         this.id = options.sessionId || randomUUID()
         this.mode = options.mode || DEFAULT_SESSION_MODE

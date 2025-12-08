@@ -49,7 +49,7 @@ function serializeConfig(config: MemoConfig) {
 name = "${p.name}"
 env_api_key = "${p.env_api_key}"
 model = "${p.model}"
-${p.base_url ? `base_url = "${p.base_url}"\n` : ""}`
+${p.base_url ? `base_url = "${p.base_url}"\n` : ""}`,
         )
         .join("\n\n")
     return `# Memo config. Edit to change provider/model/base_url.
@@ -100,10 +100,7 @@ export function selectProvider(config: MemoConfig, preferred?: string): Provider
     return config.providers?.[0] ?? DEFAULT_CONFIG.providers[0]!
 }
 
-export function getSessionsDir(
-    loaded: LoadedConfig,
-    options: AgentSessionOptions,
-) {
+export function getSessionsDir(loaded: LoadedConfig, options: AgentSessionOptions) {
     const base = options.historyDir ?? join(loaded.home, DEFAULT_SESSIONS_DIR)
     return expandHome(base)
 }
