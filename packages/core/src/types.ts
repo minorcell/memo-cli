@@ -113,6 +113,10 @@ export type AgentSessionOptions = {
     mode?: SessionMode
     /** 历史 JSONL 输出目录（默认 history/）。 */
     historyDir?: string
+    /** 指定使用的 provider 名称。 */
+    providerName?: string
+    /** 每个 turn 内的最大 step 数。 */
+    maxSteps?: number
     /** tokenizer encoding 名称，默认 cl100k_base。 */
     tokenizerModel?: string
     /** 提示词预警阈值。 */

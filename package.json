@@ -24,6 +24,7 @@
     },
     "dependencies": {
         "@dqbd/tiktoken": "^1.0.22",
-        "openai": "^6.10.0"
+        "openai": "^6.10.0",
+        "toml": "^3.0.0"
     }
 }

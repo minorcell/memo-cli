@@ -69,6 +69,7 @@ class AgentSessionImpl implements AgentSession {
     private sinks: HistorySink[]
     private sessionUsage: TokenUsage = emptyUsage()
     private startedAt = Date.now()
+    private maxSteps: number
 
     constructor(
         private deps: AgentSessionDeps & {
@@ -78,6 +79,7 @@ class AgentSessionImpl implements AgentSession {
         private options: AgentSessionOptions,
         systemPrompt: string,
         tokenCounter: TokenCounter,
+        maxSteps: number
     ) {
         this.id = options.sessionId || randomUUID()
         this.mode = options.mode || DEFAULT_SESSION_MODE
@@ -85,6 +87,7 @@ class AgentSessionImpl implements AgentSession {
         this.logEntries.push(wrapMessage("system", systemPrompt))
         this.tokenCounter = tokenCounter
         this.sinks = deps.historySinks ?? []
+        this.maxSteps = maxSteps
     }
 
     /** 写入 Session 启动事件，记录配置与 token 限制。 */
@@ -152,7 +155,7 @@ class AgentSessionImpl implements AgentSession {
         let status: TurnStatus = "ok"
 
         // ReAct 主循环，受 MAX_STEPS 保护。
-        for (let step = 0; step < MAX_STEPS; step++) {
+        for (let step = 0; step < this.maxSteps; step++) {
             const estimatedPrompt = this.tokenCounter.countMessages(this.history)
             if (this.options.warnPromptTokens && estimatedPrompt > this.options.warnPromptTokens) {
                 console.warn(`提示 tokens 已接近上限: ${estimatedPrompt}`)
@@ -355,13 +358,14 @@ export async function createAgentSession(
     options: AgentSessionOptions = {},
 ): Promise<AgentSession> {
     const sessionId = options.sessionId || randomUUID()
-    const resolved = withDefaultDeps(deps, { ...options, sessionId }, sessionId)
+    const resolved = await withDefaultDeps(deps, { ...options, sessionId }, sessionId)
     const systemPrompt = await resolved.loadPrompt()
     const session = new AgentSessionImpl(
         { ...(deps as AgentSessionDeps), ...resolved },
         { ...options, sessionId, mode: options.mode ?? DEFAULT_SESSION_MODE },
         systemPrompt,
         resolved.tokenCounter,
+        resolved.maxSteps,
     )
     await session.init()
     return session
