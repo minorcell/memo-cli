@@ -4,7 +4,6 @@ import { createTokenCounter } from "@memo/core/llm/tokenizer"
 import { buildSessionPath, getSessionsDir, loadMemoConfig, selectProvider } from "@memo/core/config/config"
 import { JsonlHistorySink } from "@memo/core/runtime/history"
 import { loadSystemPrompt as defaultLoadPrompt } from "@memo/core/runtime/prompt"
-import { MAX_STEPS } from "@memo/core/config/constants"
 import type {
     AgentSessionDeps,
     AgentSessionOptions,
@@ -30,7 +29,8 @@ export async function withDefaultDeps(
     tokenCounter: TokenCounter
     maxSteps: number
 }> {
-    const config = await loadMemoConfig()
+    const loaded = await loadMemoConfig()
+    const config = loaded.config
     const tools = deps.tools ?? TOOLKIT
     const loadPrompt = deps.loadPrompt ?? defaultLoadPrompt
     return {
@@ -48,12 +48,12 @@ export async function withDefaultDeps(
             [
                 new JsonlHistorySink(
                     buildSessionPath(
-                        getSessionsDir(config, options),
+                        getSessionsDir(loaded, options),
                         sessionId,
                     ),
                 ),
             ],
         tokenCounter: deps.tokenCounter ?? createTokenCounter(options.tokenizerModel),
-        maxSteps: options.maxSteps ?? config.max_steps ?? MAX_STEPS,
+        maxSteps: options.maxSteps ?? config.max_steps ?? 100,
     }
 }

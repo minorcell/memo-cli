@@ -2,10 +2,9 @@
  * Session/Turn 运行时：负责多轮对话状态、工具调度、日志事件写入与 token 统计。
  */
 import { randomUUID } from "node:crypto"
-import { FALLBACK_FINAL, MAX_STEPS } from "@memo/core/config/constants"
 import { createHistoryEvent } from "@memo/core/runtime/history"
 import { withDefaultDeps } from "@memo/core/runtime/defaults"
-import { parseAssistant, wrapMessage } from "@memo/core/utils"
+import { parseAssistant, wrapMessage } from "@memo/core/utils/utils"
 import type {
     AgentSession,
     AgentSessionDeps,
@@ -282,7 +281,7 @@ class AgentSessionImpl implements AgentSession {
 
         if (!finalText) {
             status = status === "error" ? status : "max_steps"
-            finalText = FALLBACK_FINAL
+            finalText = "未能生成最终回答，请重试或调整问题。"
             const payload = `<final>${finalText}</final>`
             this.history.push({ role: "assistant", content: payload })
             this.logEntries.push(wrapMessage("assistant", payload))

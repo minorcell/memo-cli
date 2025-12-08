@@ -11,7 +11,7 @@
     - 抽到 `<action tool="X">payload</action>`：查找工具 `X` 并执行，得到 observation。
     - 无法解析出 action/final：视为模型失效，跳出循环，走兜底答案。
 4. **Observation 回写**：工具结果被包装成 `<observation>...</observation>` 写回对话（作为 user 消息），逼迫模型在下一轮基于观察继续推理或收敛到 `<final>`。
-5. **循环防护**：最多 `MAX_STEPS`（默认 100）轮，避免死循环；缺少匹配工具时也会以 `"未知工具: X"` 的 observation 继续，让模型自我纠正。
+5. **循环防护**：`max_steps` 由配置决定（config.toml，默认 100），限制单个 turn 内的 step 数；缺少匹配工具时也会以 `"未知工具: X"` 的 observation 继续，让模型自我纠正。
 
 ### 标签职责一览
 
