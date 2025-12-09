@@ -74,7 +74,10 @@ export type ParsedAssistant = {
 export type ToolRegistry = Record<string, McpTool<any>>
 
 /** LLM 调用接口：输入历史消息，返回模型回复文本或携带 usage，可选流式回调。 */
-export type CallLLM = (messages: ChatMessage[], onChunk?: (chunk: string) => void) => Promise<LLMResponse>
+export type CallLLM = (
+    messages: ChatMessage[],
+    onChunk?: (chunk: string) => void,
+) => Promise<LLMResponse>
 
 /**
  * runAgent 运行所需的依赖注入集合。

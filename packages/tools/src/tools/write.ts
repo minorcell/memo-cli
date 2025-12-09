@@ -8,16 +8,18 @@ import { textResult } from '@memo/tools/tools/mcp'
 const WRITE_INPUT_SCHEMA = z
     .object({
         file_path: z.string().min(1),
-        content: z.union([
-            z.string(),
-            z.number(),
-            z.boolean(),
-            z.null(),
-            z.array(z.any()),
-            z.record(z.string(), z.any()),
-            z.instanceof(Uint8Array),
-            z.instanceof(ArrayBuffer),
-        ]).optional(),
+        content: z
+            .union([
+                z.string(),
+                z.number(),
+                z.boolean(),
+                z.null(),
+                z.array(z.any()),
+                z.record(z.string(), z.any()),
+                z.instanceof(Uint8Array),
+                z.instanceof(ArrayBuffer),
+            ])
+            .optional(),
     })
     .strict()
 

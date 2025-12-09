@@ -68,9 +68,7 @@ describe('memory tool', () => {
             await memoryTool.execute({ note: `n${i}` })
         }
         const content = await readText(memoryPath)
-        const lines = content
-            .split(/\r?\n/)
-            .filter((l) => l.trim().startsWith('- '))
+        const lines = content.split(/\r?\n/).filter((l) => l.trim().startsWith('- '))
         assert.strictEqual(lines.length, 50, 'should retain at most 50 entries')
         assert.ok(lines.length > 0, 'should have entries')
         const first = lines[0]!
