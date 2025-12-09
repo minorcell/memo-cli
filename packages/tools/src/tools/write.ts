@@ -1,40 +1,30 @@
-import type { ToolFn } from '@memo/tools/tools/types'
+import { z } from 'zod'
 import { normalizePath } from '@memo/tools/tools/helpers'
+import type { McpTool } from '@memo/tools/tools/types'
+import { textResult } from '@memo/tools/tools/mcp'
 
-type WriteInput = { file_path?: string; content?: string } | { error: string }
+const WRITE_INPUT_SCHEMA = z
+    .object({
+        file_path: z.string().min(1),
+        content: z.any(),
+    })
+    .strict()
 
-/** 解析 write 入参，确保路径和内容存在。 */
-function parseWriteInput(input: string): WriteInput {
-    try {
-        const parsed = JSON.parse(input)
-        if (!parsed?.file_path || typeof parsed.file_path !== 'string') {
-            return { error: 'write 需要 file_path 字符串' }
+type WriteInput = z.infer<typeof WRITE_INPUT_SCHEMA>
+
+/** 覆盖写入文件内容，必要时递归创建父目录。 */
+export const writeTool: McpTool<WriteInput> = {
+    name: 'write',
+    description: '创建或覆盖文件，传入 file_path 与 content',
+    inputSchema: WRITE_INPUT_SCHEMA,
+    execute: async (input) => {
+        const path = normalizePath(input.file_path)
+        const content = String(input.content ?? '')
+        try {
+            await Bun.write(path, content)
+            return textResult(`已写入 ${path} (overwrite, length=${content.length})`)
+        } catch (err) {
+            return textResult(`写入失败: ${(err as Error).message}`, true)
         }
-        if (parsed.content === undefined) {
-            return { error: 'write 需要 content 字符串' }
-        }
-        return parsed as WriteInput
-    } catch {
-        return {
-            error: 'write 参数需为 JSON，如 {"file_path":"/abs/file","content":"..."}',
-        }
-    }
-}
-
-/**
- * 覆盖写入文件内容，必要时递归创建父目录。
- */
-export const write: ToolFn = async (rawInput: string) => {
-    const parsed = parseWriteInput(rawInput.trim())
-    if ('error' in parsed) return parsed.error
-
-    const path = normalizePath(parsed.file_path!)
-    const content = String(parsed.content ?? '')
-    try {
-        // Bun.write 会自动创建缺失的父目录
-        await Bun.write(path, content)
-        return `已写入 ${path} (overwrite, length=${content.length})`
-    } catch (err) {
-        return `写入失败: ${(err as Error).message}`
-    }
+    },
 }

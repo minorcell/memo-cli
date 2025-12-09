@@ -32,7 +32,10 @@
             "@memo/core": ["packages/core/src/index.ts"],
             "@memo/core/*": ["packages/core/src/*"],
             "@memo/tools": ["packages/tools/src/index.ts"],
-            "@memo/tools/*": ["packages/tools/src/*"]
+            "@memo/tools/*": ["packages/tools/src/*"],
+            "@modelcontextprotocol/sdk/types": [
+                "./node_modules/@modelcontextprotocol/sdk/dist/esm/types.d.ts"
+            ]
         }
     }
 }

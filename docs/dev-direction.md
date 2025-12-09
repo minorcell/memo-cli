@@ -41,7 +41,7 @@
 
 - Session API：`createAgentSession(deps, options)` -> `{ runTurn, close, history }`；事件统一 JSONL 字段。
 - 工具注册表：`ToolRegistry`（名称 -> ToolFn），输入为字符串（JSON），输出短文本。
-- Prompt/Parser：保持可替换（XML 现行版本），为后续 JSON 工具协议预留切换点。
+- Prompt/Parser：已切换为 JSON 协议（action/final），保持可替换。
 - 配置注入：模型参数、tokenizer、预算、工具开关通过 options/deps 注入，不写死在 Core。
 
 ## 建议的演进路线

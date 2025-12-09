@@ -2,5 +2,9 @@
     "name": "@memo/tools",
     "type": "module",
     "module": "src/index.ts",
-    "private": true
+    "private": true,
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.24.3",
+        "zod": "^4.1.13"
+    }
 }

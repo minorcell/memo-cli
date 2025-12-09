@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { createHistoryEvent } from '@memo/core/runtime/history'
 import { withDefaultDeps } from '@memo/core/runtime/defaults'
 import { parseAssistant } from '@memo/core/utils/utils'
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types'
 import type {
     AgentSession,
     AgentSessionDeps,
@@ -18,10 +19,10 @@ import type {
     SessionMode,
     TokenCounter,
     TokenUsage,
-    ToolRegistry,
     TurnResult,
     TurnStatus,
 } from '@memo/core/types'
+import type { ToolRegistry } from '@memo/core/types'
 
 const DEFAULT_SESSION_MODE: SessionMode = 'interactive'
 
@@ -54,6 +55,39 @@ async function emitEventToSinks(event: HistoryEvent, sinks: HistorySink[]) {
             console.error(`写入历史事件失败: ${(err as Error).message}`)
         }
     }
+}
+
+function flattenCallToolResult(result: CallToolResult): string {
+    const texts =
+        result.content?.flatMap((item) => {
+            if (item.type === 'text') return [item.text]
+            return []
+        }) ?? []
+    return texts.join('\n')
+}
+
+function parseToolInput(tool: ToolRegistry[string], rawInput: unknown) {
+    let candidate: unknown = rawInput
+    if (typeof rawInput === 'string') {
+        const trimmed = rawInput.trim()
+        if (trimmed) {
+            try {
+                candidate = JSON.parse(trimmed)
+            } catch {
+                candidate = trimmed
+            }
+        } else {
+            candidate = {}
+        }
+    }
+    const parsed = tool.inputSchema.safeParse(candidate)
+    if (!parsed.success) {
+        const issue = parsed.error.issues[0]
+        const path = issue?.path?.join('.') || 'input'
+        const message = issue?.message || '参数不合法'
+        return { ok: false as const, error: `${tool.name} 参数不合法: ${path} ${message}` }
+    }
+    return { ok: true as const, data: parsed.data }
 }
 
 /** 进程内的对话 Session，实现多轮运行与日志写入。 */
@@ -120,7 +154,7 @@ class AgentSessionImpl implements AgentSession {
         // 提示词超过硬上限时直接返回提示，避免无意义请求。
         if (this.options.maxPromptTokens && promptTokens > this.options.maxPromptTokens) {
             const limitMessage = `上下文 tokens (${promptTokens}) 超出限制，请缩短输入或重启对话。`
-            const finalPayload = `<final>${limitMessage}</final>`
+            const finalPayload = JSON.stringify({ final: limitMessage })
             this.history.push({ role: 'assistant', content: finalPayload })
             await this.emitEvent('final', {
                 turn,
@@ -164,7 +198,7 @@ class AgentSessionImpl implements AgentSession {
                 usageFromLLM = normalized.usage
             } catch (err) {
                 const msg = `LLM 调用失败: ${(err as Error).message}`
-                const finalPayload = `<final>${msg}</final>`
+                const finalPayload = JSON.stringify({ final: msg })
                 this.history.push({ role: 'assistant', content: finalPayload })
                 status = 'error'
                 finalText = msg
@@ -223,22 +257,30 @@ class AgentSessionImpl implements AgentSession {
                     meta: { tool: parsed.action.tool, input: parsed.action.input },
                 })
 
-                const toolFn = this.deps.tools[parsed.action.tool]
+                const tool = this.deps.tools[parsed.action.tool]
                 let observation: string
+                let toolFailed = false
                 try {
-                    if (toolFn) {
-                        observation = await toolFn(parsed.action.input)
+                    if (tool) {
+                        const parsedInput = parseToolInput(tool, parsed.action.input)
+                        if (!parsedInput.ok) {
+                            observation = parsedInput.error
+                        } else {
+                            const result = await tool.execute(parsedInput.data)
+                            observation = flattenCallToolResult(result) || '(工具无输出)'
+                            toolFailed = Boolean(result.isError)
+                        }
                     } else {
                         observation = `未知工具: ${parsed.action.tool}`
                     }
                 } catch (err) {
                     observation = `工具执行失败: ${(err as Error).message}`
-                    status = 'error'
+                    toolFailed = true
                 }
 
                 this.history.push({
                     role: 'user',
-                    content: `<observation>${observation}</observation>`,
+                    content: JSON.stringify({ observation, tool: parsed.action.tool }),
                 })
                 const lastStep = steps[steps.length - 1]
                 if (lastStep) {
@@ -253,7 +295,8 @@ class AgentSessionImpl implements AgentSession {
                     meta: { tool: parsed.action.tool },
                 })
 
-                if (status === 'error') {
+                if (toolFailed) {
+                    status = 'error'
                     finalText = observation
                     await this.emitEvent('final', {
                         turn,
@@ -274,7 +317,7 @@ class AgentSessionImpl implements AgentSession {
         if (!finalText) {
             status = status === 'error' ? status : 'max_steps'
             finalText = '未能生成最终回答，请重试或调整问题。'
-            const payload = `<final>${finalText}</final>`
+            const payload = JSON.stringify({ final: finalText })
             this.history.push({ role: 'assistant', content: payload })
             await this.emitEvent('final', {
                 turn,

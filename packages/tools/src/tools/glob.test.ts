@@ -3,7 +3,7 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { join, basename } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, test, beforeAll, afterAll } from 'bun:test'
-import { glob } from '@memo/tools/tools/glob'
+import { globTool } from '@memo/tools/tools/glob'
 
 let tempDir: string
 
@@ -19,13 +19,14 @@ afterAll(async () => {
 
 describe('glob tool', () => {
     test('validates input', async () => {
-        const res = await glob('{}')
-        assert.strictEqual(res, 'glob 需要 pattern 字符串')
+        const res = globTool.inputSchema.safeParse({})
+        assert.strictEqual(res.success, false)
     })
 
     test('matches pattern under provided path', async () => {
-        const res = await glob(JSON.stringify({ pattern: '**/*.ts', path: tempDir }))
-        const files = res
+        const res = await globTool.execute({ pattern: '**/*.ts', path: tempDir })
+        const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+        const files = text
             .split('\n')
             .filter(Boolean)
             .map((p) => basename(p))

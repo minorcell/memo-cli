@@ -95,7 +95,7 @@ async function runInteractive(parsed: ParsedArgs) {
             console.log(`\n[LLM 第 ${step + 1} 轮输出]\n${text}\n`)
         },
         onObservation: (tool: string, observation: string, step: number) => {
-            console.log(`\n[Observation 第 ${step + 1} 步 工具=${tool}]\n${observation}\n`)
+            console.log(`\n[第 ${step + 1} 步 工具=${tool}]\n${observation}\n`)
         },
     }
 

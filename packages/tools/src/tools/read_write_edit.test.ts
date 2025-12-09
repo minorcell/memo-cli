@@ -3,9 +3,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, test, beforeAll, afterAll } from 'bun:test'
-import { read } from '@memo/tools/tools/read'
-import { write } from '@memo/tools/tools/write'
-import { edit } from '@memo/tools/tools/edit'
+import { readTool } from '@memo/tools/tools/read'
+import { writeTool } from '@memo/tools/tools/write'
+import { editTool } from '@memo/tools/tools/edit'
 
 let tempDir: string
 
@@ -19,67 +19,67 @@ afterAll(async () => {
 
 describe('write tool', () => {
     test('rejects missing path', async () => {
-        const res = await write('{}')
-        assert.strictEqual(res, 'write 需要 file_path 字符串')
+        const res = writeTool.inputSchema.safeParse({ content: 'x' })
+        assert.strictEqual(res.success, false)
     })
 
     test('writes content to file', async () => {
         const target = join(tempDir, 'write.txt')
-        const res = await write(JSON.stringify({ file_path: target, content: 'hello' }))
-        assert.ok(res.includes('已写入'), 'should acknowledge write')
+        const res = await writeTool.execute({ file_path: target, content: 'hello' })
+        const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+        assert.ok(text.includes('已写入'), 'should acknowledge write')
         const content = await readFile(target, 'utf8')
         assert.strictEqual(content, 'hello')
     })
 })
 
 describe('read tool', () => {
-    test('returns validation error for bad json', async () => {
-        const res = await read('not-json')
-        assert.ok(res.startsWith('read 参数需为 JSON'))
+    test('schema rejects invalid params', () => {
+        const parsed = readTool.inputSchema.safeParse({})
+        assert.strictEqual(parsed.success, false)
     })
 
     test('reads with offset and limit', async () => {
         const target = join(tempDir, 'read.txt')
-        await write(JSON.stringify({ file_path: target, content: 'a\nb\nc\nd' }))
-        const res = await read(JSON.stringify({ file_path: target, offset: 2, limit: 2 }))
-        assert.strictEqual(res, '2: b\n3: c')
+        await writeTool.execute({ file_path: target, content: 'a\nb\nc\nd' })
+        const res = await readTool.execute({ file_path: target, offset: 2, limit: 2 })
+        const text = res.content?.find((item) => item.type === 'text')?.text ?? ''
+        assert.strictEqual(text, '2: b\n3: c')
     })
 })
 
 describe('edit tool', () => {
     test('rejects missing fields', async () => {
-        const res = await edit('{}')
-        assert.strictEqual(res, 'edit 需要 file_path 字符串')
+        const res = editTool.inputSchema.safeParse({})
+        assert.strictEqual(res.success, false)
     })
 
     test('replaces first occurrence by default', async () => {
         const target = join(tempDir, 'edit.txt')
-        await write(JSON.stringify({ file_path: target, content: 'foo bar foo' }))
-        const res = await edit(
-            JSON.stringify({
-                file_path: target,
-                old_string: 'foo',
-                new_string: 'baz',
-                replace_all: false,
-            }),
-        )
-        assert.ok(res.includes('count=1'))
+        await writeTool.execute({ file_path: target, content: 'foo bar foo' })
+        const res = await editTool.execute({
+            file_path: target,
+            old_string: 'foo',
+            new_string: 'baz',
+            replace_all: false,
+        })
+        const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+        assert.ok(text.includes('count=1'))
         const content = await readFile(target, 'utf8')
         assert.strictEqual(content, 'baz bar foo')
     })
 
     test('replaces all when replace_all is true', async () => {
         const target = join(tempDir, 'edit-all.txt')
-        await write(JSON.stringify({ file_path: target, content: 'x y x y' }))
-        const res = await edit(
-            JSON.stringify({
-                file_path: target,
-                old_string: 'y',
-                new_string: 'z',
-                replace_all: true,
-            }),
-        )
-        assert.ok(res.includes('count=2'))
+        await writeTool.execute({ file_path: target, content: 'x y x y' })
+        const res = await editTool.execute({
+            file_path: target,
+            old_string: 'y',
+            new_string: 'z',
+            replace_all: true,
+        })
+        const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+        assert.ok(text.includes('count=2'))
         const content = await readFile(target, 'utf8')
         assert.strictEqual(content, 'x z x z')
     })

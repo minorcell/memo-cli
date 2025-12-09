@@ -1,3 +1,5 @@
+import type { McpTool } from '@memo/tools/tools/types'
+
 /**
  * Agent 层的基础类型声明，涵盖对话消息、解析结果与依赖注入接口。
  * 每个类型尽量保持精简，方便在 UI/工具等层复用。
@@ -61,15 +63,13 @@ export type LLMResponse =
 /** 将 LLM 输出解析成 action/final 结构后的表示。 */
 export type ParsedAssistant = {
     /** 待调用的工具及其入参。 */
-    action?: { tool: string; input: string }
+    action?: { tool: string; input: unknown }
     /** 最终回答。 */
     final?: string
 }
 
-/** 单个工具函数签名：输入字符串，返回字符串结果。 */
-export type ToolFn = (input: string) => Promise<string>
-/** 工具注册表，键为工具名称，值为执行函数。 */
-export type ToolRegistry = Record<string, ToolFn>
+/** 工具注册表，键为工具名称，值为 MCP 工具定义。 */
+export type ToolRegistry = Record<string, McpTool<any>>
 
 /** LLM 调用接口：输入历史消息，返回模型回复文本或携带 usage。 */
 export type CallLLM = (messages: ChatMessage[]) => Promise<LLMResponse>

@@ -50,9 +50,3 @@
 - 运行 CLI：`bun start "问题" --once`
 - 格式化：`bun run format` / `bun run format:check`
 - 构建：`bun build`
-
-## 定制
-
-- 调整系统提示词：`packages/core/src/runtime/prompt.xml`
-- 新增工具：在 `packages/tools/src/tools/` 添加实现并注册到 `src/index.ts`。
-- 模型/Provider：在 `~/.memo/config.toml` 配置 `providers`（name/env_api_key/model/base_url），或用 `OPENAI_BASE_URL`、`OPENAI_MODEL` 环境变量临时覆盖。

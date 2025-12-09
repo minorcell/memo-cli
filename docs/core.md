@@ -1,6 +1,6 @@
 # Core 实现解读（现状）
 
-核心聚焦「XML 协议 + 状态机」，通过 Session/Turn API 驱动工具调用、记录 JSONL 事件，依赖默认从 `~/.memo/config.toml` 补齐（provider、max_steps、日志路径等），UI 只需处理交互与回调。
+核心聚焦「JSON 协议 + 状态机」，通过 Session/Turn API 驱动工具调用、记录 JSONL 事件，依赖默认从 `~/.memo/config.toml` 补齐（provider、max_steps、日志路径等），UI 只需处理交互与回调。
 
 ## 目录/模块
 
@@ -8,7 +8,7 @@
     - `config.ts`：读取/写入 `~/.memo/config.toml`，provider 选择（name/env_api_key/model/base_url）、会话路径 `sessions/YY/MM/DD/<uuid>.jsonl`、sessionId 生成。
     - `constants.ts`：兜底默认（如 MAX_STEPS）。
 - `runtime/`：运行时与日志
-    - `prompt.xml/prompt.ts`：系统提示词加载。
+    - `prompt.md/prompt.ts`：系统提示词加载（内容为 JSON 协议说明）。
     - `history.ts`：JSONL sink 与事件构造。
     - `defaults.ts`：补全工具集、LLM、prompt、history sink、tokenizer、maxSteps（基于配置）。
     - `session.ts`：Session/Turn 状态机，执行 ReAct 循环、写事件、统计 token、触发回调。
@@ -19,24 +19,18 @@
 - `types.ts`：公共类型。
 - `index.ts`：包入口，导出上述模块。
 
-## 核心机制：XML 协议驱动的状态机
+## 核心机制：JSON 协议驱动的状态机
 
-1. 系统提示词要求模型使用 `<thought>`、`<action tool="...">`、`<final>`。
-2. `parseAssistant` 抽取 `<action>` / `<final>`。
+1. 系统提示词要求模型仅输出一个 JSON 对象：
+    - 调用工具：`{"thought":"...","action":{"tool":"name","input":{...}}}`
+    - 直接回答：`{"final":"..."}`
+2. `parseAssistant` 解析 JSON 并提取 `action` / `final`。
 3. 状态流转：
-    - `<final>`：结束，返回答案。
-    - `<action tool="X">payload</action>`：执行工具，得到 observation。
+    - `final`：结束，返回答案。
+    - `action`：执行工具，得到 observation。
     - 无 action/final：跳出，走兜底。
-4. Observation 回写：`<observation>...</observation>` 作为 user 消息写回，引导模型继续。
+4. Observation 回写：`{"observation":"...","tool":"name"}` 作为 user 消息写回，引导模型继续。
 5. 循环防护：`max_steps` 来自配置（默认 100），限制单个 turn 内 step 数；未知工具写 `"未知工具: X"` 继续纠偏。
-
-标签职责：
-
-- `<thought>`：思考，程序不消费。
-- `<action tool="name">input</action>`：要调用的工具和入参。
-- `<observation>...</observation>`：程序生成，告诉模型工具产物。
-- `<final>...</final>`：终止信号。
-- `<message role="..."><![CDATA[...]]></message>`：历史包装，防止字符破坏 XML。
 
 ## 入口：Session/Turn API（createAgentSession）
 
@@ -59,7 +53,7 @@ await session.close()
 
 - 事件：`session_start/turn_start/assistant/action/observation/final/turn_end/session_end`。
 - 默认写入 `~/.memo/sessions/YY/MM/DD/<uuid>.jsonl`；包含 provider、模型、tokenizer、token 用量等元数据。
-- XML 落盘已废弃；`logEntries` 仅为兼容用途。
+- 仅写 JSONL 事件，默认写入 `~/.memo/sessions/YY/MM/DD/<uuid>.jsonl`。
 
 ## LLM 适配（llm/openai.ts）
 
@@ -68,7 +62,7 @@ await session.close()
 
 ## 工具协议与注册表
 
-- `ToolFn = (input: string) => Promise<string>`，`ToolRegistry = Record<string, ToolFn>`。
+- `ToolRegistry = Record<string, McpTool>`（name/description/inputSchema/execute）。
 - 默认工具集来自 `packages/tools` (`TOOLKIT`)，Core 按名称查找，未知工具会提示 `"未知工具: name"`。
 
 ## 配置与路径（config/config.ts）

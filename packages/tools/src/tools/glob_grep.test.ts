@@ -3,8 +3,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, test, beforeAll, afterAll } from 'bun:test'
-import { glob } from '@memo/tools/tools/glob'
-import { grep } from '@memo/tools/tools/grep'
+import { globTool } from '@memo/tools/tools/glob'
+import { grepTool } from '@memo/tools/tools/grep'
 
 let tempDir: string
 let filePath: string
@@ -21,13 +21,15 @@ afterAll(async () => {
 
 describe('glob tool', () => {
     test('matches files under given path', async () => {
-        const res = await glob(JSON.stringify({ pattern: '**/*.txt', path: tempDir }))
-        assert.ok(res.includes('sample.txt'), 'should list matching file')
+        const res = await globTool.execute({ pattern: '**/*.txt', path: tempDir })
+        const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+        assert.ok(text.includes('sample.txt'), 'should list matching file')
     })
 
     test('returns hint when no matches', async () => {
-        const res = await glob(JSON.stringify({ pattern: '*.md', path: tempDir }))
-        assert.strictEqual(res, '未找到匹配文件')
+        const res = await globTool.execute({ pattern: '*.md', path: tempDir })
+        const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+        assert.strictEqual(text, '未找到匹配文件')
     })
 })
 
@@ -35,33 +37,41 @@ describe('grep tool', () => {
     const rgAvailable = Boolean(Bun.which('rg'))
 
     test('finds content with default output', async () => {
-        const res = await grep(JSON.stringify({ pattern: 'foo', path: tempDir }))
+        const res = await grepTool.execute({ pattern: 'foo', path: tempDir })
         if (!rgAvailable) {
-            assert.strictEqual(res, 'rg 未安装或不在 PATH')
+            const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+            assert.strictEqual(text, 'rg 未安装或不在 PATH')
             return
         }
-        assert.ok(res.includes('sample.txt'), 'should include filename')
-        assert.ok(res.includes('foo bar'), 'should include matching line')
+        const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+        assert.ok(text.includes('sample.txt'), 'should include filename')
+        assert.ok(text.includes('foo bar'), 'should include matching line')
     })
 
     test('supports count output mode', async () => {
-        const res = await grep(
-            JSON.stringify({ pattern: 'hello', path: tempDir, output_mode: 'count' }),
-        )
+        const res = await grepTool.execute({
+            pattern: 'hello',
+            path: tempDir,
+            output_mode: 'count',
+        })
         if (!rgAvailable) {
-            assert.strictEqual(res, 'rg 未安装或不在 PATH')
+            const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+            assert.strictEqual(text, 'rg 未安装或不在 PATH')
             return
         }
-        const trimmed = res.trim()
+        const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+        const trimmed = text.trim()
         assert.ok(trimmed.endsWith(':1') || /^\d+$/.test(trimmed))
     })
 
     test('returns hint when no matches', async () => {
-        const res = await grep(JSON.stringify({ pattern: 'notfound', path: tempDir }))
+        const res = await grepTool.execute({ pattern: 'notfound', path: tempDir })
         if (!rgAvailable) {
-            assert.strictEqual(res, 'rg 未安装或不在 PATH')
+            const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+            assert.strictEqual(text, 'rg 未安装或不在 PATH')
             return
         }
-        assert.strictEqual(res, '未找到匹配')
+        const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+        assert.strictEqual(text, '未找到匹配')
     })
 })

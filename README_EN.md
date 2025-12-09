@@ -52,9 +52,3 @@ Terminal ReAct agent built with Bun + TypeScript. Supports multi-turn sessions, 
 - `bun start "question" --once` — run CLI
 - `bun run format` / `bun run format:check` — format
 - `bun build` — bundle
-
-## Customization
-
-- System prompt: `packages/core/src/runtime/prompt.xml`
-- Add tools: implement under `packages/tools/src/tools/` and register in `src/index.ts`.
-- Providers/models: configure `~/.memo/config.toml` (`providers` array with name/env_api_key/model/base_url), or override temporarily via `OPENAI_BASE_URL` / `OPENAI_MODEL`.

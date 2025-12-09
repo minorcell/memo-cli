@@ -5,15 +5,15 @@
 ## 背景与痛点
 
 - 当前 `packages/ui/src/index.ts` 只接受一次问题，调用 `runAgent` 后直接退出，无法继续追问或补充上下文。
-- 日志仅有 `history.xml`，无法按消息维度索引/分析，也难以和其他系统对接。
+- 日志仅有 `history.xml`（旧方案）时无法按消息维度索引/分析；现统一写 JSONL。
 - 缺少 Session/Turn 概念，无法区分同一进程内的多轮、或复盘某一轮的工具轨迹。
 
 ## 目标与范围
 
 - 提供「Session（进程级对话）」「Turn（用户输入到 `<final>` 的一次往返）」的统一数据结构。
 - 默认交互式 REPL，持续接收用户输入；`--once` 保持单轮运行后退出。
-- Session/Turn 事件写入 JSONL，便于检索、拼装、观察性能；兼容历史的 XML 落盘。
-- 不改变现有 ReAct 协议（XML 标签、单工具调用），优先做架构和存储改造。
+- Session/Turn 事件写入 JSONL，便于检索、拼装、观察性能。
+- 协议切换为 JSON（`{"thought":...,"action":{...}}` / `{"final":...}`），单工具调用。
 
 ## 核心概念与状态
 
@@ -35,8 +35,8 @@
     - 可选第一个问题来自 argv，其余问题从 stdin 读取；支持 `/exit`、`/help` 之类的指令退出或查看状态。
     - 每个 Turn 结束后继续等待输入，直到用户退出或遇到致命错误。
 - **一次性模式（`--once`）**：
-    - `bun start "hello" --once`：启动 Session，但只跑 `turnIndex=1`，拿到 `<final>` 或兜底后退出。
-    - 仍写 JSONL / XML 日志，Session 中只有一个 Turn。
+    - `bun start "hello" --once`：启动 Session，但只跑 `turnIndex=1`，拿到 `final` 或兜底后退出。
+    - 仍写 JSONL，Session 中只有一个 Turn。
 
 ## 流程设计（Session 管理）
 
@@ -44,14 +44,14 @@
 2. **Turn Start**：
     - 将用户输入 push 到 `chatHistory`（role=user）。
     - 写入 `turn_start` 事件（含原始输入、turnIndex）。
-3. **ReAct 循环**（复用 `runAgent` 内部逻辑，或将其下沉为 `runTurn`）：
-    - 调用 `callLLM(history)` 得到 `assistantText`，记 `assistant` 事件。
-    - `parseAssistant`：若有 `<action>`，执行工具，写入 `action` / `observation` 事件，并将 `<observation>` 作为 user 消息回写；若有 `<final>`，写入 `final` 事件并结束 Turn。
+3. **ReAct 循环**：
+    - 调用 `callLLM(history)` 得到 `assistantText`（JSON），记 `assistant` 事件。
+    - `parseAssistant`：若有 `action`，执行工具，写入 `action` / `observation` 事件，并将 `{"observation":...}` 作为 user 消息回写；若有 `final`，写入 `final` 事件并结束 Turn。
     - 仍受 `max_steps`（配置项，默认 100）限制，超限写 `turn_end`（status=max_steps）。
 4. **Turn End**：
-    - 将最终 `<final>` 内容以 assistant 消息写入 `chatHistory`，方便下一轮续对话。
+    - 将最终 `final` 内容以 assistant 消息写入 `chatHistory`，方便下一轮续对话。
     - 写入 `turn_end` 事件（status、stepCount、durationMs、errorMessage?）。
-5. **Session End**：退出时写 `session_end` 事件，并可选落盘 XML 汇总。
+5. **Session End**：退出时写 `session_end` 事件。
 
 ## Core 改造要点
 
@@ -61,7 +61,7 @@
     - `close()`：收尾写入 `session_end`，flush writer。
 - 保持 `runAgent(question, deps)` 作为 `--once` 的薄封装，内部调用 `createAgentSession(...).runTurn(question)`，保证向后兼容。
 - 历史写入接口扩展：
-    - 新增 `HistorySink`（`append(event)` / `flush()`），提供 `JsonlHistorySink` 与现有 XML writer（可作为 `LegacyXmlSink`）并存。
+    - 新增 `HistorySink`（`append(event)` / `flush()`），默认提供 `JsonlHistorySink`。
     - `AgentDeps` 可注入 `historySinks: HistorySink[]`，交给 Session 在关键事件时写入。
 
 ## UI/CLI 改造要点
@@ -97,7 +97,7 @@
     - `assistant`：模型原文输出；`meta.tokens` 记录本地/usage 的 completion/prompt/total。
     - `action`：`meta.tool`、`meta.input`（raw）；`content` 可为空或简述。
     - `observation`：`meta.tool`、`content` 为工具返回。
-    - `final`：`content` 为 `<final>` 文本；`meta.tokens` 可包含本轮累计。
+    - `final`：`content` 为最终回答文本；`meta.tokens` 可包含本轮累计。
     - `turn_end`：`meta` 包含 `status`、`stepCount`、`durationMs`、`errorMessage?`、`tokens`（该 turn 累计）。
 
 示例（简化）：
@@ -105,8 +105,8 @@
 ```jsonl
 {"ts":"2024-05-10T12:00:00Z","session_id":"sess_x","type":"session_start","meta":{"mode":"interactive","model":"deepseek-chat","tokenizer":"cl100k_base"}}
 {"ts":"2024-05-10T12:00:05Z","session_id":"sess_x","turn":1,"type":"turn_start","content":"帮我读 README","meta":{"tokens":{"prompt":12}}}
-{"ts":"2024-05-10T12:00:06Z","session_id":"sess_x","turn":1,"step":0,"type":"assistant","content":"<thought>需要 read...</thought><action tool=\"read\">...","meta":{"tokens":{"prompt":120,"completion":35,"total":155}}}
-{"ts":"2024-05-10T12:00:06Z","session_id":"sess_x","turn":1,"step":0,"type":"action","meta":{"tool":"read","input":"/repo/README.md"}}
+{"ts":"2024-05-10T12:00:06Z","session_id":"sess_x","turn":1,"step":0,"type":"assistant","content":"{\"thought\":\"需要 read...\",\"action\":{\"tool\":\"read\",\"input\":{\"file_path\":\"/repo/README.md\"}}}","meta":{"tokens":{"prompt":120,"completion":35,"total":155}}}
+{"ts":"2024-05-10T12:00:06Z","session_id":"sess_x","turn":1,"step":0,"type":"action","meta":{"tool":"read","input":"{\"file_path\":\"/repo/README.md\"}"}}
 {"ts":"2024-05-10T12:00:06Z","session_id":"sess_x","turn":1,"step":0,"type":"observation","meta":{"tool":"read"},"content":"(文件片段)"}
 {"ts":"2024-05-10T12:00:08Z","session_id":"sess_x","turn":1,"step":1,"type":"final","content":"README 摘要...","meta":{"tokens":{"completion":28}}}
 {"ts":"2024-05-10T12:00:08Z","session_id":"sess_x","turn":1,"type":"turn_end","meta":{"status":"ok","stepCount":2,"durationMs":3000,"tokens":{"prompt":132,"completion":63,"total":195}}}
@@ -116,8 +116,6 @@
 ## 历史文件与兼容性
 
 - 默认写入 `history/<sessionId>.jsonl`，便于一 Session 一文件；`--log-dir` 可定制路径。
-- XML 仅保留为核心的兼容写入工具，但默认 CLI 不再落盘 XML，专注 JSONL 结构化日志。
-- 旧接口（返回 `logEntries`）保持不变，便于需要 XML 的场景自行调用。
 
 ## 开放问题与后续
 

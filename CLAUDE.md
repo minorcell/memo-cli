@@ -65,7 +65,7 @@ bun run packages/ui/src/index.ts "问题"
 - **可选**:
     - `OPENAI_BASE_URL`（默认: `https://api.deepseek.com`）
     - `OPENAI_MODEL`（默认: `deepseek-chat`）
-- 生成的 `history.xml` 文件包含完整对话日志，如涉及敏感信息不应提交。
+- 生成的 `sessions/*.jsonl` 文件包含完整对话日志，如涉及敏感信息不应提交。
 
 ## 代码风格
 
@@ -81,12 +81,12 @@ bun run packages/ui/src/index.ts "问题"
 1. 在 `packages/tools/src/tools/your_tool.ts` 创建新文件
 2. 导出符合 `ToolFn` 类型签名的函数：`(input: string) => Promise<string>`
 3. 在 `packages/tools/src/index.ts` 的 TOOLKIT 记录中注册该工具
-4. 更新 `packages/core/src/prompt.xml` 中的系统提示词以描述工具用法
+4. 更新 `packages/core/src/prompt.md` 中的系统提示词以描述工具用法
 
 ## 重要实现细节
 
-- **历史格式**: 对话以 XML 格式记录，使用 `<message role="...">` 标签，保存到根目录的 `history.xml`
-- **工具执行**: 当前每个 assistant 轮次仅支持单个工具调用（从 `<action><tool>name</tool><input>...</input></action>` 解析）
-- **解析逻辑**: `packages/core/src/utils.ts` 中的 `parseAssistant()` 从 LLM 响应中提取 `<action>` 或 `<final>` 块
+- **历史格式**: 对话事件写入 JSONL，位于 `~/.memo/sessions/...`
+- **工具执行**: 当前每个 assistant 轮次仅支持单个工具调用（从 `{"action":{"tool":"name","input":{...}}}` 解析）
+- **解析逻辑**: `packages/core/src/utils.ts` 中的 `parseAssistant()` 从 LLM 响应中提取 `action` 或 `final`
 - **安全机制**: `MAX_STEPS = 100` 防止无限循环；若循环退出时未生成 final 则返回兜底回答
 - **LLM 温度**: 在 `packages/core/src/llm/openai.ts` 中设置为 0.35，平衡创造性和一致性
