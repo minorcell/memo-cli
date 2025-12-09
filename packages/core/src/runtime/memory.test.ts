@@ -48,8 +48,14 @@ describe('memory injection', () => {
         )
         try {
             const systemPrompt = session.history[0]?.content ?? ''
-            assert.ok(systemPrompt.includes('长期记忆'), 'system prompt should include memory section')
-            assert.ok(systemPrompt.includes('用户偏好：中文回答'), 'memory content should be injected')
+            assert.ok(
+                systemPrompt.includes('长期记忆'),
+                'system prompt should include memory section',
+            )
+            assert.ok(
+                systemPrompt.includes('用户偏好：中文回答'),
+                'memory content should be injected',
+            )
         } finally {
             await session.close()
         }

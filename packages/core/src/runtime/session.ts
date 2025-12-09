@@ -40,7 +40,11 @@ function accumulateUsage(target: TokenUsage, delta?: Partial<TokenUsage>) {
     target.total += totalDelta
 }
 
-function normalizeLLMResponse(raw: LLMResponse): { content: string; usage?: Partial<TokenUsage>; streamed?: boolean } {
+function normalizeLLMResponse(raw: LLMResponse): {
+    content: string
+    usage?: Partial<TokenUsage>
+    streamed?: boolean
+} {
     if (typeof raw === 'string') {
         return { content: raw }
     }

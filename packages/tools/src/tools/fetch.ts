@@ -56,10 +56,7 @@ export const fetchTool: McpTool<FetchInput> = {
                     consumedBytes += value.byteLength
                     if (consumedBytes > MAX_BODY_BYTES) {
                         controller.abort()
-                        return textResult(
-                            `请求被中止: 响应体超过 ${MAX_BODY_BYTES} bytes`,
-                            true,
-                        )
+                        return textResult(`请求被中止: 响应体超过 ${MAX_BODY_BYTES} bytes`, true)
                     }
                     chunks.push(value)
                 }

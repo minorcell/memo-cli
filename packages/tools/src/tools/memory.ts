@@ -46,9 +46,7 @@ export const memoryTool: McpTool<MemoryInput> = {
             try {
                 const file = Bun.file(memoryPath)
                 const existing = (await file.exists()) ? await file.text() : ''
-                const lines = existing
-                    .split(/\r?\n/)
-                    .filter((l) => l.trim().startsWith('- '))
+                const lines = existing.split(/\r?\n/).filter((l) => l.trim().startsWith('- '))
                 lines.push(line.trim())
                 const pruned = lines.slice(Math.max(0, lines.length - 50))
                 const finalContent = pruned.join('\n') + '\n'

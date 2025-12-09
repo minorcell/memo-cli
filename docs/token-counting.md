@@ -7,18 +7,18 @@
 - **底层编码器**：使用 `@dqbd/tiktoken`，默认 encoding `cl100k_base`；可通过 `tokenizerModel` 覆盖。
 - **纯文本计数**：`countText(text)` 直接对字符串编码，获得长度。
 - **消息数组计数（ChatML 近似）**：`countMessages(messages)` 采用 OpenAI ChatML 常用估算：
-  - 每条消息固定开销 4 tokens（role/name 封装等）。
-  - `content` 本身按 tiktoken 编码计数。
-  - 如果后续支持 `name` 字段，则额外加 1 token。
-  - 末尾补充 2 tokens 用于 assistant priming。
+    - 每条消息固定开销 4 tokens（role/name 封装等）。
+    - `content` 本身按 tiktoken 编码计数。
+    - 如果后续支持 `name` 字段，则额外加 1 token。
+    - 末尾补充 2 tokens 用于 assistant priming。
 
 该策略比单纯串联文本更贴近实际 ChatML 开销，但仍是近似值。
 
 ## 使用场景
 
 - **提示词预算**：`runTurn` 会在每步前用 `countMessages` 估算 prompt tokens，触发：
-  - `warnPromptTokens`：打印警告。
-  - `maxPromptTokens`：超过时立即返回提示，避免向 LLM 发送超限请求。
+    - `warnPromptTokens`：打印警告。
+    - `maxPromptTokens`：超过时立即返回提示，避免向 LLM 发送超限请求。
 - **usage 对账**：每步会结合本地计数与模型返回的 `usage`（若提供），记录到 tokenUsage 与 JSONL 历史事件。
 
 ## 精度与局限
@@ -30,10 +30,12 @@
 ## 如何覆盖
 
 - 创建 Session 时传入 `tokenizerModel` 或直接注入自定义 `tokenCounter`：
+
 ```ts
 import { createTokenCounter, createAgentSession } from '@memo/core'
 
 const tokenCounter = createTokenCounter('gpt-4o-mini')
 const session = await createAgentSession({ tokenCounter }, { warnPromptTokens: 8_000 })
 ```
+
 - 自定义 counter 只需实现 `countText`、`countMessages`、`dispose` 接口。

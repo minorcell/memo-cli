@@ -5,6 +5,7 @@ import { fetchTool } from '@memo/tools/tools/fetch'
 import { globTool } from '@memo/tools/tools/glob'
 import { grepTool } from '@memo/tools/tools/grep'
 import { memoryTool } from '@memo/tools/tools/memory'
+import { todoTool } from '@memo/tools/tools/todo'
 import { readTool } from '@memo/tools/tools/read'
 import { writeTool } from '@memo/tools/tools/write'
 
@@ -18,6 +19,7 @@ export const TOOLKIT: Record<ToolName, McpTool<any>> = {
     grep: grepTool,
     fetch: fetchTool,
     memory: memoryTool,
+    todo: todoTool,
 }
 
 /** 工具数组形式，便于直接注册到 MCP Server 等场景。 */
