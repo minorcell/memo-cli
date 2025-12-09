@@ -14,7 +14,7 @@ const WRITE_INPUT_SCHEMA = z
             z.boolean(),
             z.null(),
             z.array(z.any()),
-            z.record(z.any()),
+            z.record(z.string(), z.any()),
             z.instanceof(Uint8Array),
             z.instanceof(ArrayBuffer),
         ]).optional(),
