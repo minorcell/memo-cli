@@ -58,6 +58,8 @@ export type LLMResponse =
           content: string
           /** 模型返回的 token usage（可选）。 */
           usage?: Partial<TokenUsage>
+          /** 若为流式增量输出，标记已通过 onChunk 传递过部分内容。 */
+          streamed?: boolean
       }
 
 /** 将 LLM 输出解析成 action/final 结构后的表示。 */
@@ -71,8 +73,8 @@ export type ParsedAssistant = {
 /** 工具注册表，键为工具名称，值为 MCP 工具定义。 */
 export type ToolRegistry = Record<string, McpTool<any>>
 
-/** LLM 调用接口：输入历史消息，返回模型回复文本或携带 usage。 */
-export type CallLLM = (messages: ChatMessage[]) => Promise<LLMResponse>
+/** LLM 调用接口：输入历史消息，返回模型回复文本或携带 usage，可选流式回调。 */
+export type CallLLM = (messages: ChatMessage[], onChunk?: (chunk: string) => void) => Promise<LLMResponse>
 
 /**
  * runAgent 运行所需的依赖注入集合。
@@ -115,6 +117,8 @@ export type AgentSessionOptions = {
     warnPromptTokens?: number
     /** 提示词硬上限，超出直接拒绝。 */
     maxPromptTokens?: number
+    /** 是否启用 LLM 流式输出。 */
+    stream?: boolean
 }
 
 /** Session 运行需要的依赖（含扩展项）。 */

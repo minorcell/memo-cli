@@ -1,20 +1,30 @@
 import assert from 'node:assert'
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { join, basename } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, test, beforeAll, afterAll } from 'bun:test'
+import { $ } from 'bun'
 import { globTool } from '@memo/tools/tools/glob'
 
 let tempDir: string
 
+async function makeTempDir(prefix: string) {
+    const dir = join(tmpdir(), `${prefix}-${crypto.randomUUID()}`)
+    await $`mkdir -p ${dir}`
+    return dir
+}
+
+async function removeDir(dir: string) {
+    await $`rm -rf ${dir}`
+}
+
 beforeAll(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), 'memo-tools-glob-'))
-    await writeFile(join(tempDir, 'a.ts'), 'content')
-    await writeFile(join(tempDir, 'b.js'), 'content')
+    tempDir = await makeTempDir('memo-tools-glob')
+    await Bun.write(join(tempDir, 'a.ts'), 'content')
+    await Bun.write(join(tempDir, 'b.js'), 'content')
 })
 
 afterAll(async () => {
-    await rm(tempDir, { recursive: true, force: true })
+    await removeDir(tempDir)
 })
 
 describe('glob tool', () => {

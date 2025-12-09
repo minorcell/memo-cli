@@ -46,6 +46,23 @@ async function ensureProviderConfig() {
     const loaded = await loadMemoConfig()
     if (!loaded.needsSetup) return loaded
 
+    const defaultProvider = loaded.config.providers[0]
+    const envCandidates = [
+        defaultProvider?.env_api_key,
+        'OPENAI_API_KEY',
+        'DEEPSEEK_API_KEY',
+    ].filter(Boolean) as string[]
+
+    const hasEnvKey = envCandidates.some((key) => Boolean(process.env[key]))
+
+    if (defaultProvider && hasEnvKey) {
+        await writeMemoConfig(loaded.configPath, loaded.config)
+        console.log(
+            `检测到环境变量，已使用默认 provider (${defaultProvider.name}) 写入配置: ${loaded.configPath}`,
+        )
+        return { ...loaded, needsSetup: false }
+    }
+
     const rl = createInterface({ input, output })
     const ask = async (prompt: string, fallback: string) => {
         const ans = (await rl.question(prompt)).trim()
@@ -90,9 +107,14 @@ async function runInteractive(parsed: ParsedArgs) {
         mode: parsed.options.once ? 'once' : 'interactive',
     }
 
+    const streamedSteps = new Set<number>()
     const deps: AgentSessionDeps = {
         onAssistantStep: (text: string, step: number) => {
-            console.log(`\n[LLM 第 ${step + 1} 轮输出]\n${text}\n`)
+            if (!streamedSteps.has(step)) {
+                streamedSteps.add(step)
+                process.stdout.write(`\n[LLM 第 ${step + 1} 轮输出]\n`)
+            }
+            process.stdout.write(text)
         },
         onObservation: (tool: string, observation: string, step: number) => {
             console.log(`\n[第 ${step + 1} 步 工具=${tool}]\n${observation}\n`)

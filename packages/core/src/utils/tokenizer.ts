@@ -26,6 +26,12 @@ export function createTokenCounter(model?: string): TokenCounter {
     const { model: resolvedModel, factory } = safeEncodingFactory(model)
     const encoding = factory()
 
+    // ChatML 粗略估算：每条消息包含 role/name 包装开销
+    // 参考 OpenAI 对 gpt-3.5/4 的常用估算：每消息约 4 tokens，额外补足 assistant priming 2 tokens。
+    const TOKENS_PER_MESSAGE = 4
+    const TOKENS_FOR_ASSISTANT_PRIMING = 2
+    const TOKENS_PER_NAME = 1
+
     const countText = (text: string) => {
         if (!text) return 0
         return encoding.encode(text).length
@@ -33,9 +39,17 @@ export function createTokenCounter(model?: string): TokenCounter {
 
     const countMessages = (messages: ChatMessage[]) => {
         if (!messages.length) return 0
-        // 粗略策略：将 role 与内容串联，便于统一计数
-        const joined = messages.map((m) => `${m.role}: ${m.content}`).join('\n')
-        return countText(joined)
+        let total = 0
+        for (const message of messages) {
+            total += TOKENS_PER_MESSAGE
+            total += countText(message.content)
+            // 当前未使用 message.name，但预留 name 字段时加上开销
+            if ((message as any).name) {
+                total += TOKENS_PER_NAME
+            }
+        }
+        total += TOKENS_FOR_ASSISTANT_PRIMING
+        return total
     }
 
     return {

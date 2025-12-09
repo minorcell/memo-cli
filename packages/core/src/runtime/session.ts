@@ -40,11 +40,11 @@ function accumulateUsage(target: TokenUsage, delta?: Partial<TokenUsage>) {
     target.total += totalDelta
 }
 
-function normalizeLLMResponse(raw: LLMResponse): { content: string; usage?: Partial<TokenUsage> } {
+function normalizeLLMResponse(raw: LLMResponse): { content: string; usage?: Partial<TokenUsage>; streamed?: boolean } {
     if (typeof raw === 'string') {
         return { content: raw }
     }
-    return { content: raw.content, usage: raw.usage }
+    return { content: raw.content, usage: raw.usage, streamed: raw.streamed }
 }
 
 async function emitEventToSinks(event: HistoryEvent, sinks: HistorySink[]) {
@@ -151,62 +151,58 @@ class AgentSessionImpl implements AgentSession {
             meta: { tokens: { prompt: promptTokens } },
         })
 
-        // 提示词超过硬上限时直接返回提示，避免无意义请求。
-        if (this.options.maxPromptTokens && promptTokens > this.options.maxPromptTokens) {
-            const limitMessage = `上下文 tokens (${promptTokens}) 超出限制，请缩短输入或重启对话。`
-            const finalPayload = JSON.stringify({ final: limitMessage })
-            this.history.push({ role: 'assistant', content: finalPayload })
-            await this.emitEvent('final', {
-                turn,
-                content: limitMessage,
-                role: 'assistant',
-                meta: { tokens: { prompt: promptTokens } },
-            })
-            await this.emitEvent('turn_end', {
-                turn,
-                meta: {
-                    status: 'prompt_limit',
-                    durationMs: Date.now() - turnStartedAt,
-                    tokens: turnUsage,
-                },
-            })
-            return {
-                finalText: limitMessage,
-                steps,
-                status: 'prompt_limit',
-                errorMessage: limitMessage,
-                tokenUsage: turnUsage,
-            }
-        }
-
         let finalText = ''
         let status: TurnStatus = 'ok'
+        let errorMessage: string | undefined
 
         // ReAct 主循环，受 MAX_STEPS 保护。
         for (let step = 0; step < this.maxSteps; step++) {
             const estimatedPrompt = this.tokenCounter.countMessages(this.history)
+            if (this.options.maxPromptTokens && estimatedPrompt > this.options.maxPromptTokens) {
+                const limitMessage = `上下文 tokens (${estimatedPrompt}) 超出限制，请缩短输入或重启对话。`
+                const finalPayload = JSON.stringify({ final: limitMessage })
+                this.history.push({ role: 'assistant', content: finalPayload })
+                status = 'prompt_limit'
+                finalText = limitMessage
+                errorMessage = limitMessage
+                await this.emitEvent('final', {
+                    turn,
+                    step,
+                    content: limitMessage,
+                    role: 'assistant',
+                    meta: { tokens: { prompt: estimatedPrompt } },
+                })
+                break
+            }
             if (this.options.warnPromptTokens && estimatedPrompt > this.options.warnPromptTokens) {
                 console.warn(`提示 tokens 已接近上限: ${estimatedPrompt}`)
             }
 
             let assistantText = ''
             let usageFromLLM: Partial<TokenUsage> | undefined
+            let streamed = false
             try {
-                const llmResult = await this.deps.callLLM(this.history)
+                const llmResult = await this.deps.callLLM(this.history, (chunk) =>
+                    this.deps.onAssistantStep?.(chunk, step),
+                )
                 const normalized = normalizeLLMResponse(llmResult)
                 assistantText = normalized.content
                 usageFromLLM = normalized.usage
+                streamed = Boolean(normalized.streamed)
             } catch (err) {
                 const msg = `LLM 调用失败: ${(err as Error).message}`
                 const finalPayload = JSON.stringify({ final: msg })
                 this.history.push({ role: 'assistant', content: finalPayload })
                 status = 'error'
                 finalText = msg
+                errorMessage = msg
                 await this.emitEvent('final', { turn, content: msg, role: 'assistant' })
                 break
             }
 
-            this.deps.onAssistantStep?.(assistantText, step)
+            if (!streamed) {
+                this.deps.onAssistantStep?.(assistantText, step)
+            }
             this.history.push({ role: 'assistant', content: assistantText })
 
             // 将本地 tokenizer 与 LLM usage（若有）结合，记录 step 级 token 数据。
@@ -298,6 +294,7 @@ class AgentSessionImpl implements AgentSession {
                 if (toolFailed) {
                     status = 'error'
                     finalText = observation
+                    errorMessage = observation
                     await this.emitEvent('final', {
                         turn,
                         step,
@@ -315,8 +312,11 @@ class AgentSessionImpl implements AgentSession {
         }
 
         if (!finalText) {
-            status = status === 'error' ? status : 'max_steps'
+            if (status === 'ok') {
+                status = steps.length >= this.maxSteps ? 'max_steps' : 'error'
+            }
             finalText = '未能生成最终回答，请重试或调整问题。'
+            errorMessage = finalText
             const payload = JSON.stringify({ final: finalText })
             this.history.push({ role: 'assistant', content: payload })
             await this.emitEvent('final', {
@@ -340,6 +340,7 @@ class AgentSessionImpl implements AgentSession {
             finalText,
             steps,
             status,
+            errorMessage,
             tokenUsage: turnUsage,
         }
     }

@@ -6,16 +6,12 @@
 
 - `config/`：配置与路径
     - `config.ts`：读取/写入 `~/.memo/config.toml`，provider 选择（name/env_api_key/model/base_url）、会话路径 `sessions/YY/MM/DD/<uuid>.jsonl`、sessionId 生成。
-    - `constants.ts`：兜底默认（如 MAX_STEPS）。
 - `runtime/`：运行时与日志
     - `prompt.md/prompt.ts`：系统提示词加载（内容为 JSON 协议说明）。
     - `history.ts`：JSONL sink 与事件构造。
     - `defaults.ts`：补全工具集、LLM、prompt、history sink、tokenizer、maxSteps（基于配置）。
     - `session.ts`：Session/Turn 状态机，执行 ReAct 循环、写事件、统计 token、触发回调。
-- `llm/`：模型与 tokenizer
-    - `openai.ts`：OpenAI SDK 适配，`createOpenAIClient(provider)` 基于配置生成客户端，兼容 DeepSeek/OpenAI。
-    - `tokenizer.ts`：tiktoken 封装。
-- `utils/`：解析工具（assistant 输出解析、消息包装）。
+- `utils/`：解析工具（assistant 输出解析、消息包装）与 tokenizer 封装（tiktoken）。
 - `types.ts`：公共类型。
 - `index.ts`：包入口，导出上述模块。
 
@@ -55,10 +51,10 @@ await session.close()
 - 默认写入 `~/.memo/sessions/YY/MM/DD/<uuid>.jsonl`；包含 provider、模型、tokenizer、token 用量等元数据。
 - 仅写 JSONL 事件，默认写入 `~/.memo/sessions/YY/MM/DD/<uuid>.jsonl`。
 
-## LLM 适配（llm/openai.ts）
+## LLM 适配（runtime/defaults.ts）
 
-- `createOpenAIClient(provider)` 基于 provider 配置（env_api_key/model/base_url）构建 OpenAI SDK 客户端。
-- 环境变量只存 API key，不写入配置；可用 `OPENAI_BASE_URL/OPENAI_MODEL` 临时覆盖。
+- 通过 `withDefaultDeps` 内置基于 OpenAI SDK 的调用（按配置选择 provider、model、base_url、env_api_key）。
+- 优先使用传入的 `callLLM`，否则读取环境变量（当前 provider 的 env_api_key/OPENAI_API_KEY/DEEPSEEK_API_KEY）。
 
 ## 工具协议与注册表
 

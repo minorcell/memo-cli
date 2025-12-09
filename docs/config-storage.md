@@ -10,6 +10,7 @@
   sessions/
     25/12/01/UUID.jsonl # 按 YY/MM/DD 分桶的会话日志（JSONL 事件）
     25/12/02/UUID.jsonl
+  memory.md             # 长期记忆（由 memory 工具追加，随系统提示词注入）
 ```
 
 - 路径可通过环境变量 `MEMO_HOME` 覆盖，默认为 `~/.memo`。
@@ -22,6 +23,8 @@
 current_provider = "deepseek"
 # 每个 trun 最大的步骤数
 max_steps = 100
+# 是否启用流式输出（默认 true）
+stream_output = true
 
 [[providers]]
 name = "deepseek"
@@ -44,6 +47,8 @@ base_url = "https://api.openai.com/v1"
     - `env_api_key`: 读取的环境变量名称（不在文件中存密钥）。
     - `model`: 默认模型名。
     - `base_url`: 可选，兼容 OpenAI 生态；缺省则使用 SDK 默认。
+- `stream_output`: 是否默认使用 LLM 流式输出（stream=true）。
+- `memory.md`: 独立文件存储长期记忆，由 `memory` 工具追加，Session 启动时附加到系统提示词。
 
 ## 核心改造要点
 

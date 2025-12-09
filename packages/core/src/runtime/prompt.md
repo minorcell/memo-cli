@@ -13,6 +13,7 @@
 - `glob`: `{"pattern":"**/*.ts","path":"/repo"}`
 - `grep`: `{"pattern":"TODO","path":"/repo","output_mode":"content|files_with_matches|count","glob":"src/**/*.ts","-i":false,"-A":1,"-B":1}`
 - `fetch`: `{"url":"https://..."}`
+- `memory`: `{"note":"一句极短的用户画像/偏好/身份总结，≤32字符"}`（仅在准备返回 final 前追加）
 
 # 允许的输出格式
 
@@ -35,3 +36,4 @@
 - 每次仅调用一个工具。
 - 收到 observation 后，如已足够回答，直接返回 final。
 - 不要输出 XML/Markdown/额外文字；输出必须是 JSON 对象字符串。
+- 如发现可复用的用户画像/习惯/偏好等信息，且准备给出 final，可先调用一次 `memory` 工具写入摘要，避免重复调用；记忆内容不得包含敏感/原文，仅保留极短摘要。
