@@ -46,6 +46,23 @@ async function ensureProviderConfig() {
     const loaded = await loadMemoConfig()
     if (!loaded.needsSetup) return loaded
 
+    const defaultProvider = loaded.config.providers[0]
+    const envCandidates = [
+        defaultProvider?.env_api_key,
+        'OPENAI_API_KEY',
+        'DEEPSEEK_API_KEY',
+    ].filter(Boolean) as string[]
+
+    const hasEnvKey = envCandidates.some((key) => Boolean(process.env[key]))
+
+    if (defaultProvider && hasEnvKey) {
+        await writeMemoConfig(loaded.configPath, loaded.config)
+        console.log(
+            `检测到环境变量，已使用默认 provider (${defaultProvider.name}) 写入配置: ${loaded.configPath}`,
+        )
+        return { ...loaded, needsSetup: false }
+    }
+
     const rl = createInterface({ input, output })
     const ask = async (prompt: string, fallback: string) => {
         const ans = (await rl.question(prompt)).trim()
