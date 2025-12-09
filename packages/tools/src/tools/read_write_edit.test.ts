@@ -31,6 +31,15 @@ describe('write tool', () => {
         const content = await readFile(target, 'utf8')
         assert.strictEqual(content, 'hello')
     })
+
+    test('creates parent directories and stringifies JSON content', async () => {
+        const target = join(tempDir, 'nested', 'write.json')
+        const res = await writeTool.execute({ file_path: target, content: { foo: 'bar' } })
+        const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+        assert.ok(text.includes('nested/write.json'), 'should report target path')
+        const content = await readFile(target, 'utf8')
+        assert.ok(content.includes('"foo": "bar"'), 'should write JSON stringified content')
+    })
 })
 
 describe('read tool', () => {
