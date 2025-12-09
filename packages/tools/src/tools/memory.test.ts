@@ -1,15 +1,33 @@
 import assert from 'node:assert'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, test, beforeAll, afterAll } from 'bun:test'
+import { $ } from 'bun'
 import { memoryTool } from '@memo/tools/tools/memory'
 
 let tempHome: string
 let prevMemoHome: string | undefined
 
+async function makeTempDir(prefix: string) {
+    const dir = join(tmpdir(), `${prefix}-${crypto.randomUUID()}`)
+    await $`mkdir -p ${dir}`
+    return dir
+}
+
+async function removeDir(dir: string) {
+    await $`rm -rf ${dir}`
+}
+
+async function readText(path: string) {
+    const file = Bun.file(path)
+    if (await file.exists()) {
+        return file.text()
+    }
+    return ''
+}
+
 beforeAll(async () => {
-    tempHome = await mkdtemp(join(tmpdir(), 'memo-tools-memory-'))
+    tempHome = await makeTempDir('memo-tools-memory')
     prevMemoHome = process.env.MEMO_HOME
     process.env.MEMO_HOME = tempHome
 })
@@ -20,7 +38,7 @@ afterAll(async () => {
     } else {
         process.env.MEMO_HOME = prevMemoHome
     }
-    await rm(tempHome, { recursive: true, force: true })
+    await removeDir(tempHome)
 })
 
 describe('memory tool', () => {
@@ -39,7 +57,7 @@ describe('memory tool', () => {
         const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
         assert.ok(text.includes('memory'), 'should report memory path')
         const memoryPath = join(tempHome, 'memory.md')
-        const content = await readFile(memoryPath, 'utf8')
+        const content = await readText(memoryPath)
         assert.ok(content.includes('喜欢中文回答'), 'memory file should contain note')
         assert.ok(!content.includes('\n\n'), 'note should be sanitized')
     })
@@ -49,7 +67,7 @@ describe('memory tool', () => {
         for (let i = 0; i < 55; i++) {
             await memoryTool.execute({ note: `n${i}` })
         }
-        const content = await readFile(memoryPath, 'utf8')
+        const content = await readText(memoryPath)
         const lines = content
             .split(/\r?\n/)
             .filter((l) => l.trim().startsWith('- '))
