@@ -114,12 +114,40 @@ export function getMemoryPath(loaded: LoadedConfig) {
     return join(loaded.home, DEFAULT_MEMORY_FILE)
 }
 
+function sanitizePathComponent(raw: string, maxLen = 100) {
+    const replaced = raw.replace(/[\\/:\s]+/g, '-')
+    const collapsed = replaced.replace(/-+/g, '-')
+    const trimmed = collapsed.replace(/^-+|-+$/g, '')
+    const sliced = trimmed.slice(0, maxLen)
+    return sliced || 'root'
+}
+
+function truncatePath(parts: string[], maxTotalLen = 180) {
+    const result: string[] = []
+    let current = 0
+    for (const part of parts) {
+        const safe = part.slice(0, Math.max(1, maxTotalLen - current - (result.length > 0 ? 1 : 0)))
+        result.push(safe)
+        current += safe.length + (result.length > 1 ? 1 : 0)
+        if (current >= maxTotalLen) break
+    }
+    return result
+}
+
 export function buildSessionPath(baseDir: string, sessionId: string) {
     const now = new Date()
-    const yy = String(now.getFullYear()).slice(2)
+    const yyyy = String(now.getFullYear())
     const mm = String(now.getMonth() + 1).padStart(2, '0')
     const dd = String(now.getDate()).padStart(2, '0')
-    return join(baseDir, yy, mm, dd, `${sessionId}.jsonl`)
+    const HH = String(now.getHours()).padStart(2, '0')
+    const MM = String(now.getMinutes()).padStart(2, '0')
+    const SS = String(now.getSeconds()).padStart(2, '0')
+    const cwd = process.cwd()
+    const safeParts = cwd.split(/[/\\]+/).map((p) => sanitizePathComponent(p))
+    const truncatedParts = truncatePath(safeParts, 180)
+    const dirName = truncatedParts.join('-')
+    const fileName = `${yyyy}-${mm}-${dd}_${HH}${MM}${SS}_${sessionId}.jsonl`
+    return join(baseDir, dirName, fileName)
 }
 
 /** 提供一个新的 sessionId，便于外部复用。 */

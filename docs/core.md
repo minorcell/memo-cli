@@ -5,7 +5,7 @@
 ## 目录/模块
 
 - `config/`：配置与路径
-    - `config.ts`：读取/写入 `~/.memo/config.toml`，provider 选择（name/env_api_key/model/base_url）、会话路径 `sessions/YY/MM/DD/<uuid>.jsonl`、sessionId 生成。
+    - `config.ts`：读取/写入 `~/.memo/config.toml`，provider 选择（name/env_api_key/model/base_url）、会话路径（`sessions/<sanitized-cwd>/<yyyy-mm-dd>_<HHMMss>_<id>.jsonl`）、sessionId 生成。
 - `runtime/`：运行时与日志
     - `prompt.md/prompt.ts`：系统提示词加载（内容为 JSON 协议说明）。
     - `history.ts`：JSONL sink 与事件构造。
@@ -48,8 +48,8 @@ await session.close()
 ## 历史与日志（runtime/history.ts）
 
 - 事件：`session_start/turn_start/assistant/action/observation/final/turn_end/session_end`。
-- 默认写入 `~/.memo/sessions/YY/MM/DD/<uuid>.jsonl`；包含 provider、模型、tokenizer、token 用量等元数据。
-- 仅写 JSONL 事件，默认写入 `~/.memo/sessions/YY/MM/DD/<uuid>.jsonl`。
+- 默认写入 `~/.memo/sessions/<sanitized-cwd>/<yyyy-mm-dd>_<HHMMss>_<id>.jsonl`；包含 provider、模型、tokenizer、token 用量等元数据。
+- 仅写 JSONL 事件，默认写入上述路径，按工作目录分桶，便于跨项目区分。
 
 ## LLM 适配（runtime/defaults.ts）
 
@@ -65,7 +65,7 @@ await session.close()
 
 - `loadMemoConfig`：读取 `~/.memo/config.toml`，返回配置/路径以及 `needsSetup` 标记。
 - `writeMemoConfig`：将配置写回。
-- `buildSessionPath`：生成日期分桶的 JSONL 路径。
+- `buildSessionPath`：生成基于工作目录分桶、带日期时间戳的 JSONL 路径。
 - `selectProvider`：按名称选择 provider，回退默认。
 
 ## 小结

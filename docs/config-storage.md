@@ -8,13 +8,13 @@
 ~/.memo/
   config.toml           # 全局配置（providers/默认 provider/日志/路径）
   sessions/
-    25/12/01/UUID.jsonl # 按 YY/MM/DD 分桶的会话日志（JSONL 事件）
-    25/12/02/UUID.jsonl
+    -Users-mcell-Desktop-workspace-memo-cli/
+      2025-12-10_153045_XXXX.jsonl # 按工作目录分桶，文件名含日期时间与 session id
   memo.md               # 长期记忆（由 save_memory 工具追加，随系统提示词注入）
 ```
 
 - 路径可通过环境变量 `MEMO_HOME` 覆盖，默认为 `~/.memo`。
-- Session 文件命名：`sessions/<YY>/<MM>/<DD>/<uuid>.jsonl`，内容为事件流（与现有 JSONL 事件格式一致）。
+- Session 文件命名：`sessions/<sanitized-cwd>/<yyyy-mm-dd>_<HHMMss>_<id>.jsonl`，内容为事件流（与现有 JSONL 事件格式一致）；`sanitized-cwd` 将 `/ \ :` 与空格替换为 `-`，合并重复 `-`，并截断长度。
 
 ## 配置文件（config.toml）
 
@@ -53,7 +53,7 @@ base_url = "https://api.openai.com/v1"
 ## 核心改造要点
 
 - **配置加载层**：在 Core 增加配置加载模块（读取 `MEMO_HOME/config.toml`，无则用内置默认）。解析 provider 列表，暴露 `resolveProvider(name)` 返回 `{ baseURL, model, apiKey }`。
-- **默认路径**：历史 sink 默认指向 `sessions_dir`（按日期/uuid），不再写入仓库根目录。
+- **默认路径**：历史 sink 默认指向 `sessions_dir`（按工作目录分桶+时间戳文件名），不再写入仓库根目录。
 - **依赖注入**：`withDefaultDeps` 从配置中选择 provider（默认或 CLI/环境覆盖），初始化 LLM 客户端；token 预算从配置读取，CLI 覆盖优先。
 
 ## UI/CLI 行为
