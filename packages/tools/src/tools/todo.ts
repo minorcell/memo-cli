@@ -7,7 +7,6 @@ type StoredTask = {
     id: string
     content: string
     status: 'pending' | 'in_progress' | 'completed'
-    activeForm: string
 }
 
 const MAX_TASKS = 10
@@ -15,24 +14,19 @@ const tasks: StoredTask[] = []
 
 const TASK_SCHEMA = z
     .object({
-        content: z.string().trim().min(1, 'content 不能为空').max(100, 'content 最长 100 字符'),
-        status: z.enum(['pending', 'in_progress', 'completed']),
-        activeForm: z
-            .string()
-            .trim()
-            .min(1, 'activeForm 不能为空')
-            .max(120, 'activeForm 最长 120 字符'),
+        content: z.string().trim().min(1, 'content 不能为空').max(200, 'content 最长 200 字符'),
+        status: z.enum(['pending', 'in_progress', 'completed']).optional().default('pending'),
     })
     .strict()
 
 const ADD_SCHEMA = z.object({
     type: z.literal('add'),
-    todos: z.array(TASK_SCHEMA).min(1, 'todos 不能为空').max(10, 'todos 最多 10 条'),
+    todos: z.array(TASK_SCHEMA).min(1, 'todos 不能为空').max(20, 'todos 最多 20 条'),
 })
 
 const REPLACE_SCHEMA = z.object({
     type: z.literal('replace'),
-    todos: z.array(TASK_SCHEMA).min(1, 'todos 不能为空').max(10, 'todos 最多 10 条'),
+    todos: z.array(TASK_SCHEMA).min(1, 'todos 不能为空').max(20, 'todos 最多 20 条'),
 })
 
 const UPDATE_SCHEMA = z.object({
@@ -44,7 +38,7 @@ const UPDATE_SCHEMA = z.object({
             }),
         )
         .min(1, 'todos 不能为空')
-        .max(10, 'todos 最多 10 条'),
+        .max(20, 'todos 最多 20 条'),
 })
 
 const REMOVE_SCHEMA = z.object({
@@ -76,7 +70,6 @@ function mutate(input: TodoInput) {
                 id: crypto.randomUUID(),
                 content: t.content,
                 status: t.status,
-                activeForm: t.activeForm,
             }))
             tasks.push(...added)
             return { added, tasks: cloneTasks() }
@@ -90,7 +83,6 @@ function mutate(input: TodoInput) {
                 id: crypto.randomUUID(),
                 content: t.content,
                 status: t.status,
-                activeForm: t.activeForm,
             }))
             tasks.push(...replaced)
             return { replaced: true, tasks: cloneTasks() }
@@ -106,8 +98,7 @@ function mutate(input: TodoInput) {
                 const found = map.get(upd.id)
                 if (!found) return { error: `未找到任务 id=${upd.id}` }
                 found.content = upd.content
-                found.status = upd.status
-                found.activeForm = upd.activeForm
+                if (upd.status) found.status = upd.status
             }
             return { updated: ids, tasks: cloneTasks() }
         }

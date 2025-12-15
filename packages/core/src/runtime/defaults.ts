@@ -10,6 +10,7 @@ import {
 } from '@memo/core/config/config'
 import { JsonlHistorySink } from '@memo/core/runtime/history'
 import { loadSystemPrompt as defaultLoadPrompt } from '@memo/core/runtime/prompt'
+import { loadExternalMcpTools } from '@memo/core/runtime/mcp_client'
 import type {
     AgentSessionDeps,
     AgentSessionOptions,
@@ -34,12 +35,38 @@ export async function withDefaultDeps(
     historySinks: HistorySink[]
     tokenCounter: TokenCounter
     maxSteps: number
+    dispose: () => Promise<void>
 }> {
     const loaded = await loadMemoConfig()
     const config = loaded.config
-    const tools = deps.tools ?? TOOLKIT
+
+    // 1. 加载外部 MCP 工具
+    const { tools: mcpTools, cleanup } = await loadExternalMcpTools(config.mcp_servers)
+
+    // 2. 合并工具: deps.tools > mcpTools > TOOLKIT
+    const baseTools = deps.tools ?? TOOLKIT
+    const combinedTools: ToolRegistry = { ...baseTools }
+    for (const t of mcpTools) {
+        combinedTools[t.name] = t
+    }
+
     const loadPrompt = async () => {
-        const basePrompt = await (deps.loadPrompt ?? defaultLoadPrompt)()
+        let basePrompt = await (deps.loadPrompt ?? defaultLoadPrompt)()
+
+        // 如果存在外部工具，注入相关信息到 prompt
+        if (mcpTools.length > 0) {
+            const toolDescs = mcpTools
+                .map((t) => {
+                    const schema = (t as any)._rawJSONSchema
+                        ? JSON.stringify((t as any)._rawJSONSchema)
+                        : 'See description'
+                    return `- **${t.name}**: ${t.description}\n  Schema: \`${schema}\``
+                })
+                .join('\n')
+
+            basePrompt += `\n\n# External Tools\n${toolDescs}`
+        }
+
         const memoryPath = getMemoryPath(loaded)
         try {
             const file = Bun.file(memoryPath)
@@ -54,9 +81,13 @@ export async function withDefaultDeps(
         }
         return basePrompt
     }
-    const streamOutput = options.stream ?? config.stream_output ?? true
+    const streamOutput = options.stream ?? config.stream_output ?? false
     return {
-        tools,
+        tools: combinedTools,
+        dispose: async () => {
+            if (deps.dispose) await deps.dispose()
+            await cleanup()
+        },
         callLLM:
             deps.callLLM ??
             (async (messages, onChunk) => {

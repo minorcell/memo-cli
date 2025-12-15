@@ -97,6 +97,8 @@ export type AgentDeps = {
     onAssistantStep?: (content: string, step: number) => void
     /** 每次工具 observation 返回时的回调。 */
     onObservation?: (tool: string, observation: string, step: number) => void
+    /** 资源释放回调（如关闭 MCP Client）。 */
+    dispose?: () => Promise<void>
 }
 
 /** Session 模式：一次性或交互式。 */

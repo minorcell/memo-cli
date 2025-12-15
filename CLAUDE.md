@@ -4,89 +4,190 @@
 
 ## 项目概述
 
-使用 Bun 构建的终端 ReAct Agent，monorepo 结构。支持多轮对话、JSONL 事件日志、默认工具集，LLM 通过 OpenAI 兼容接口（默认 DeepSeek），配置与会话日志放在 `~/.memo`。
+memo-cli 是基于 Bun + TypeScript 的终端 ReAct Agent（monorepo 结构，~2000 行核心代码）。支持多轮对话、JSONL 日志、9 个内置工具，通过 OpenAI 兼容接口调用 LLM（默认 DeepSeek），配置存储在 `~/.memo`。
 
-## 包结构（简版）
+## 包结构
 
-- `packages/core`: 核心 ReAct 循环、会话状态、默认依赖装配
-    - `runtime/`: Session/Turn、事件、提示词加载、默认依赖注入
-    - `config/`: `~/.memo/config.toml` 读取（providers、max_steps、sessions 路径）
-    - `llm/`: OpenAI SDK 适配（DeepSeek 默认）、tokenizer
-    - `utils/`: 解析工具
-    - `types.ts`: 公共类型（AgentDeps/Session 等）
-- `packages/tools`: 内置工具（bash/read/write/edit/glob/grep/webfetch 等），导出 `TOOLKIT`
-- `packages/ui`: 简易 CLI（REPL + `--once`），主要做 I/O 与回调订阅
-- `docs/`: 架构、配置、设计说明
+- **packages/core** (~1000 行)：ReAct 循环、会话状态、配置管理
+    - `runtime/session.ts`：状态机主逻辑
+    - `runtime/defaults.ts`：依赖注入（自动装配工具/LLM/tokenizer）
+    - `runtime/history.ts`：JSONL 事件日志
+    - `runtime/prompt.md`：系统提示词模板
+    - `config/config.ts`：`~/.memo/config.toml` 管理
+    - `utils/utils.ts`：JSON 输出解析（提取 action/final）
+    - `utils/tokenizer.ts`：Token 计数（tiktoken）
+
+- **packages/tools** (~700 行)：9 个工具（bash/read/write/edit/glob/grep/webfetch/save_memory/todo）
+    - 基于 MCP 协议，Zod 验证输入
+    - 统一导出为 `TOOLKIT`
+
+- **packages/ui** (~170 行)：CLI 交互层（REPL + `--once` 模式）
+
+- **docs/**：架构文档（core.md、config-storage.md、tools/\*.md）
+
+## 核心机制
+
+### ReAct 循环（JSON 协议）
+
+LLM 输出格式：
+
+```json
+{"thought": "推理过程", "action": {"tool": "bash", "input": {"command": "ls"}}}
+{"final": "最终回答"}
+```
+
+**流程**（session.ts:163-299）：
+
+1. 用户输入 → 加入历史
+2. 调用 LLM → 解析 JSON（parseAssistant）
+3. 有 `action` → 执行工具 → observation 回写 → 继续循环
+4. 有 `final` → 结束并返回
+5. 保护：max_steps（默认 100）防无限循环
+
+**错误恢复**：未知工具/执行失败 → 返回错误信息，引导模型重试
+
+### LLM 集成
+
+**配置**（config.toml）：
+
+```toml
+current_provider = "deepseek"
+max_steps = 100
+stream_output = true
+
+[[providers]]
+name = "deepseek"
+env_api_key = "DEEPSEEK_API_KEY"  # 仅存环境变量名
+model = "deepseek-chat"
+base_url = "https://api.deepseek.com"
+```
+
+**调用**：OpenAI SDK，temperature=0.35，默认开启流式输出
+
+### 工具系统
+
+| 工具        | 功能            | 特性                   |
+| ----------- | --------------- | ---------------------- |
+| bash        | 执行 shell 命令 | 捕获 stdout/stderr     |
+| read        | 读取文件        | 支持 offset/limit 分页 |
+| write       | 写入文件        | 自动创建父目录         |
+| edit        | 字符串替换      | 支持 replace_all       |
+| glob        | 文件匹配        | 基于 Bun.Glob          |
+| grep        | 文本搜索        | 基于 ripgrep           |
+| webfetch    | HTTP GET        | 10s 超时，512KB 限制   |
+| save_memory | 长期记忆        | 追加到 ~/.memo/memo.md |
+| todo        | 待办清单        | 进程内，最多 10 条     |
 
 ## 配置与日志
 
-- 配置文件：`~/.memo/config.toml`（current_provider、providers 列表、max_steps 等）
-- 会话日志：JSONL，按日期分桶 `~/.memo/sessions/YY/MM/DD/<uuid>.jsonl`
-- Provider 不存 API key，只存环境变量名；默认 DeepSeek（env: `DEEPSEEK_API_KEY`）
-
-## 工作流提示
-
-- 默认依赖由 Core 自动补齐（工具集、LLM、prompt、历史 sink、tokenizer）；UI 只传回调。
-- `MAX_STEPS` 由配置 `max_steps` 控制（默认 100）；每个 turn 内步数限制。
-- CLI 解析 `--once`，交互式引导缺省 provider 配置写入 `config.toml`。
-
-## 开发命令（保持不变）
-
-```bash
-bun install
-bun start "question" --once
-bun build
-bun run format
 ```
+~/.memo/
+├── config.toml              # 全局配置
+├── sessions/                # 按工作目录分桶
+│   └── <cwd>/
+│       └── 2025-12-12_153045_<uuid>.jsonl
+└── memo.md                  # 长期记忆（save_memory 写入）
+```
+
+**JSONL 事件**：session_start、turn_start、assistant、action、observation、final、turn_end、session_end
+**元数据**：timestamp、provider、model、token usage、elapsed_ms
 
 ## 开发命令
 
 ```bash
-# 安装依赖
-bun install
+bun install                        # 安装依赖
+bun start "问题"                   # 交互式 REPL
+bun start "问题" --once            # 单轮模式
+bun build                          # 构建到 dist/
+bun run build:binary               # 编译可执行文件（./memo，60MB）
+bun run format                     # 代码格式化
+bun run format:check               # 检查格式
 
-# 本地运行（需要 DEEPSEEK_API_KEY 或 OPENAI_API_KEY）
-bun start "你的问题"
-
-# 构建分发版本（输出到 dist/）
-bun build
-
-# 格式化代码
-bun run format          # 写入更改
-bun run format:check    # 仅检查
-
-# 直接调试（绕过 package.json 脚本）
+# 调试
 bun run packages/ui/src/index.ts "问题"
 ```
 
-## 环境配置
+**环境变量**：
 
-- **必需**: `DEEPSEEK_API_KEY`（或使用 `OPENAI_API_KEY` 作为后备）
-- **可选**:
-    - `OPENAI_BASE_URL`（默认: `https://api.deepseek.com`）
-    - `OPENAI_MODEL`（默认: `deepseek-chat`）
-- 生成的 `sessions/*.jsonl` 文件包含完整对话日志，如涉及敏感信息不应提交。
+- 必需：`DEEPSEEK_API_KEY` 或 `OPENAI_API_KEY`
+- 可选：`OPENAI_BASE_URL`、`OPENAI_MODEL`
 
 ## 代码风格
 
-- 尽可能的使用`bun`的api，而不是`node`
-- TypeScript + ESM 模块
-- 4 空格缩进，无分号，启用单引号（见 `.prettierrc`）
-- 变量/函数使用 camelCase，类型/类使用 PascalCase，共享常量使用 CONSTANT_CASE
-- 保持 `packages/core` 中的函数小巧纯粹；副作用应放在 UI/tools 层
-- 从包入口点使用显式命名导出
+- 优先使用 Bun API（非 Node.js）
+- TypeScript + ESM，4 空格缩进，无分号，单引号
+- 命名：camelCase（变量/函数）、PascalCase（类型）、CONSTANT_CASE（常量）
+- Core 保持纯函数，副作用放 UI/tools 层
 
 ## 添加新工具
 
-1. 在 `packages/tools/src/tools/your_tool.ts` 创建新文件
-2. 导出符合 `ToolFn` 类型签名的函数：`(input: string) => Promise<string>`
-3. 在 `packages/tools/src/index.ts` 的 TOOLKIT 记录中注册该工具
-4. 更新 `packages/core/src/prompt.md` 中的系统提示词以描述工具用法
+1. 创建 `packages/tools/src/tools/your_tool.ts`：
 
-## 重要实现细节
+```typescript
+import { z } from 'zod'
+import type { McpTool } from '../types'
 
-- **历史格式**: 对话事件写入 JSONL，位于 `~/.memo/sessions/...`
-- **工具执行**: 当前每个 assistant 轮次仅支持单个工具调用（从 `{"action":{"tool":"name","input":{...}}}` 解析）
-- **解析逻辑**: `packages/core/src/utils.ts` 中的 `parseAssistant()` 从 LLM 响应中提取 `action` 或 `final`
-- **安全机制**: `MAX_STEPS = 100` 防止无限循环；若循环退出时未生成 final 则返回兜底回答
-- **LLM 温度**: 在 `packages/core/src/llm/openai.ts` 中设置为 0.35，平衡创造性和一致性
+const inputSchema = z.object({ param: z.string() })
+
+export const yourTool: McpTool<z.infer<typeof inputSchema>> = {
+    name: 'your_tool',
+    description: '描述',
+    inputSchema,
+    execute: async (input) => ({
+        content: [{ type: 'text', text: '结果' }],
+        isError: false,
+    }),
+}
+```
+
+2. 在 `packages/tools/src/index.ts` 注册到 `TOOLKIT`
+
+3. 更新 `packages/core/src/runtime/prompt.md` 描述用法
+
+## 重要细节
+
+- **历史格式**：JSONL，位于 `~/.memo/sessions/<cwd>/<timestamp>.jsonl`
+- **工具调用**：每轮仅支持单个工具（从 JSON 解析 action）
+- **安全机制**：max_steps 限制、配置不存密钥、日志放用户目录
+- **Token 管理**：tiktoken 本地估算 + LLM usage 统计
+- **依赖注入**：UI 只传回调，Core 自动装配（defaults.ts:withDefaultDeps）
+- **长期记忆**：save_memory 写入 memo.md，下次启动自动注入系统提示词
+- **错误处理**：工具失败不中断，返回错误信息引导模型重试
+
+## 执行流程
+
+```
+main() → parseArgs() → ensureProviderConfig()
+  → createAgentSession() → withDefaultDeps() → new AgentSessionImpl()
+  → session.runTurn(input)
+      [循环] callLLM() → parseAssistant() → 执行工具 → 回写 observation
+  → 返回 TurnResult
+  → session.close()
+```
+
+## 关键文件
+
+- `packages/ui/src/index.ts` - 入口
+- `packages/core/src/runtime/session.ts` - ReAct 核心
+- `packages/core/src/utils/utils.ts` - JSON 解析
+- `packages/core/src/config/config.ts` - 配置管理
+- `packages/tools/src/index.ts` - 工具注册
+- `packages/core/src/runtime/prompt.md` - 系统提示词
+- `docs/core.md` - 架构文档
+
+## 设计亮点
+
+- **依赖注入**：UI 只传回调，Core 自动装配
+- **按 cwd 分桶**：会话日志按工作目录分组
+- **安全设计**：配置仅存环境变量名，日志不入版本控制
+- **双轨 Token 统计**：本地估算 + LLM usage
+- **流式输出**：实时显示推理过程
+- **MCP 协议**：标准化工具接口，易扩展
+- **错误自愈**：工具失败引导模型重试
+
+## 已知限制
+
+- 每轮仅单个工具调用（无并行）
+- todo 工具进程内存储（重启清空）
+- webfetch 10s 超时 + 512KB 限制
+- 会话不支持跨进程恢复

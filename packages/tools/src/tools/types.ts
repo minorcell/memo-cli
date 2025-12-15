@@ -4,16 +4,8 @@ import type { ZodTypeAny } from 'zod'
 // 工具相关的类型声明
 
 /** 工具名称枚举，作为 Agent action 中的 tool 字段。 */
-export type ToolName =
-    | 'bash'
-    | 'read'
-    | 'write'
-    | 'edit'
-    | 'glob'
-    | 'grep'
-    | 'webfetch'
-    | 'save_memory'
-    | 'todo'
+/** 工具名称（字符串），支持内置与动态扩展工具。 */
+export type ToolName = string
 
 /** MCP 工具定义，输入由 zod 校验，输出为 CallToolResult。 */
 export type McpTool<Input = any> = {

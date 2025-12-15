@@ -5,16 +5,13 @@
     "scripts": {
         "start": "bun run packages/ui/src/index.ts",
         "build": "bun build packages/ui/src/index.ts --target bun --outdir dist --minify",
+        "build:binary": "bun build packages/ui/src/index.ts --target=bun --compile --outfile=memo",
         "format": "bunx prettier --write .",
         "format:check": "bunx prettier --check ."
     },
     "workspaces": [
         "packages/*"
     ],
-    "imports": {
-        "@memo/core": "./packages/core/src/index.ts",
-        "@memo/tools": "./packages/tools/src/index.ts"
-    },
     "devDependencies": {
         "@types/bun": "latest",
         "prettier": "^3.3.3"
@@ -24,6 +21,7 @@
     },
     "dependencies": {
         "@dqbd/tiktoken": "^1.0.22",
+        "@modelcontextprotocol/sdk": "^1.24.3",
         "openai": "^6.10.0",
         "toml": "^3.0.0"
     }

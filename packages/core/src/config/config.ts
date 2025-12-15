@@ -12,10 +12,35 @@ export type ProviderConfig = {
     base_url?: string
 }
 
+export type MCPServerConfig =
+    | {
+          /** 默认：启动本地进程，通过 stdio 连接。 */
+          type?: 'stdio'
+          command: string
+          args?: string[]
+      }
+    | {
+          /** 通过 Streamable HTTP 连接远程 MCP（必要时可回退 SSE）。 */
+          type?: 'streamable_http'
+          url: string
+          /** 失败时是否回退到 SSE 传输，默认 true。 */
+          fallback_to_sse?: boolean
+          /** 附加请求头（如鉴权）。 */
+          headers?: Record<string, string>
+      }
+    | {
+          /** 强制使用 SSE（旧版 HTTP 传输）。 */
+          type: 'sse'
+          url: string
+          headers?: Record<string, string>
+      }
+
 export type MemoConfig = {
     current_provider: string
     max_steps?: number
     stream_output?: boolean
+    /** Map of server name to server configuration */
+    mcp_servers?: Record<string, MCPServerConfig>
     providers: ProviderConfig[]
 }
 
@@ -26,7 +51,7 @@ const DEFAULT_MEMORY_FILE = 'memo.md'
 const DEFAULT_CONFIG: MemoConfig = {
     current_provider: 'deepseek',
     max_steps: 100,
-    stream_output: true,
+    stream_output: false,
     providers: [
         {
             name: 'deepseek',
@@ -35,6 +60,7 @@ const DEFAULT_CONFIG: MemoConfig = {
             base_url: 'https://api.deepseek.com',
         },
     ],
+    mcp_servers: {},
 }
 
 function expandHome(path: string) {
@@ -55,12 +81,40 @@ model = "${p.model}"
 ${p.base_url ? `base_url = "${p.base_url}"\n` : ''}`,
         )
         .join('\n\n')
-    return `# Memo config. Edit to change provider/model/base_url.
+
+    let mcpSection = ''
+    if (config.mcp_servers && Object.keys(config.mcp_servers).length > 0) {
+        mcpSection = Object.entries(config.mcp_servers)
+            .map(([name, conf]) => {
+                if ('url' in conf) {
+                    const lines = [`[mcp_servers.${name}]`]
+                    lines.push(`type = "${conf.type ?? 'streamable_http'}"`)
+                    lines.push(`url = "${conf.url}"`)
+                    if ('fallback_to_sse' in conf && conf.fallback_to_sse !== undefined) {
+                        lines.push(`fallback_to_sse = ${conf.fallback_to_sse}`)
+                    }
+                    if (conf.headers && Object.keys(conf.headers).length > 0) {
+                        const headerEntries = Object.entries(conf.headers)
+                            .map(([k, v]) => `${JSON.stringify(k)} = ${JSON.stringify(v)}`)
+                            .join(', ')
+                        lines.push(`headers = { ${headerEntries} }`)
+                    }
+                    return lines.join('\n')
+                }
+                const argsLine = conf.args ? `args = ${JSON.stringify(conf.args)}` : ''
+                const typeLine = conf.type ? `type = "${conf.type}"\n` : ''
+                return `[mcp_servers.${name}]\n${typeLine}command = "${conf.command}"\n${argsLine}`
+            })
+            .join('\n\n')
+    }
+
+    const mainConfig = `
 current_provider = "${config.current_provider}"
 max_steps = ${config.max_steps ?? 100}
-stream_output = ${config.stream_output ?? true}
+stream_output = ${config.stream_output ?? false}
+`.trim()
 
-${providers}`.trim()
+    return [mainConfig, providers, mcpSection].filter(Boolean).join('\n\n')
 }
 
 export async function writeMemoConfig(path: string, config: MemoConfig) {
@@ -90,6 +144,7 @@ export async function loadMemoConfig(): Promise<LoadedConfig> {
             max_steps: parsed.max_steps ?? DEFAULT_CONFIG.max_steps,
             stream_output: parsed.stream_output ?? DEFAULT_CONFIG.stream_output,
             providers: parsed.providers ?? [],
+            mcp_servers: parsed.mcp_servers ?? {},
         }
         const needsSetup = !merged.providers.length
         return { config: needsSetup ? DEFAULT_CONFIG : merged, home, configPath, needsSetup }

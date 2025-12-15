@@ -2,20 +2,27 @@ import assert from 'node:assert'
 import { mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { beforeAll, afterAll, describe, test } from 'bun:test'
-import { buildSessionPath } from '@memo/core/config/config'
+import { beforeAll, afterAll, describe, test, expect } from 'bun:test'
+import { buildSessionPath, loadMemoConfig, writeMemoConfig } from '@memo/core/config/config'
 
 let originalCwd: string
 let tempBase: string
+let originalMemoHome: string | undefined
 
 beforeAll(async () => {
     originalCwd = process.cwd()
     tempBase = join(tmpdir(), 'memo-core-config-test')
     await mkdir(tempBase, { recursive: true })
+    originalMemoHome = process.env.MEMO_HOME
 })
 
 afterAll(async () => {
     process.chdir(originalCwd)
+    if (originalMemoHome === undefined) {
+        delete process.env.MEMO_HOME
+    } else {
+        process.env.MEMO_HOME = originalMemoHome
+    }
 })
 
 describe('buildSessionPath', () => {
@@ -56,5 +63,79 @@ describe('buildSessionPath', () => {
             segments.every((p) => p.length > 0 && p.length <= 100),
             'each segment should respect per-part limit',
         )
+    })
+})
+
+describe('mcp config serialization', () => {
+    test('writeMemoConfig outputs stdio and http server fields', async () => {
+        const home = join(tempBase, 'memo-home-write')
+        process.env.MEMO_HOME = home
+        const configPath = join(home, 'config.toml')
+        await mkdir(home, { recursive: true })
+
+        await writeMemoConfig(configPath, {
+            current_provider: 'deepseek',
+            providers: [
+                { name: 'deepseek', env_api_key: 'DEEPSEEK_API_KEY', model: 'deepseek-chat' },
+            ],
+            mcp_servers: {
+                remote: {
+                    type: 'streamable_http',
+                    url: 'https://example.com/mcp',
+                    headers: { Authorization: 'Bearer token', 'X-Trace': '1' },
+                    fallback_to_sse: false,
+                },
+                local: {
+                    command: '/bin/echo',
+                    args: ['hello'],
+                },
+            },
+        })
+
+        const text = await Bun.file(configPath).text()
+        expect(text).toContain('[mcp_servers.remote]')
+        expect(text).toContain('type = "streamable_http"')
+        expect(text).toContain('url = "https://example.com/mcp"')
+        expect(text).toContain('fallback_to_sse = false')
+        expect(text).toContain('headers = { "Authorization" = "Bearer token", "X-Trace" = "1" }')
+        expect(text).toContain('[mcp_servers.local]')
+        expect(text).toContain('command = "/bin/echo"')
+        expect(text).toContain('args = ["hello"]')
+    })
+
+    test('loadMemoConfig parses http and sse servers with headers', async () => {
+        const home = join(tempBase, 'memo-home-load')
+        process.env.MEMO_HOME = home
+        await mkdir(home, { recursive: true })
+        const configText = `
+current_provider = "deepseek"
+stream_output = false
+max_steps = 42
+
+[[providers]]
+name = "deepseek"
+env_api_key = "DEEPSEEK_API_KEY"
+model = "deepseek-chat"
+
+[mcp_servers.remote]
+type = "streamable_http"
+url = "https://example.com/mcp"
+headers = { Authorization = "Bearer abc" }
+fallback_to_sse = true
+
+[mcp_servers.legacy]
+type = "sse"
+url = "https://legacy.example.com/mcp"
+`
+        await Bun.write(join(home, 'config.toml'), configText)
+
+        const loaded = await loadMemoConfig()
+        const servers = loaded.config.mcp_servers!
+        expect(servers.remote.type).toBe('streamable_http')
+        expect(servers.remote.url).toBe('https://example.com/mcp')
+        expect(servers.remote.headers?.Authorization).toBe('Bearer abc')
+        expect(servers.remote.fallback_to_sse).toBe(true)
+        expect(servers.legacy.type).toBe('sse')
+        expect(servers.legacy.url).toBe('https://legacy.example.com/mcp')
     })
 })

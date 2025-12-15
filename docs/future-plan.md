@@ -113,6 +113,12 @@ memo-cli 是一个基于 Bun + TypeScript 的 ReAct Agent CLI 工具，具有以
 
 ## 4. 实施路线图
 
+### 立即执行（本月）
+
+1.  **Codebase Context (Repo Map)**: 实现轻量级 AST 分析，生成仓库结构图，解决 Token 消耗大且易迷失的问题（对标 Aider）。
+2.  **External MCP Client**: 实现 MCP 客户端，支持连接外部 MCP Server（如 Postgres, Google Drive），扩展 Agent 能力边界（对标 Claude Code）。
+3.  **Git Integration**: 封装 Git 自动化工具，支持 Auto-Commit 和 Undo，增强开发流体验。
+
 ### 短期（1-2个月）
 
 1. 补强 Core hook 与事件系统，提供 stdout sink 选项
@@ -151,4 +157,5 @@ memo-cli 已具备良好的架构基础与核心功能，通过聚焦开发者�
 ---
 
 _文档生成时间：2025-12-10_  
+_最后更新：2025-12-16_  
 _基于代码分析与市场调研_

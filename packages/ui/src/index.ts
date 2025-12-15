@@ -122,7 +122,6 @@ async function runInteractive(parsed: ParsedArgs) {
     }
 
     const session = await createAgentSession(deps, sessionOptions)
-    console.log(`Session ${session.id} 已启动（模式: ${session.mode}）`)
 
     const rl = createInterface({ input, output })
     let nextQuestion = parsed.question
@@ -167,4 +166,4 @@ async function main() {
     await runInteractive(parsed)
 }
 
-await main()
+void main()

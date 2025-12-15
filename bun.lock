@@ -6,6 +6,7 @@
       "name": "memo-cli",
       "dependencies": {
         "@dqbd/tiktoken": "^1.0.22",
+        "@modelcontextprotocol/sdk": "^1.24.3",
         "openai": "^6.10.0",
         "toml": "^3.0.0",
       },
@@ -19,6 +20,9 @@
     },
     "packages/core": {
       "name": "@memo/core",
+      "dependencies": {
+        "zod": "^4.1.13",
+      },
     },
     "packages/tools": {
       "name": "@memo/tools",

@@ -1,35 +1,79 @@
 import type { ParsedAssistant } from '@memo/core/types'
 
 /**
- * 将模型输出解析为 JSON 结构，提取 action/final 字段。
- * 期望格式：{"thought":"...","action":{"tool":"read","input":{...}}} 或 {"final":"..."}
+ * 将模型输出解析为 Action 或 Final。
+ * 策略：
+ * 1. 寻找被 ```json ... ``` 包裹的 JSON 块。
+ * 2. 如果找到且解析成功，提取为 action。
+ * 3. 如果没找到，则将整个 content 视为 final。
  */
 export function parseAssistant(content: string): ParsedAssistant {
-    let parsedJson: unknown
-    try {
-        parsedJson = JSON.parse(content)
-    } catch {
-        return {}
-    }
-    if (!parsedJson || typeof parsedJson !== 'object' || Array.isArray(parsedJson)) return {}
-
-    const obj = parsedJson as Record<string, unknown>
     const parsed: ParsedAssistant = {}
 
-    const finalText = obj.final
-    if (typeof finalText === 'string' && finalText.trim()) {
-        parsed.final = finalText.trim()
+    // 尝试提取 JSON Block
+    // 匹配 ```json {...} ``` 或 ``` {...} ```
+    // 同时也支持没有闭合 ``` 的情况（流式输出中断）
+    const jsonBlockRegex = /```(?:json)?\s*(\{[\s\S]*?\})\s*```/
+    const match = content.match(jsonBlockRegex)
+
+    if (match) {
+        try {
+            const jsonText = match[1] || ''
+            if (!jsonText) return parsed // should not happen with regex
+            const obj = JSON.parse(jsonText)
+
+            // 检查是否是合法的 action 结构
+            // 兼容 { "tool": ... } (Codex Style) 或 { "action": { "tool": ... } } (Old Style)
+            let toolName: string | undefined
+            let toolInput: unknown
+
+            if (obj.tool) {
+                // Format: { "tool": "name", "input": ... }
+                toolName = obj.tool
+                toolInput = obj.input
+            } else if (obj.action && typeof obj.action === 'object') {
+                // Format: { "action": { "tool": "name", "input": ... } }
+                const actionObj = obj.action as Record<string, unknown>
+                toolName = actionObj.tool as string
+                toolInput = actionObj.input
+            }
+
+            if (toolName && typeof toolName === 'string') {
+                parsed.action = {
+                    tool: toolName.trim(),
+                    input: toolInput,
+                }
+                return parsed
+            }
+        } catch (e) {
+            // JSON 解析失败，忽略，回退到视为纯文本
+        }
     }
 
-    const action = obj.action
-    if (action && typeof action === 'object' && !Array.isArray(action)) {
-        const tool = (action as Record<string, unknown>).tool
-        if (typeof tool === 'string' && tool.trim()) {
-            parsed.action = {
-                tool: tool.trim(),
-                input: (action as Record<string, unknown>).input,
+    // 尝试寻找 raw JSON (fallback, if model forgot code blocks but output strict JSON)
+    // 仅当整个 content 看起来像个 JSON 对象时尝试
+    const trimmed = content.trim()
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        try {
+            const obj = JSON.parse(trimmed)
+            if (obj.tool) {
+                parsed.action = { tool: obj.tool, input: obj.input }
+                return parsed
             }
+            // 支持旧格式 {"final": "..."}
+            if (obj.final) {
+                parsed.final = obj.final
+                return parsed
+            }
+        } catch {
+            // ignore
         }
+    }
+
+    // 默认：全部视为 final
+    // 如果内容为空，则不视为 final（避免空消息结束回合）
+    if (content.trim()) {
+        parsed.final = content
     }
 
     return parsed

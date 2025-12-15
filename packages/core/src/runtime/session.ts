@@ -259,7 +259,6 @@ class AgentSessionImpl implements AgentSession {
 
                 const tool = this.deps.tools[parsed.action.tool]
                 let observation: string
-                let toolFailed = false
                 try {
                     if (tool) {
                         const parsedInput = parseToolInput(tool, parsed.action.input)
@@ -268,14 +267,12 @@ class AgentSessionImpl implements AgentSession {
                         } else {
                             const result = await tool.execute(parsedInput.data)
                             observation = flattenCallToolResult(result) || '(工具无输出)'
-                            toolFailed = Boolean(result.isError)
                         }
                     } else {
                         observation = `未知工具: ${parsed.action.tool}`
                     }
                 } catch (err) {
                     observation = `工具执行失败: ${(err as Error).message}`
-                    toolFailed = true
                 }
 
                 this.history.push({
@@ -294,20 +291,6 @@ class AgentSessionImpl implements AgentSession {
                     content: observation,
                     meta: { tool: parsed.action.tool },
                 })
-
-                if (toolFailed) {
-                    status = 'error'
-                    finalText = observation
-                    errorMessage = observation
-                    await this.emitEvent('final', {
-                        turn,
-                        step,
-                        content: observation,
-                        role: 'assistant',
-                        meta: { tokens: stepUsage },
-                    })
-                    break
-                }
                 continue
             }
 
@@ -366,6 +349,9 @@ class AgentSessionImpl implements AgentSession {
             }
         }
         this.tokenCounter.dispose()
+        if (this.deps.dispose) {
+            await this.deps.dispose()
+        }
     }
 
     /** 将结构化事件发送到所有历史 sink，独立于主流程错误。 */
