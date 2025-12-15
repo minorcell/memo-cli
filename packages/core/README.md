@@ -36,3 +36,14 @@ await session.close()
 ```
 
 如果提供自定义工具/LLM/prompt/sink，可在 deps/options 中覆盖对应字段。默认配置会选择当前 provider 并写入用户目录的 sessions。
+
+## Hook 与中间件
+
+Core 支持在关键阶段注册 Hook，并可通过 middleware 链式扩展：
+
+- `onTurnStart(payload, next?)`：每轮开始时触发，`payload` 包含 `turn` 与用户输入。
+- `onAction(payload, next?)`：模型请求调用工具时触发，可用于审计参数或落盘。
+- `onObservation(payload, next?)`：工具返回后触发，`payload` 提供 `tool`、`observation`、`step` 等信息。
+- `onFinal(payload, next?)`：回合结束时触发，附带最终文本与状态码。
+
+Hook 既可以直接传入回调，也可以传入 `(next, payload) => { ...; await next() }` 形式的中间件数组，满足链路追踪、埋点等需求。所有 Hook 均为可选，未提供时不会影响主流程。

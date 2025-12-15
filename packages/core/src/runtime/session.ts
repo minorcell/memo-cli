@@ -7,18 +7,24 @@ import { withDefaultDeps } from '@memo/core/runtime/defaults'
 import { parseAssistant } from '@memo/core/utils/utils'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types'
 import type {
+    ActionPayload,
     AgentSession,
     AgentSessionDeps,
     AgentSessionOptions,
     AgentStepTrace,
     ChatMessage,
+    FinalPayload,
     HistoryEvent,
     HistorySink,
+    Hook,
+    HookMiddleware,
     LLMResponse,
+    ObservationPayload,
     ParsedAssistant,
     SessionMode,
     TokenCounter,
     TokenUsage,
+    TurnStartPayload,
     TurnResult,
     TurnStatus,
 } from '@memo/core/types'
@@ -61,6 +67,22 @@ async function emitEventToSinks(event: HistoryEvent, sinks: HistorySink[]) {
     }
 }
 
+async function runHookChain<TArgs extends any[]>(hook: Hook<TArgs> | undefined, ...args: TArgs) {
+    const middlewares = normalizeHook(hook, args.length)
+    if (!middlewares.length) return
+    let idx = -1
+    const dispatch = async (i: number): Promise<void> => {
+        if (i <= idx) {
+            throw new Error('hook middleware 调用顺序错误：next 被重复触发')
+        }
+        idx = i
+        const fn = middlewares[i]
+        if (!fn) return
+        await fn(() => dispatch(i + 1), ...args)
+    }
+    await dispatch(0)
+}
+
 function flattenCallToolResult(result: CallToolResult): string {
     const texts =
         result.content?.flatMap((item) => {
@@ -92,6 +114,24 @@ function parseToolInput(tool: ToolRegistry[string], rawInput: unknown) {
         return { ok: false as const, error: `${tool.name} 参数不合法: ${path} ${message}` }
     }
     return { ok: true as const, data: parsed.data }
+}
+
+function normalizeHook<TArgs extends any[]>(
+    hook: Hook<TArgs> | undefined,
+    argsLength: number,
+): HookMiddleware<TArgs>[] {
+    if (!hook) return []
+    const list = Array.isArray(hook) ? hook : [hook]
+    return list.map((fn) => {
+        // 若函数签名不包含 next，视为普通回调，执行后自动进入下一个 middleware。
+        if (fn.length <= argsLength) {
+            return async (next: () => Promise<void>, ...args: TArgs) => {
+                await (fn as (...args: TArgs) => unknown)(...args)
+                await next()
+            }
+        }
+        return fn
+    })
 }
 
 /** 进程内的对话 Session，实现多轮运行与日志写入。 */
@@ -154,6 +194,7 @@ class AgentSessionImpl implements AgentSession {
             content: input,
             meta: { tokens: { prompt: promptTokens } },
         })
+        await runHookChain<TurnStartPayload>(this.deps.onTurnStart, { turn, input })
 
         let finalText = ''
         let status: TurnStatus = 'ok'
@@ -175,6 +216,12 @@ class AgentSessionImpl implements AgentSession {
                     content: limitMessage,
                     role: 'assistant',
                     meta: { tokens: { prompt: estimatedPrompt } },
+                })
+                await runHookChain<FinalPayload>(this.deps.onFinal, {
+                    turn,
+                    step,
+                    final: limitMessage,
+                    status,
                 })
                 break
             }
@@ -201,6 +248,11 @@ class AgentSessionImpl implements AgentSession {
                 finalText = msg
                 errorMessage = msg
                 await this.emitEvent('final', { turn, content: msg, role: 'assistant' })
+                await runHookChain<FinalPayload>(this.deps.onFinal, {
+                    turn,
+                    final: msg,
+                    status,
+                })
                 break
             }
 
@@ -247,10 +299,22 @@ class AgentSessionImpl implements AgentSession {
                     role: 'assistant',
                     meta: { tokens: stepUsage },
                 })
+                await runHookChain<FinalPayload>(this.deps.onFinal, {
+                    turn,
+                    step,
+                    final: parsed.final,
+                    status,
+                })
                 break
             }
 
             if (parsed.action) {
+                await runHookChain<ActionPayload>(this.deps.onAction, {
+                    turn,
+                    step,
+                    tool: parsed.action.tool,
+                    input: parsed.action.input,
+                })
                 await this.emitEvent('action', {
                     turn,
                     step,
@@ -283,7 +347,12 @@ class AgentSessionImpl implements AgentSession {
                 if (lastStep) {
                     lastStep.observation = observation
                 }
-                this.deps.onObservation?.(parsed.action.tool, observation, step)
+                await runHookChain<ObservationPayload>(this.deps.onObservation, {
+                    turn,
+                    step,
+                    tool: parsed.action.tool,
+                    observation,
+                })
 
                 await this.emitEvent('observation', {
                     turn,
@@ -310,6 +379,11 @@ class AgentSessionImpl implements AgentSession {
                 turn,
                 content: finalText,
                 role: 'assistant',
+            })
+            await runHookChain<FinalPayload>(this.deps.onFinal, {
+                turn,
+                final: finalText,
+                status,
             })
         }
 

@@ -95,8 +95,19 @@ export type AgentDeps = {
     loadPrompt?: () => Promise<string>
     /** 每次 assistant 输出时的回调。 */
     onAssistantStep?: (content: string, step: number) => void
-    /** 每次工具 observation 返回时的回调。 */
-    onObservation?: (tool: string, observation: string, step: number) => void
+    /**
+     * Turn 开始的 Hook，可用于接入中间件（日志、链路追踪等）。
+     * 支持直接回调或 middleware 链（next -> ...）。
+     */
+    onTurnStart?: Hook<[TurnStartPayload]>
+    /**
+     * 模型决定调用工具时的 Hook，可用于审核工具参数、记录链路等。
+     */
+    onAction?: Hook<[ActionPayload]>
+    /** 每次工具 observation 返回时的 Hook，支持中间件。 */
+    onObservation?: Hook<[ObservationPayload]>
+    /** 最终输出时的 Hook，携带状态码，支持中间件。 */
+    onFinal?: Hook<[FinalPayload]>
     /** 资源释放回调（如关闭 MCP Client）。 */
     dispose?: () => Promise<void>
 }
@@ -190,6 +201,41 @@ export type HistoryEvent = {
     /** 额外元数据（工具名、token 等）。 */
     meta?: Record<string, unknown>
 }
+
+/** Hook middleware：形如 (next, payload...)，可通过 next 形成链式调用。 */
+export type HookMiddleware<TArgs extends any[]> = (
+    next: () => Promise<void>,
+    ...args: TArgs
+) => void | Promise<void>
+
+/** 普通 Hook 回调。 */
+export type HookHandler<TArgs extends any[]> = (...args: TArgs) => void | Promise<void>
+
+/**
+ * Hook 类型：支持单个回调、单个 middleware，或数组（多中间件）。
+ * - 若函数签名不包含 next，则视为普通回调，自动串联到 middleware 链中。
+ */
+export type Hook<TArgs extends any[]> =
+    | HookHandler<TArgs>
+    | HookMiddleware<TArgs>
+    | Array<HookHandler<TArgs> | HookMiddleware<TArgs>>
+
+/** Turn 开始的 Hook 入参。 */
+export type TurnStartPayload = { turn: number; input: string }
+
+/** Action Hook 入参。 */
+export type ActionPayload = { turn: number; step: number; tool: string; input: unknown }
+
+/** Observation Hook 入参。 */
+export type ObservationPayload = {
+    turn: number
+    step: number
+    tool: string
+    observation: string
+}
+
+/** Final Hook 入参。 */
+export type FinalPayload = { turn: number; step?: number; final: string; status: TurnStatus }
 
 /** 历史落盘抽象，可输出到文件/外部系统。 */
 export type HistorySink = {
