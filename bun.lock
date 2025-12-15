@@ -20,6 +20,9 @@
     },
     "packages/core": {
       "name": "@memo/core",
+      "dependencies": {
+        "zod": "^4.1.13",
+      },
     },
     "packages/tools": {
       "name": "@memo/tools",
