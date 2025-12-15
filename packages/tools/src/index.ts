@@ -9,9 +9,12 @@ import { todoTool } from '@memo/tools/tools/todo'
 import { readTool } from '@memo/tools/tools/read'
 import { writeTool } from '@memo/tools/tools/write'
 
+import { runBunTool } from '@memo/tools/tools/run_bun'
+
 /** 对外暴露的工具集合，供 Agent 通过 tool name 查找。 */
 export const TOOLKIT: Record<ToolName, McpTool<any>> = {
     bash: bashTool,
+    run_bun: runBunTool,
     read: readTool,
     write: writeTool,
     edit: editTool,

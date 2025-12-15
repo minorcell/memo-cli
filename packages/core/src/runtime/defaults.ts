@@ -54,7 +54,7 @@ export async function withDefaultDeps(
         }
         return basePrompt
     }
-    const streamOutput = options.stream ?? config.stream_output ?? true
+    const streamOutput = options.stream ?? config.stream_output ?? false
     return {
         tools,
         callLLM:

@@ -14,6 +14,7 @@ export type ToolName =
     | 'webfetch'
     | 'save_memory'
     | 'todo'
+    | 'run_bun'
 
 /** MCP 工具定义，输入由 zod 校验，输出为 CallToolResult。 */
 export type McpTool<Input = any> = {
