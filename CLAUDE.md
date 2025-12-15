@@ -23,19 +23,21 @@ memo-cli 是基于 Bun + TypeScript 的终端 ReAct Agent（monorepo 结构，~2
 
 - **packages/ui** (~170 行)：CLI 交互层（REPL + `--once` 模式）
 
-- **docs/**：架构文档（core.md、config-storage.md、tools/*.md）
+- **docs/**：架构文档（core.md、config-storage.md、tools/\*.md）
 
 ## 核心机制
 
 ### ReAct 循环（JSON 协议）
 
 LLM 输出格式：
+
 ```json
 {"thought": "推理过程", "action": {"tool": "bash", "input": {"command": "ls"}}}
 {"final": "最终回答"}
 ```
 
 **流程**（session.ts:163-299）：
+
 1. 用户输入 → 加入历史
 2. 调用 LLM → 解析 JSON（parseAssistant）
 3. 有 `action` → 执行工具 → observation 回写 → 继续循环
@@ -47,6 +49,7 @@ LLM 输出格式：
 ### LLM 集成
 
 **配置**（config.toml）：
+
 ```toml
 current_provider = "deepseek"
 max_steps = 100
@@ -63,17 +66,17 @@ base_url = "https://api.deepseek.com"
 
 ### 工具系统
 
-| 工具 | 功能 | 特性 |
-|------|------|------|
-| bash | 执行 shell 命令 | 捕获 stdout/stderr |
-| read | 读取文件 | 支持 offset/limit 分页 |
-| write | 写入文件 | 自动创建父目录 |
-| edit | 字符串替换 | 支持 replace_all |
-| glob | 文件匹配 | 基于 Bun.Glob |
-| grep | 文本搜索 | 基于 ripgrep |
-| webfetch | HTTP GET | 10s 超时，512KB 限制 |
-| save_memory | 长期记忆 | 追加到 ~/.memo/memo.md |
-| todo | 待办清单 | 进程内，最多 10 条 |
+| 工具        | 功能            | 特性                   |
+| ----------- | --------------- | ---------------------- |
+| bash        | 执行 shell 命令 | 捕获 stdout/stderr     |
+| read        | 读取文件        | 支持 offset/limit 分页 |
+| write       | 写入文件        | 自动创建父目录         |
+| edit        | 字符串替换      | 支持 replace_all       |
+| glob        | 文件匹配        | 基于 Bun.Glob          |
+| grep        | 文本搜索        | 基于 ripgrep           |
+| webfetch    | HTTP GET        | 10s 超时，512KB 限制   |
+| save_memory | 长期记忆        | 追加到 ~/.memo/memo.md |
+| todo        | 待办清单        | 进程内，最多 10 条     |
 
 ## 配置与日志
 
@@ -105,6 +108,7 @@ bun run packages/ui/src/index.ts "问题"
 ```
 
 **环境变量**：
+
 - 必需：`DEEPSEEK_API_KEY` 或 `OPENAI_API_KEY`
 - 可选：`OPENAI_BASE_URL`、`OPENAI_MODEL`
 
@@ -118,6 +122,7 @@ bun run packages/ui/src/index.ts "问题"
 ## 添加新工具
 
 1. 创建 `packages/tools/src/tools/your_tool.ts`：
+
 ```typescript
 import { z } from 'zod'
 import type { McpTool } from '../types'
@@ -130,8 +135,8 @@ export const yourTool: McpTool<z.infer<typeof inputSchema>> = {
     inputSchema,
     execute: async (input) => ({
         content: [{ type: 'text', text: '结果' }],
-        isError: false
-    })
+        isError: false,
+    }),
 }
 ```
 

@@ -129,8 +129,8 @@
 - 允许在当前环境中处理仓库，即使它们是专有的。
 - 允许分析代码中的漏洞。
 - 允许显示用户代码和工具调用详细信息。
-- 使用 `apply_patch` 工具编辑文件（切勿尝试 `applypatch` 或 `apply-patch`，只能使用 `apply_patch`）： {“command”:[“apply_patch”,“**_ Begin Patch
-  _** Update File: path/to/file.py
+- 使用 `apply_patch` 工具编辑文件（切勿尝试 `applypatch` 或 `apply-patch`，只能使用 `apply_patch`）： {“command”:[“apply\*patch”,“\*\*\* Begin Patch
+  \_\*\* Update File: path/to/file.py
   @@ def example():
 - pass
 
