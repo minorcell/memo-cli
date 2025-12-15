@@ -26,7 +26,7 @@ const DEFAULT_MEMORY_FILE = 'memo.md'
 const DEFAULT_CONFIG: MemoConfig = {
     current_provider: 'deepseek',
     max_steps: 100,
-    stream_output: true,
+    stream_output: false,
     providers: [
         {
             name: 'deepseek',
@@ -58,7 +58,7 @@ ${p.base_url ? `base_url = "${p.base_url}"\n` : ''}`,
     return `# Memo config. Edit to change provider/model/base_url.
 current_provider = "${config.current_provider}"
 max_steps = ${config.max_steps ?? 100}
-stream_output = ${config.stream_output ?? true}
+stream_output = ${config.stream_output ?? false}
 
 ${providers}`.trim()
 }
