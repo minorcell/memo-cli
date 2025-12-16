@@ -1,3 +1,4 @@
+/** @file Core 包出口，汇聚运行时/配置/工具等公共 API。 */
 export * from '@memo/core/types'
 export * from '@memo/core/runtime/prompt'
 export * from '@memo/core/runtime/history'

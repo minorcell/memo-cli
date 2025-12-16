@@ -44,8 +44,8 @@ describe('todo tool', () => {
         const addRes = await todoTool.execute({
             type: 'add',
             todos: [
-                { content: '修复认证bug', status: 'pending', activeForm: '正在修复认证bug' },
-                { content: '运行测试', status: 'pending', activeForm: '正在运行测试' },
+                { content: '修复认证bug', status: 'pending' },
+                { content: '运行测试', status: 'pending' },
             ],
         })
         const addPayload = JSON.parse(
@@ -56,7 +56,7 @@ describe('todo tool', () => {
 
         const updateRes = await todoTool.execute({
             type: 'update',
-            todos: [{ id, content: '修复认证bug', status: 'in_progress', activeForm: '修复中' }],
+            todos: [{ id, content: '修复认证bug', status: 'in_progress' }],
         })
         const updatePayload = JSON.parse(
             updateRes.content?.[0]?.type === 'text' ? updateRes.content[0].text : '{}',
@@ -78,7 +78,6 @@ describe('todo tool', () => {
         const todos = Array.from({ length: 11 }, (_, i) => ({
             content: `t${i}`,
             status: 'pending' as const,
-            activeForm: `doing t${i}`,
         }))
         const res = await todoTool.execute({ type: 'add', todos })
         const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
@@ -88,7 +87,7 @@ describe('todo tool', () => {
     test('rejects update with missing id', async () => {
         const res = await todoTool.execute({
             type: 'update',
-            todos: [{ id: 'missing', content: 'x', status: 'pending', activeForm: 'x' }],
+            todos: [{ id: 'missing', content: 'x', status: 'pending' }],
         })
         const text = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
         assert.ok(res.isError, 'should be error')
@@ -98,7 +97,7 @@ describe('todo tool', () => {
     test('rejects invalid status enum', () => {
         const parsed = todoTool.inputSchema.safeParse({
             type: 'add',
-            todos: [{ content: 'x', status: 'done', activeForm: 'doing' }],
+            todos: [{ content: 'x', status: 'done' }],
         })
         assert.strictEqual(parsed.success, false)
     })

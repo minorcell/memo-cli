@@ -33,7 +33,7 @@
 - `createAgentSession(deps, options)` 返回 Session；`runTurn` 执行单轮 ReAct，UI 控制轮次（如 `--once` 只跑一轮）。
 - 默认依赖补全：`tools`（内置工具集）、`callLLM`（基于 provider 的 OpenAI 客户端）、`loadPrompt`、`historySinks`（写 `~/.memo/sessions/...`）、`tokenCounter`、`maxSteps` 均可省略。
 - 配置来源：`~/.memo/config.toml`（`MEMO_HOME` 可覆盖），字段 `current_provider`、`providers` 数组、`max_steps`。缺失时 UI 会交互式引导生成。
-- 回调：`onAssistantStep`、`onObservation` 供 UI 实时渲染。
+- 回调：`onAssistantStep`（流式输出） + `hooks`/`middlewares`（`onTurnStart/onAction/onObservation/onFinal`），便于 UI/插件订阅生命周期。
 
 简例：
 

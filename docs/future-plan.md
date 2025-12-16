@@ -54,7 +54,7 @@ memo-cli 是一个基于 Bun + TypeScript 的 ReAct Agent CLI 工具，具有以
 ### 3.2 架构改进
 
 1. **强化 Core 钩子与事件系统**：
-    - 完善 `onTurnStart`/`onAction`/`onObservation`/`onFinal` 钩子，支持自定义中间件
+    - ✅ 已提供 `onTurnStart`/`onAction`/`onObservation`/`onFinal` 钩子与中间件体系，可插入自定义逻辑
     - 提供上下文截断策略接口，支持多种摘要算法（如 LLM 摘要、关键句提取）
     - 抽象历史 sink，支持 stdout、文件、远程服务（如 OpenTelemetry）
 

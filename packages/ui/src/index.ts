@@ -116,8 +116,10 @@ async function runInteractive(parsed: ParsedArgs) {
             }
             process.stdout.write(text)
         },
-        onObservation: (tool: string, _, step: number) => {
-            console.log(`\n工具=${tool}\n`)
+        hooks: {
+            onObservation: ({ tool, step }) => {
+                console.log(`\n工具=${tool} step=${step}\n`)
+            },
         },
     }
 

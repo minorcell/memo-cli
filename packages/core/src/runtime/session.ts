@@ -1,17 +1,15 @@
-/**
- * Session/Turn 运行时：负责多轮对话状态、工具调度、日志事件写入与 token 统计。
- */
+/** @file Session/Turn 运行时核心：负责 ReAct 循环、工具调度与事件记录。 */
 import { randomUUID } from 'node:crypto'
 import { createHistoryEvent } from '@memo/core/runtime/history'
 import { withDefaultDeps } from '@memo/core/runtime/defaults'
 import { parseAssistant } from '@memo/core/utils/utils'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types'
 import type {
+    ChatMessage,
     AgentSession,
     AgentSessionDeps,
     AgentSessionOptions,
     AgentStepTrace,
-    ChatMessage,
     HistoryEvent,
     HistorySink,
     LLMResponse,
@@ -19,10 +17,16 @@ import type {
     SessionMode,
     TokenCounter,
     TokenUsage,
+    ToolRegistry,
     TurnResult,
     TurnStatus,
 } from '@memo/core/types'
-import type { ToolRegistry } from '@memo/core/types'
+import {
+    buildHookRunners,
+    runHook,
+    snapshotHistory,
+    type HookRunnerMap,
+} from '@memo/core/runtime/hooks'
 
 const DEFAULT_SESSION_MODE: SessionMode = 'interactive'
 
@@ -106,6 +110,7 @@ class AgentSessionImpl implements AgentSession {
     private sessionUsage: TokenUsage = emptyUsage()
     private startedAt = Date.now()
     private maxSteps: number
+    private hooks: HookRunnerMap
 
     constructor(
         private deps: AgentSessionDeps & {
@@ -123,6 +128,7 @@ class AgentSessionImpl implements AgentSession {
         this.tokenCounter = tokenCounter
         this.sinks = deps.historySinks ?? []
         this.maxSteps = maxSteps
+        this.hooks = buildHookRunners(deps)
     }
 
     /** 写入 Session 启动事件，记录配置与 token 限制。 */
@@ -154,6 +160,12 @@ class AgentSessionImpl implements AgentSession {
             content: input,
             meta: { tokens: { prompt: promptTokens } },
         })
+        await runHook(this.hooks, 'onTurnStart', {
+            sessionId: this.id,
+            turn,
+            input,
+            history: snapshotHistory(this.history),
+        })
 
         let finalText = ''
         let status: TurnStatus = 'ok'
@@ -175,6 +187,16 @@ class AgentSessionImpl implements AgentSession {
                     content: limitMessage,
                     role: 'assistant',
                     meta: { tokens: { prompt: estimatedPrompt } },
+                })
+                await runHook(this.hooks, 'onFinal', {
+                    sessionId: this.id,
+                    turn,
+                    step,
+                    finalText: limitMessage,
+                    status,
+                    errorMessage,
+                    turnUsage: { ...turnUsage },
+                    steps,
                 })
                 break
             }
@@ -201,6 +223,16 @@ class AgentSessionImpl implements AgentSession {
                 finalText = msg
                 errorMessage = msg
                 await this.emitEvent('final', { turn, content: msg, role: 'assistant' })
+                await runHook(this.hooks, 'onFinal', {
+                    sessionId: this.id,
+                    turn,
+                    step,
+                    finalText,
+                    status,
+                    errorMessage,
+                    turnUsage: { ...turnUsage },
+                    steps,
+                })
                 break
             }
 
@@ -247,6 +279,16 @@ class AgentSessionImpl implements AgentSession {
                     role: 'assistant',
                     meta: { tokens: stepUsage },
                 })
+                await runHook(this.hooks, 'onFinal', {
+                    sessionId: this.id,
+                    turn,
+                    step,
+                    finalText,
+                    status,
+                    tokenUsage: stepUsage,
+                    turnUsage: { ...turnUsage },
+                    steps,
+                })
                 break
             }
 
@@ -255,6 +297,13 @@ class AgentSessionImpl implements AgentSession {
                     turn,
                     step,
                     meta: { tool: parsed.action.tool, input: parsed.action.input },
+                })
+                await runHook(this.hooks, 'onAction', {
+                    sessionId: this.id,
+                    turn,
+                    step,
+                    action: parsed.action,
+                    history: snapshotHistory(this.history),
                 })
 
                 const tool = this.deps.tools[parsed.action.tool]
@@ -283,13 +332,19 @@ class AgentSessionImpl implements AgentSession {
                 if (lastStep) {
                     lastStep.observation = observation
                 }
-                this.deps.onObservation?.(parsed.action.tool, observation, step)
-
                 await this.emitEvent('observation', {
                     turn,
                     step,
                     content: observation,
                     meta: { tool: parsed.action.tool },
+                })
+                await runHook(this.hooks, 'onObservation', {
+                    sessionId: this.id,
+                    turn,
+                    step,
+                    tool: parsed.action.tool,
+                    observation,
+                    history: snapshotHistory(this.history),
                 })
                 continue
             }
@@ -310,6 +365,15 @@ class AgentSessionImpl implements AgentSession {
                 turn,
                 content: finalText,
                 role: 'assistant',
+            })
+            await runHook(this.hooks, 'onFinal', {
+                sessionId: this.id,
+                turn,
+                finalText,
+                status,
+                errorMessage,
+                turnUsage: { ...turnUsage },
+                steps,
             })
         }
 
@@ -371,6 +435,7 @@ class AgentSessionImpl implements AgentSession {
         })
         await emitEventToSinks(event, this.sinks)
     }
+
 }
 
 /**

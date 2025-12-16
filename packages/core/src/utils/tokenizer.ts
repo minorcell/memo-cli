@@ -1,3 +1,4 @@
+/** @file tiktoken 封装：用于提示词/回复 token 统计与编码管理。 */
 import { encoding_for_model, get_encoding, type Tiktoken } from '@dqbd/tiktoken'
 import type { ChatMessage, TokenCounter } from '@memo/core/types'
 

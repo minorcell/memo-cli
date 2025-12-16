@@ -1,3 +1,4 @@
+/** @file 长期记忆注入系统提示词的回归测试。 */
 import assert from 'node:assert'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'

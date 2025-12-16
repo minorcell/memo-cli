@@ -1,9 +1,38 @@
+/** @file 配置管理相关的读写与序列化测试。 */
 import assert from 'node:assert'
 import { mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeAll, afterAll, describe, test, expect } from 'bun:test'
-import { buildSessionPath, loadMemoConfig, writeMemoConfig } from '@memo/core/config/config'
+import {
+    buildSessionPath,
+    loadMemoConfig,
+    writeMemoConfig,
+    type MCPServerConfig,
+} from '@memo/core/config/config'
+
+type HttpServerConfig = Extract<MCPServerConfig, { url: string; type?: 'streamable_http' }>
+type SseServerConfig = Extract<MCPServerConfig, { url: string; type: 'sse' }>
+
+function expectHttpServer(
+    server: MCPServerConfig | undefined,
+    message = 'expected streamable_http server',
+): asserts server is HttpServerConfig {
+    expect(server).toBeDefined()
+    if (!server || !('url' in server) || server.type === 'sse') {
+        throw new Error(message)
+    }
+}
+
+function expectSseServer(
+    server: MCPServerConfig | undefined,
+    message = 'expected sse server',
+): asserts server is SseServerConfig {
+    expect(server).toBeDefined()
+    if (!server || !('url' in server) || server.type !== 'sse') {
+        throw new Error(message)
+    }
+}
 
 let originalCwd: string
 let tempBase: string
@@ -130,12 +159,16 @@ url = "https://legacy.example.com/mcp"
         await Bun.write(join(home, 'config.toml'), configText)
 
         const loaded = await loadMemoConfig()
-        const servers = loaded.config.mcp_servers!
-        expect(servers.remote.type).toBe('streamable_http')
-        expect(servers.remote.url).toBe('https://example.com/mcp')
-        expect(servers.remote.headers?.Authorization).toBe('Bearer abc')
-        expect(servers.remote.fallback_to_sse).toBe(true)
-        expect(servers.legacy.type).toBe('sse')
-        expect(servers.legacy.url).toBe('https://legacy.example.com/mcp')
+        const servers = loaded.config.mcp_servers ?? {}
+        const remote = servers.remote
+        expectHttpServer(remote)
+        expect(remote.type ?? 'streamable_http').toBe('streamable_http')
+        expect(remote.url).toBe('https://example.com/mcp')
+        expect(remote.headers?.Authorization).toBe('Bearer abc')
+        expect(remote.fallback_to_sse).toBe(true)
+
+        const legacy = servers.legacy
+        expectSseServer(legacy)
+        expect(legacy.url).toBe('https://legacy.example.com/mcp')
     })
 })

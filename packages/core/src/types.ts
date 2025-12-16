@@ -1,3 +1,4 @@
+/** @file Core 与 Runtime 共享的公共类型声明（会被 UI/Tools 复用）。 */
 import type { McpTool } from '@memo/tools/tools/types'
 
 /**
@@ -95,8 +96,10 @@ export type AgentDeps = {
     loadPrompt?: () => Promise<string>
     /** 每次 assistant 输出时的回调。 */
     onAssistantStep?: (content: string, step: number) => void
-    /** 每次工具 observation 返回时的回调。 */
-    onObservation?: (tool: string, observation: string, step: number) => void
+    /** Hook 集合：注入一次性的生命周期监听器。 */
+    hooks?: AgentHooks
+    /** 中间件列表：可注册多个 Hook 实现。 */
+    middlewares?: AgentMiddleware[]
     /** 资源释放回调（如关闭 MCP Client）。 */
     dispose?: () => Promise<void>
 }
@@ -149,6 +152,55 @@ export type TurnResult = {
     errorMessage?: string
     /** 本轮 token 统计。 */
     tokenUsage: TokenUsage
+}
+
+export type TurnStartHookPayload = {
+    sessionId: string
+    turn: number
+    input: string
+    history: ChatMessage[]
+}
+
+export type ActionHookPayload = {
+    sessionId: string
+    turn: number
+    step: number
+    action: NonNullable<ParsedAssistant['action']>
+    history: ChatMessage[]
+}
+
+export type ObservationHookPayload = {
+    sessionId: string
+    turn: number
+    step: number
+    tool: string
+    observation: string
+    history: ChatMessage[]
+}
+
+export type FinalHookPayload = {
+    sessionId: string
+    turn: number
+    step?: number
+    finalText: string
+    status: TurnStatus
+    errorMessage?: string
+    tokenUsage?: TokenUsage
+    turnUsage: TokenUsage
+    steps: AgentStepTrace[]
+}
+
+export type AgentHookHandler<Payload> = (payload: Payload) => Promise<void> | void
+
+export type AgentHooks = {
+    onTurnStart?: AgentHookHandler<TurnStartHookPayload>
+    onAction?: AgentHookHandler<ActionHookPayload>
+    onObservation?: AgentHookHandler<ObservationHookPayload>
+    onFinal?: AgentHookHandler<FinalHookPayload>
+}
+
+export type AgentMiddleware = AgentHooks & {
+    name?: string
 }
 
 /** Session 对象，持有历史并可执行多轮对话。 */

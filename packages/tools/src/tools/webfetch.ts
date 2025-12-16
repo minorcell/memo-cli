@@ -59,7 +59,7 @@ const htmlToPlainText = (html: string) => {
         .split('\n')
         .map((line) => line.trim().replace(/[ \t]{2,}/g, ' '))
     const normalizedLines = lines.filter(
-        (line, idx) => line.length > 0 || (idx > 0 && lines[idx - 1].length > 0),
+        (line, idx) => line.length > 0 || (idx > 0 && (lines[idx - 1]?.length ?? 0) > 0),
     )
     return normalizedLines.join('\n').trim()
 }

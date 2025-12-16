@@ -1,3 +1,4 @@
+/** @file 历史事件定义与 JSONL Sink 实现。 */
 import { appendFile, mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type { HistoryEvent, HistorySink, Role } from '@memo/core/types'

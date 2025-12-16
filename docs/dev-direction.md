@@ -14,7 +14,7 @@
 
 1. Core
 
-- 完善 Session/Turn API：hook（onTurnStart/onAction/onObservation/onFinal）、可选上下文截断策略。
+- ✅ 完善 Session/Turn API：hook（onTurnStart/onAction/onObservation/onFinal）+ 中间件体系，下一步扩展上下文截断策略。
 - 提供摘要/截断策略接口，控制长上下文。
 - 优化 token 计数：集中封装 tiktoken + usage 对账，暴露预算超限的策略钩子。
 - 抽象历史 sink：文件 JSONL、stdout、可选远端（后续）。

@@ -1,3 +1,4 @@
+/** @file 外部 MCP Server 客户端封装，负责加载远程工具列表。 */
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'

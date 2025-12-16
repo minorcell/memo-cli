@@ -1,3 +1,4 @@
+/** @file Session 默认依赖装配：工具集、LLM、历史 sink、tokenizer 等。 */
 import { TOOLKIT } from '@memo/tools'
 import OpenAI from 'openai'
 import { createTokenCounter } from '@memo/core/utils/tokenizer'

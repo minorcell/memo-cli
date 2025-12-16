@@ -1,3 +1,4 @@
+/** @file 配置管理：读取/写入 ~/.memo/config.toml 及路径构造工具。 */
 import { mkdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'

@@ -1,3 +1,4 @@
+/** @file Runtime 公用的解析辅助函数集合。 */
 import type { ParsedAssistant } from '@memo/core/types'
 
 /**
