@@ -18,13 +18,13 @@
 - 将代码写入临时目录的随机文件（尊重 `TMPDIR`，否则 `/tmp`），使用 `bun run <tmp>.ts` 执行。
 - 开启 `FORCE_COLOR=0`，避免彩色输出影响解析。
 - 收集 stdout/stderr 文本及退出码，返回格式：
-  ```
-  exit=<code>
-  stdout:
-  <stdout content>
-  stderr:
-  <stderr content>
-  ```
+    ```
+    exit=<code>
+    stdout:
+    <stdout content>
+    stderr:
+    <stderr content>
+    ```
 - 即使出现 runtime error 也会返回（exit 为非 0，stderr 包含错误）；只在文件写入/进程创建等异常时标记 `isError=true`。
 - 执行完会尝试删除临时文件（清理失败会被忽略）。
 
@@ -38,4 +38,4 @@
 
 - 只能访问环境已有的依赖（未自动安装第三方包）。
 - 代码运行环境与 memo 进程同机，需注意安全与资源消耗。
-- 输出未经截断，长输出可能占用较多 token。***
+- 输出未经截断，长输出可能占用较多 token。\*\*\*

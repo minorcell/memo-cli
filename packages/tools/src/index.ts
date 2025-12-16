@@ -6,6 +6,7 @@ import { globTool } from '@memo/tools/tools/glob'
 import { grepTool } from '@memo/tools/tools/grep'
 import { saveMemoryTool } from '@memo/tools/tools/save_memory'
 import { todoTool } from '@memo/tools/tools/todo'
+import { timeTool } from '@memo/tools/tools/time'
 import { readTool } from '@memo/tools/tools/read'
 import { writeTool } from '@memo/tools/tools/write'
 
@@ -22,6 +23,7 @@ export const TOOLKIT: Record<ToolName, McpTool<any>> = {
     grep: grepTool,
     webfetch: webfetchTool,
     save_memory: saveMemoryTool,
+    time: timeTool,
     todo: todoTool,
 }
 

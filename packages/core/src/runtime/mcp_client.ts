@@ -128,7 +128,11 @@ function isCacheValid(entry: McpCacheEntry): boolean {
     return now - cachedAt < CACHE_TTL_MS
 }
 
-function deserializeTool(serverName: string, serialized: SerializedMcpTool, client: Client): McpTool {
+function deserializeTool(
+    serverName: string,
+    serialized: SerializedMcpTool,
+    client: Client,
+): McpTool {
     return {
         name: serialized.name,
         description: serialized.description,

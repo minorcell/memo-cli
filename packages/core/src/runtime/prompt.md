@@ -118,6 +118,7 @@
 - **glob**: `{"pattern": "**/*.ts", "path": "/curr/dir"}`
 - **grep**: `{"pattern": "string", "path": "/dir", "glob": "*.ts", "-i": false, "-C": 2}`
 - **webfetch**: `{"url": "..."}`
+- **time**: `{} // 返回当前系统时间（ISO/UTC/epoch/timezone JSON）`
 - **save_memory**: `{"fact": "..."}`
 - **todo**:
     - Add: `{"type": "add", "todos": [{"content": "string", "status": "pending"}]}`

@@ -5,7 +5,7 @@
 ## 特性
 
 - 多轮对话：交互式 REPL，`--once` 支持单轮退出。
-- 工具驱动：内置 bash/run_bun/read/write/edit/glob/grep/webfetch（HTML 自动转纯文本）、save_memory、todo，按 ReAct 协议调用。
+- 工具驱动：内置 bash/run_bun/read/write/edit/glob/grep/webfetch（HTML 自动转纯文本）、time、save_memory、todo，按 ReAct 协议调用。
 - 结构化日志：默认写入 `history/<sessionId>.jsonl`，可携带 token 计数与事件。
 - 可配置 token 预算：本地 tiktoken 预估 + LLM usage 对账，支持提示超限预警/拒绝。
 
@@ -42,20 +42,20 @@
 ## 外部 MCP Server
 
 - 配置文件：`~/.memo/config.toml`（可用 `MEMO_HOME` 覆盖）。在 `[mcp_servers.<name>]` 下添加条目。
-- 本地 stdio 服务器（已有可执行文件）：  
-  ```toml
-  [mcp_servers.local_tools]
-  command = "/path/to/mcp-server"
-  args = []
-  ```
-- 远程 HTTP 服务器（Streamable HTTP，失败会自动回退 SSE）：  
-  ```toml
-  [mcp_servers.bing_cn]
-  type = "streamable_http"
-  url = "https://mcp.api-inference.modelscope.net/496703c5b3ff47/mcp"
-  # 可选：headers = { Authorization = "Bearer xxx" }
-  # 可选：fallback_to_sse = true   # 默认开启
-  ```
+- 本地 stdio 服务器（已有可执行文件）：
+    ```toml
+    [mcp_servers.local_tools]
+    command = "/path/to/mcp-server"
+    args = []
+    ```
+- 远程 HTTP 服务器（Streamable HTTP，失败会自动回退 SSE）：
+    ```toml
+    [mcp_servers.bing_cn]
+    type = "streamable_http"
+    url = "https://mcp.api-inference.modelscope.net/496703c5b3ff47/mcp"
+    # 可选：headers = { Authorization = "Bearer xxx" }
+    # 可选：fallback_to_sse = true   # 默认开启
+    ```
 - 保存配置后重启 memo，会在系统提示词中注入外部工具列表（工具名前会带 `<server>_` 前缀）。
 
 ## 项目结构

@@ -4,7 +4,7 @@
 
 ## 项目概述
 
-memo-cli 是基于 Bun + TypeScript 的终端 ReAct Agent（monorepo 结构，~2000 行核心代码）。支持多轮对话、JSONL 日志、9 个内置工具，通过 OpenAI 兼容接口调用 LLM（默认 DeepSeek），配置存储在 `~/.memo`。
+memo-cli 是基于 Bun + TypeScript 的终端 ReAct Agent（monorepo 结构，~2000 行核心代码）。支持多轮对话、JSONL 日志、10 个内置工具，通过 OpenAI 兼容接口调用 LLM（默认 DeepSeek），配置存储在 `~/.memo`。
 
 ## 包结构
 
@@ -17,7 +17,7 @@ memo-cli 是基于 Bun + TypeScript 的终端 ReAct Agent（monorepo 结构，~2
     - `utils/utils.ts`：JSON 输出解析（提取 action/final）
     - `utils/tokenizer.ts`：Token 计数（tiktoken）
 
-- **packages/tools** (~700 行)：9 个工具（bash/read/write/edit/glob/grep/webfetch/save_memory/todo）
+- **packages/tools** (~700 行)：10 个工具（bash/read/write/edit/glob/grep/webfetch/time/save_memory/todo）
     - 基于 MCP 协议，Zod 验证输入
     - 统一导出为 `TOOLKIT`
 
@@ -75,6 +75,7 @@ base_url = "https://api.deepseek.com"
 | glob        | 文件匹配        | 基于 Bun.Glob          |
 | grep        | 文本搜索        | 基于 ripgrep           |
 | webfetch    | HTTP GET        | 10s 超时，512KB 限制   |
+| time        | 当前时间        | ISO/UTC/epoch/timezone |
 | save_memory | 长期记忆        | 追加到 ~/.memo/memo.md |
 | todo        | 待办清单        | 进程内，最多 10 条     |
 

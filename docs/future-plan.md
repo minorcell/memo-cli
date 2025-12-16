@@ -5,7 +5,7 @@
 memo-cli 是一个基于 Bun + TypeScript 的 ReAct Agent CLI 工具，具有以下核心特性：
 
 - **多轮对话**：交互式 REPL 与单轮模式（`--once`）
-- **工具驱动**：内置 bash/read/write/edit/glob/grep/webfetch/save_memory/todo 等工具，严格遵循 ReAct 协议
+- **工具驱动**：内置 bash/read/write/edit/glob/grep/webfetch/time/save_memory/todo 等工具，严格遵循 ReAct 协议
 - **结构化日志**：JSONL 格式记录完整会话历史，便于调试与审计
 - **Token 预算管理**：本地 tiktoken 预估 + LLM usage 对账，支持超限预警
 - **架构清晰**：Core/Tools/UI 三层分离，Core 提供纯函数接口，UI 为薄壳
@@ -38,7 +38,7 @@ memo-cli 是一个基于 Bun + TypeScript 的 ReAct Agent CLI 工具，具有以
 
 1. **知名度低**：缺乏宣传与社区
 2. **工具安全性**：需要更强的输入校验与隔离（如路径白名单、只读模式）
-3. **功能局限**：缺少一些常用工具（时间、环境变量、网络请求增强等）
+3. **功能局限**：仍缺少一些常用工具（环境变量、文件大小、网络请求增强等）
 4. **生态缺失**：插件系统、第三方工具集成尚未实现
 
 ## 3. 产品与架构建议
@@ -61,7 +61,7 @@ memo-cli 是一个基于 Bun + TypeScript 的 ReAct Agent CLI 工具，具有以
 2. **工具安全与能力扩展**：
     - 增加路径白名单配置，限制工具可访问目录
     - 提供只读模式，防止意外修改
-    - 增加常用工具：`time`（获取时间）、`env`（读取环境变量）、`size`（文件大小）、`hash`（计算哈希）、`curl`（增强网络请求）
+    - 增加常用工具：`env`（读取环境变量）、`size`（文件大小）、`hash`（计算哈希）、`curl`（增强网络请求）
     - 统一错误码与提示语，提高用户体验
 
 3. **插件系统设计**：
@@ -123,7 +123,7 @@ memo-cli 是一个基于 Bun + TypeScript 的 ReAct Agent CLI 工具，具有以
 
 1. 补强 Core hook 与事件系统，提供 stdout sink 选项
 2. 增加工具安全校验（路径白名单、只读模式）
-3. 添加 3-5 个常用工具（time、env、size 等）
+3. 添加 3-5 个常用工具（env、size、hash 等）
 4. 完善测试覆盖，CI 自动化
 5. 编写入门教程与案例
 
