@@ -6,9 +6,10 @@ import { AssistantMessage } from './AssistantMessage'
 
 type TurnViewProps = {
     turn: TurnViewType
+    showDuration?: boolean
 }
 
-export function TurnView({ turn }: TurnViewProps) {
+export function TurnView({ turn, showDuration = false }: TurnViewProps) {
     const lastStepText = turn.steps[turn.steps.length - 1]?.assistantText?.trim() ?? ''
     const finalText = turn.finalText?.trim() ?? ''
     const shouldRenderFinal = finalText.length > 0 && finalText !== lastStepText
@@ -16,6 +17,7 @@ export function TurnView({ turn }: TurnViewProps) {
         typeof turn.durationMs === 'number'
             ? Math.max(1, Math.round(turn.durationMs / 1000))
             : null
+    const shouldShowDuration = showDuration && durationSeconds !== null
 
     return (
         <Box flexDirection="column" gap={1}>
@@ -23,7 +25,7 @@ export function TurnView({ turn }: TurnViewProps) {
             {turn.steps.map((step) => (
                 <StepView key={`step-${turn.index}-${step.index}`} step={step} />
             ))}
-            {durationSeconds !== null ? (
+            {shouldShowDuration ? (
                 <Text color="gray">— Worked for {durationSeconds}s —</Text>
             ) : null}
             {shouldRenderFinal ? <AssistantMessage text={finalText} /> : null}

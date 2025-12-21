@@ -34,7 +34,9 @@ export function resolveSlashCommand(
             return {
                 kind: 'message',
                 title: 'tools',
-                content: `内置工具 (${builtin.length}): ${builtin.join(', ')}\n${external}`,
+                content: `Built-in tools (${builtin.length}): ${builtin.join(
+                    ', ',
+                )}\n${external}`,
             }
         }
         case 'config':
@@ -44,6 +46,6 @@ export function resolveSlashCommand(
                 content: `config: ${context.configPath}\nprovider: ${context.providerName}\nmodel: ${context.model}`,
             }
         default:
-            return { kind: 'message', title: 'unknown', content: `未知命令: ${raw}` }
+            return { kind: 'message', title: 'unknown', content: `Unknown command: ${raw}` }
     }
 }

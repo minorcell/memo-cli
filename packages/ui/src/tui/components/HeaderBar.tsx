@@ -1,28 +1,37 @@
 import { Box, Text } from 'ink'
+import os from 'node:os'
 
 type HeaderBarProps = {
-    sessionId: string
     providerName: string
     model: string
-    streamOutput: boolean
+    cwd: string
 }
 
-export function HeaderBar({
-    sessionId,
-    providerName,
-    model,
-    streamOutput,
-}: HeaderBarProps) {
+function formatCwd(cwd: string) {
+    const home = os.homedir()
+    if (!home) return cwd
+    return cwd.startsWith(home) ? `~${cwd.slice(home.length)}` : cwd
+}
+
+export function HeaderBar({ providerName, model, cwd }: HeaderBarProps) {
+    const displayCwd = formatCwd(cwd)
     return (
-        <Box justifyContent="space-between">
-            <Text color="cyan">memo-cli</Text>
-            <Text color="gray">session:{sessionId}</Text>
-            <Text>
-                {providerName}:{model}
-            </Text>
-            <Text color={streamOutput ? 'green' : 'gray'}>
-                stream:{streamOutput ? 'on' : 'off'}
-            </Text>
+        <Box borderStyle="round" borderColor="gray" paddingX={1} flexDirection="column">
+            <Box>
+                <Text color="white">{'> Memo CLI'}</Text>
+                <Text color="gray"> (local)</Text>
+            </Box>
+            <Box>
+                <Text color="gray">model: </Text>
+                <Text bold>{model}</Text>
+                <Text color="gray">  provider: </Text>
+                <Text>{providerName}</Text>
+                <Text color="gray">  /config to view</Text>
+            </Box>
+            <Box>
+                <Text color="gray">directory: </Text>
+                <Text>{displayCwd}</Text>
+            </Box>
         </Box>
     )
 }

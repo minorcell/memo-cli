@@ -50,7 +50,7 @@ describe('memory injection', () => {
         try {
             const systemPrompt = session.history[0]?.content ?? ''
             assert.ok(
-                systemPrompt.includes('长期记忆'),
+                systemPrompt.includes('Long-Term Memory'),
                 'system prompt should include memory section',
             )
             assert.ok(

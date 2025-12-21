@@ -60,7 +60,7 @@ async function emitEventToSinks(event: HistoryEvent, sinks: HistorySink[]) {
         try {
             await sink.append(event)
         } catch (err) {
-            console.error(`写入历史事件失败: ${(err as Error).message}`)
+            console.error(`Failed to write history event: ${(err as Error).message}`)
         }
     }
 }
@@ -92,8 +92,8 @@ function parseToolInput(tool: ToolRegistry[string], rawInput: unknown) {
     if (!parsed.success) {
         const issue = parsed.error.issues[0]
         const path = issue?.path?.join('.') || 'input'
-        const message = issue?.message || '参数不合法'
-        return { ok: false as const, error: `${tool.name} 参数不合法: ${path} ${message}` }
+        const message = issue?.message || 'Invalid input'
+        return { ok: false as const, error: `${tool.name} invalid input: ${path} ${message}` }
     }
     return { ok: true as const, data: parsed.data }
 }
@@ -176,7 +176,7 @@ class AgentSessionImpl implements AgentSession {
         for (let step = 0; step < this.maxSteps; step++) {
             const estimatedPrompt = this.tokenCounter.countMessages(this.history)
             if (this.options.maxPromptTokens && estimatedPrompt > this.options.maxPromptTokens) {
-                const limitMessage = `上下文 tokens (${estimatedPrompt}) 超出限制，请缩短输入或重启对话。`
+                const limitMessage = `Context tokens (${estimatedPrompt}) exceed the limit. Please shorten the input or restart the session.`
                 const finalPayload = JSON.stringify({ final: limitMessage })
                 this.history.push({ role: 'assistant', content: finalPayload })
                 status = 'prompt_limit'
@@ -202,7 +202,7 @@ class AgentSessionImpl implements AgentSession {
                 break
             }
             if (this.options.warnPromptTokens && estimatedPrompt > this.options.warnPromptTokens) {
-                console.warn(`提示 tokens 已接近上限: ${estimatedPrompt}`)
+                console.warn(`Prompt tokens are near the limit: ${estimatedPrompt}`)
             }
 
             let assistantText = ''
@@ -217,7 +217,7 @@ class AgentSessionImpl implements AgentSession {
                 usageFromLLM = normalized.usage
                 streamed = Boolean(normalized.streamed)
             } catch (err) {
-                const msg = `LLM 调用失败: ${(err as Error).message}`
+                const msg = `LLM call failed: ${(err as Error).message}`
                 const finalPayload = JSON.stringify({ final: msg })
                 this.history.push({ role: 'assistant', content: finalPayload })
                 status = 'error'
@@ -316,13 +316,13 @@ class AgentSessionImpl implements AgentSession {
                             observation = parsedInput.error
                         } else {
                             const result = await tool.execute(parsedInput.data)
-                            observation = flattenCallToolResult(result) || '(工具无输出)'
+                            observation = flattenCallToolResult(result) || '(no tool output)'
                         }
                     } else {
-                        observation = `未知工具: ${parsed.action.tool}`
+                        observation = `Unknown tool: ${parsed.action.tool}`
                     }
                 } catch (err) {
-                    observation = `工具执行失败: ${(err as Error).message}`
+                    observation = `Tool execution failed: ${(err as Error).message}`
                 }
 
                 this.history.push({
@@ -358,7 +358,7 @@ class AgentSessionImpl implements AgentSession {
             if (status === 'ok') {
                 status = steps.length >= this.maxSteps ? 'max_steps' : 'error'
             }
-            finalText = '未能生成最终回答，请重试或调整问题。'
+            finalText = 'Unable to produce a final answer. Please retry or adjust the request.'
             errorMessage = finalText
             const payload = JSON.stringify({ final: finalText })
             this.history.push({ role: 'assistant', content: payload })
@@ -411,7 +411,7 @@ class AgentSessionImpl implements AgentSession {
                 try {
                     await sink.flush()
                 } catch (err) {
-                    console.error(`历史 flush 失败: ${(err as Error).message}`)
+                    console.error(`History flush failed: ${(err as Error).message}`)
                 }
             }
         }

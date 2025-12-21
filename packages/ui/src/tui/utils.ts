@@ -1,4 +1,5 @@
 import type { TokenUsage } from '@memo/core'
+import stringWidth from 'string-width'
 import type { ToolStatus } from './types'
 
 type ToolCallShape = { tool: string; input?: unknown }
@@ -37,6 +38,14 @@ export function stripToolCallArtifacts(text: string): string {
     return output.replace(/\n{3,}/g, '\n\n').trim()
 }
 
+export function buildPaddedLine(content: string, width: number, paddingX = 1) {
+    const safeWidth = Math.max(1, width)
+    const padded = `${' '.repeat(paddingX)}${content}${' '.repeat(paddingX)}`
+    const padding = Math.max(0, safeWidth - stringWidth(padded))
+    const line = padding > 0 ? `${padded}${' '.repeat(padding)}` : padded
+    return { line, blankLine: ' '.repeat(safeWidth) }
+}
+
 export function safeStringify(input: unknown): string {
     if (typeof input === 'string') return input
     try {
@@ -50,7 +59,7 @@ export function safeStringify(input: unknown): string {
 export function inferToolStatus(observation?: string): ToolStatus {
     if (!observation) return 'success'
     const lowered = observation.toLowerCase()
-    if (observation.includes('失败') || lowered.includes('error') || lowered.includes('unknown')) {
+    if (lowered.includes('error') || lowered.includes('unknown') || lowered.includes('failed')) {
         return 'error'
     }
     return 'success'

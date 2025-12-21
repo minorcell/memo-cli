@@ -17,13 +17,18 @@ export function MainContent({
     statusText,
     statusKind,
 }: MainContentProps) {
+    const lastTurnIndex = turns.length - 1
     return (
         <Box flexDirection="column" gap={1}>
             {systemMessages.map((message) => (
                 <SystemMessageView key={message.id} message={message} />
             ))}
-            {turns.map((turn) => (
-                <TurnView key={`turn-${turn.index}`} turn={turn} />
+            {turns.map((turn, index) => (
+                <TurnView
+                    key={`turn-${turn.index}`}
+                    turn={turn}
+                    showDuration={index === lastTurnIndex}
+                />
             ))}
             <StatusMessage text={statusText} kind={statusKind} />
         </Box>

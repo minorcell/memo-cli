@@ -74,11 +74,11 @@ export async function withDefaultDeps(
             if (await file.exists()) {
                 const memory = (await file.text()).trim()
                 if (memory) {
-                    return `${basePrompt}\n\n# 长期记忆\n${memory}`
+                    return `${basePrompt}\n\n# Long-Term Memory\n${memory}`
                 }
             }
         } catch (err) {
-            console.warn(`读取 memo 失败: ${(err as Error).message}`)
+            console.warn(`Failed to read memo: ${(err as Error).message}`)
         }
         return basePrompt
     }
@@ -99,7 +99,7 @@ export async function withDefaultDeps(
                     process.env.DEEPSEEK_API_KEY
                 if (!apiKey) {
                     throw new Error(
-                        `缺少环境变量 ${provider.env_api_key}（或 OPENAI_API_KEY/DEEPSEEK_API_KEY）`,
+                        `Missing env var ${provider.env_api_key} (or OPENAI_API_KEY/DEEPSEEK_API_KEY)`,
                     )
                 }
                 const client = new OpenAI({
@@ -130,7 +130,7 @@ export async function withDefaultDeps(
                     })
                     const content = data.choices?.[0]?.message?.content
                     if (typeof content !== 'string') {
-                        throw new Error('OpenAI 兼容接口返回内容为空')
+                        throw new Error('OpenAI-compatible API returned empty content')
                     }
                     return {
                         content,

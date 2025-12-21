@@ -1,5 +1,7 @@
-import { Box, Text, useInput } from 'ink'
+import { Box, Text, useInput, useStdout } from 'ink'
 import { useState } from 'react'
+import { USER_PREFIX } from '../constants'
+import { buildPaddedLine } from '../utils'
 
 type InputPromptProps = {
     disabled: boolean
@@ -16,6 +18,7 @@ export function InputPrompt({
     onClear,
     history,
 }: InputPromptProps) {
+    const { stdout } = useStdout()
     const [value, setValue] = useState('')
     const [historyIndex, setHistoryIndex] = useState<number | null>(null)
     const [draft, setDraft] = useState('')
@@ -87,14 +90,27 @@ export function InputPrompt({
         }
     })
 
+    const placeholder = disabled ? 'Running...' : 'Input...'
+    const displayText = value || placeholder
+    const lineColor = value && !disabled ? 'white' : 'gray'
+    const { line, blankLine } = buildPaddedLine(
+        `${USER_PREFIX} ${displayText}`,
+        stdout?.columns ?? 80,
+        1,
+    )
+    const verticalPadding = 1
+
     return (
-        <Box>
-            <Text color={disabled ? 'gray' : 'green'}>{'> '}</Text>
-            {value ? (
-                <Text>{value}</Text>
-            ) : (
-                <Text color="gray">{disabled ? 'Running...' : 'Input...'}</Text>
-            )}
+        <Box flexDirection="column">
+            {verticalPadding > 0 ? (
+                <Text backgroundColor="#2b2b2b">{blankLine}</Text>
+            ) : null}
+            <Text color={lineColor} backgroundColor="#2b2b2b">
+                {line}
+            </Text>
+            {verticalPadding > 0 ? (
+                <Text backgroundColor="#2b2b2b">{blankLine}</Text>
+            ) : null}
         </Box>
     )
 }

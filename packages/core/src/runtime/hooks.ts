@@ -62,7 +62,7 @@ export async function runHook<K extends HookName>(
         try {
             await handler(payload)
         } catch (err) {
-            console.warn(`Hook ${name} 执行失败: ${(err as Error).message}`)
+            console.warn(`Hook ${name} failed: ${(err as Error).message}`)
         }
     }
 }

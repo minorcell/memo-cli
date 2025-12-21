@@ -110,7 +110,7 @@ async function loadMcpCache(): Promise<McpCache> {
             return JSON.parse(content) as McpCache
         }
     } catch (err) {
-        console.warn(`读取 MCP 缓存失败: ${(err as Error).message}`)
+            console.warn(`Failed to read MCP cache: ${(err as Error).message}`)
     }
     return { servers: {} }
 }
@@ -119,7 +119,7 @@ async function saveMcpCache(cache: McpCache): Promise<void> {
     try {
         await Bun.write(MCP_CACHE_FILE, JSON.stringify(cache, null, 2))
     } catch (err) {
-        console.warn(`写入 MCP 缓存失败: ${(err as Error).message}`)
+            console.warn(`Failed to write MCP cache: ${(err as Error).message}`)
     }
 }
 

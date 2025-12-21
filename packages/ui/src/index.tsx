@@ -1,4 +1,4 @@
-// CLI 入口：提供交互式/一次性两种模式，负责 Session 管理与日志输出。
+// CLI entry: interactive/one-off modes with session management and logs.
 import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
@@ -23,7 +23,7 @@ type ParsedArgs = {
     options: CliOptions
 }
 
-/** 简易 argv 解析，仅支持 --once 开关。 */
+/** Minimal argv parsing, supports --once only. */
 function parseArgs(argv: string[]): ParsedArgs {
     const options: CliOptions = {
         once: false,
@@ -61,7 +61,7 @@ async function ensureProviderConfig() {
     if (defaultProvider && hasEnvKey) {
         await writeMemoConfig(loaded.configPath, loaded.config)
         console.log(
-            `检测到环境变量，已使用默认 provider (${defaultProvider.name}) 写入配置: ${loaded.configPath}`,
+            `Detected API key in env. Wrote default provider (${defaultProvider.name}) to ${loaded.configPath}`,
         )
         return { ...loaded, needsSetup: false }
     }
@@ -73,10 +73,10 @@ async function ensureProviderConfig() {
     }
 
     try {
-        console.log('未检测到可用的 provider 配置，请按提示输入：')
-        const name = await ask('Provider 名称 [deepseek]: ', 'deepseek')
-        const envKey = await ask('API Key 环境变量名 [DEEPSEEK_API_KEY]: ', 'DEEPSEEK_API_KEY')
-        const model = await ask('模型名称 [deepseek-chat]: ', 'deepseek-chat')
+        console.log('No provider config found. Please answer the prompts:')
+        const name = await ask('Provider name [deepseek]: ', 'deepseek')
+        const envKey = await ask('API key env var [DEEPSEEK_API_KEY]: ', 'DEEPSEEK_API_KEY')
+        const model = await ask('Model name [deepseek-chat]: ', 'deepseek-chat')
         const baseUrl = await ask(
             'Base URL [https://api.deepseek.com]: ',
             'https://api.deepseek.com',
@@ -95,7 +95,7 @@ async function ensureProviderConfig() {
             ],
         }
         await writeMemoConfig(loaded.configPath, config)
-        console.log(`配置已写入 ${loaded.configPath}\n`)
+        console.log(`Config written to ${loaded.configPath}\n`)
         return { ...loaded, config, needsSetup: false }
     } finally {
         rl.close()
@@ -136,16 +136,16 @@ async function runPlainMode(parsed: ParsedArgs) {
         question = await readStdin()
     }
     if (!question && parsed.options.once) {
-        question = '给我做一个自我介绍'
+        question = 'Give me a quick self-introduction.'
     }
     if (!question) {
-        console.error('未提供输入，请传入问题或使用 stdin。')
+        console.error('No input provided. Pass a question or use stdin.')
         await session.close()
         return
     }
 
     try {
-        console.log(`用户: ${question}\n`)
+        console.log(`User: ${question}\n`)
         const turnResult = await session.runTurn(question)
         if (!loaded.config.stream_output) {
             console.log(`\n${turnResult.finalText}`)
@@ -155,7 +155,7 @@ async function runPlainMode(parsed: ParsedArgs) {
         )
         console.log(`\nprovider=${provider.name} model=${provider.model}`)
     } catch (err) {
-        console.error(`运行失败: ${(err as Error).message}`)
+        console.error(`Run failed: ${(err as Error).message}`)
     } finally {
         await session.close()
     }
@@ -176,9 +176,9 @@ async function runInteractiveTui(parsed: ParsedArgs) {
             sessionOptions={sessionOptions}
             providerName={provider.name}
             model={provider.model}
-            streamOutput={loaded.config.stream_output ?? false}
             configPath={loaded.configPath}
             mcpServerNames={Object.keys(loaded.config.mcp_servers ?? {})}
+            cwd={process.cwd()}
         />,
         { exitOnCtrlC: false },
     )

@@ -18,9 +18,9 @@ export type AppProps = {
     sessionOptions: AgentSessionOptions
     providerName: string
     model: string
-    streamOutput: boolean
     configPath: string
     mcpServerNames: string[]
+    cwd: string
 }
 
 function createEmptyTurn(index: number): TurnView {
@@ -31,9 +31,9 @@ export function App({
     sessionOptions,
     providerName,
     model,
-    streamOutput,
     configPath,
     mcpServerNames,
+    cwd,
 }: AppProps) {
     const { exit } = useApp()
     const [session, setSession] = useState<AgentSession | null>(null)
@@ -251,10 +251,9 @@ export function App({
     return (
         <Box flexDirection="column" gap={1}>
             <HeaderBar
-                sessionId={sessionOptions.sessionId ?? '-'}
                 providerName={providerName}
                 model={model}
-                streamOutput={streamOutput}
+                cwd={cwd}
             />
             <MainContent
                 systemMessages={systemMessages}
