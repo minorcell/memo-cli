@@ -4,7 +4,7 @@
 
 ## 背景与痛点
 
-- 当前 `packages/ui/src/index.ts` 只接受一次问题，调用 `runAgent` 后直接退出，无法继续追问或补充上下文。
+- 当前 `packages/ui/src/index.tsx` 只接受一次问题，调用 `runAgent` 后直接退出，无法继续追问或补充上下文。
 - 日志仅有 `history.xml`（旧方案）时无法按消息维度索引/分析；现统一写 JSONL。
 - 缺少 Session/Turn 概念，无法区分同一进程内的多轮、或复盘某一轮的工具轨迹。
 
@@ -31,7 +31,7 @@
 ## 运行模式与 CLI 行为
 
 - **交互模式（默认）**：
-    - `bun start` 或 `bun run packages/ui/src/index.ts` 启动 Session，打印 `sessionId`。
+    - `bun start` 或 `bun run packages/ui/src/index.tsx` 启动 Session，打印 `sessionId`。
     - 可选第一个问题来自 argv，其余问题从 stdin 读取；支持 `/exit`、`/help` 之类的指令退出或查看状态。
     - 每个 Turn 结束后继续等待输入，直到用户退出或遇到致命错误。
 - **一次性模式（`--once`）**：

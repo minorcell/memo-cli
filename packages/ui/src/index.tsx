@@ -2,14 +2,17 @@
 import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
+import { render } from 'ink'
 import {
     createAgentSession,
     loadMemoConfig,
     writeMemoConfig,
+    selectProvider,
     type AgentSessionDeps,
     type AgentSessionOptions,
     type MemoConfig,
 } from '@memo/core'
+import { App } from './tui/App'
 
 type CliOptions = {
     once: boolean
@@ -99,71 +102,111 @@ async function ensureProviderConfig() {
     }
 }
 
-async function runInteractive(parsed: ParsedArgs) {
-    await ensureProviderConfig()
+async function runPlainMode(parsed: ParsedArgs) {
+    const loaded = await ensureProviderConfig()
+    const provider = selectProvider(loaded.config)
     const sessionId = randomUUID()
     const sessionOptions: AgentSessionOptions = {
         sessionId,
-        mode: parsed.options.once ? 'once' : 'interactive',
+        mode: 'once',
+        stream: loaded.config.stream_output ?? false,
     }
 
-    const streamedSteps = new Set<number>()
     const deps: AgentSessionDeps = {
-        onAssistantStep: (text: string, step: number) => {
-            if (!streamedSteps.has(step)) {
-                streamedSteps.add(step)
-                process.stdout.write(`\n[LLM 第 ${step + 1} 轮输出]\n`)
-            }
+        onAssistantStep: (text: string) => {
             process.stdout.write(text)
         },
         hooks: {
-            onObservation: ({ tool, step }) => {
-                console.log(`\n工具=${tool} step=${step}\n`)
+            onAction: ({ action }) => {
+                console.log(`\n[tool] ${action.tool}`)
+                if (action.input !== undefined) {
+                    console.log(`[input] ${JSON.stringify(action.input)}`)
+                }
+            },
+            onObservation: ({ tool, observation }) => {
+                console.log(`\n[tool-result] ${tool}\n${observation}`)
             },
         },
     }
 
     const session = await createAgentSession(deps, sessionOptions)
 
-    const rl = createInterface({ input, output })
-    let nextQuestion = parsed.question
-    if (parsed.options.once && !nextQuestion) {
-        nextQuestion = '给我做一个自我介绍'
+    let question = parsed.question
+    if (!question && !process.stdin.isTTY) {
+        question = await readStdin()
+    }
+    if (!question && parsed.options.once) {
+        question = '给我做一个自我介绍'
+    }
+    if (!question) {
+        console.error('未提供输入，请传入问题或使用 stdin。')
+        await session.close()
+        return
     }
 
     try {
-        while (true) {
-            const userInput = nextQuestion || (await rl.question('> '))
-            nextQuestion = ''
-            const trimmed = userInput.trim()
-            if (!trimmed) {
-                continue
-            }
-            if (trimmed === '/exit') {
-                break
-            }
-
-            console.log(`\n用户: ${trimmed}\n`)
-            const turnResult = await session.runTurn(trimmed)
-            console.log(
-                `\n[tokens] prompt=${turnResult.tokenUsage.prompt} completion=${turnResult.tokenUsage.completion} total=${turnResult.tokenUsage.total}`,
-            )
-
-            if (parsed.options.once) {
-                break
-            }
+        console.log(`用户: ${question}\n`)
+        const turnResult = await session.runTurn(question)
+        if (!loaded.config.stream_output) {
+            console.log(`\n${turnResult.finalText}`)
         }
+        console.log(
+            `\n[tokens] prompt=${turnResult.tokenUsage.prompt} completion=${turnResult.tokenUsage.completion} total=${turnResult.tokenUsage.total}`,
+        )
+        console.log(`\nprovider=${provider.name} model=${provider.model}`)
     } catch (err) {
         console.error(`运行失败: ${(err as Error).message}`)
     } finally {
-        rl.close()
         await session.close()
     }
 }
 
+async function runInteractiveTui(parsed: ParsedArgs) {
+    const loaded = await ensureProviderConfig()
+    const provider = selectProvider(loaded.config)
+    const sessionId = randomUUID()
+    const sessionOptions: AgentSessionOptions = {
+        sessionId,
+        mode: 'interactive',
+        stream: loaded.config.stream_output ?? false,
+    }
+
+    const app = render(
+        <App
+            sessionOptions={sessionOptions}
+            providerName={provider.name}
+            model={provider.model}
+            streamOutput={loaded.config.stream_output ?? false}
+            configPath={loaded.configPath}
+            mcpServerNames={Object.keys(loaded.config.mcp_servers ?? {})}
+        />,
+        { exitOnCtrlC: false },
+    )
+    await app.waitUntilExit()
+}
+
 async function main() {
     const parsed = parseArgs(process.argv.slice(2))
-    await runInteractive(parsed)
+    const isInteractive = process.stdin.isTTY && process.stdout.isTTY
+    if (!isInteractive || parsed.options.once) {
+        await runPlainMode(parsed)
+        return
+    }
+    await runInteractiveTui(parsed)
 }
 
 void main()
+
+async function readStdin(): Promise<string> {
+    return new Promise((resolve) => {
+        let data = ''
+        process.stdin.setEncoding('utf8')
+        process.stdin.on('data', (chunk) => {
+            data += chunk
+        })
+        process.stdin.on('end', () => {
+            resolve(data.trim())
+        })
+        process.stdin.resume()
+    })
+}

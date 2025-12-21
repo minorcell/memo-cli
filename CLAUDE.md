@@ -105,7 +105,7 @@ bun run format                     # 代码格式化
 bun run format:check               # 检查格式
 
 # 调试
-bun run packages/ui/src/index.ts "问题"
+bun run packages/ui/src/index.tsx "问题"
 ```
 
 **环境变量**：
@@ -168,7 +168,7 @@ main() → parseArgs() → ensureProviderConfig()
 
 ## 关键文件
 
-- `packages/ui/src/index.ts` - 入口
+- `packages/ui/src/index.tsx` - 入口
 - `packages/core/src/runtime/session.ts` - ReAct 核心
 - `packages/core/src/utils/utils.ts` - JSON 解析
 - `packages/core/src/config/config.ts` - 配置管理

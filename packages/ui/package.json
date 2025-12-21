@@ -1,10 +1,16 @@
 {
     "name": "@memo/ui",
     "type": "module",
-    "module": "src/index.ts",
+    "module": "src/index.tsx",
     "private": true,
     "dependencies": {
         "@memo/core": "workspace:*",
-        "@memo/tools": "workspace:*"
+        "@memo/tools": "workspace:*",
+        "ink": "^5.0.0",
+        "react": "^18.2.0",
+        "react-reconciler": "^0.29.0"
+    },
+    "devDependencies": {
+        "@types/react": "^18.2.79"
     }
 }

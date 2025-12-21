@@ -1,122 +1,95 @@
 # memo-cli
 
-在终端运行的 ReAct Agent，基于 Bun + TypeScript。支持多轮对话（Session/Turn）、JSONL 结构化日志、内置工具调用，默认使用 DeepSeek（OpenAI 兼容接口）。
+终端内的 ReAct Agent，基于 Bun + TypeScript。它附带 Session/Turn 状态机、标准 JSON 协议提示、结构化 JSONL 日志、内置工具编排，并默认对接 DeepSeek（OpenAI 兼容接口）。你可以按需接入任意 OpenAI 兼容 Provider 以及 MCP 工具。
 
-## ✨ 核心特性
+## 预备知识
 
-### 🤖 ReAct Agent 架构
+- 需要 [Bun](https://bun.sh/)（建议 1.1+）和可用的 OpenAI 兼容 API Key。
+- 配置、历史日志与缓存写在 `~/.memo/`，设置 `MEMO_HOME` 可以迁移目录。
+- 第一次运行会引导生成 `~/.memo/config.toml` 并选择默认 Provider。
 
-- **多轮对话管理**：交互式 REPL 模式，支持 `--once` 单轮退出
-- **结构化日志**：自动写入 `history/<sessionId>.jsonl`，包含 token 计数与事件追踪
-- **Session/Turn 系统**：完整的对话状态管理，支持会话恢复
+## 核心特性
 
-### 🛠️ 内置工具集
+- **Session/Turn 多轮控制**：交互式 REPL + `--once` 单轮模式，支持会话恢复。
+- **JSON 协议 ReAct**：强制模型输出 `{"thought":"","action":{...}}` 或 `{"final":""}`，驱动工具调用与回答。
+- **结构化日志**：所有事件写入 JSONL（token 计数、工具 observation、LLM 元数据）。
+- **Token 预算**：用 `tiktoken` 估算 prompt，结合 LLM usage，对超限做提示或拒绝。
+- **内置工具 + MCP 扩展**：提供文件/系统/网络/记忆工具，并自动注入配置的 MCP 工具前缀。
 
-memo-cli 提供了丰富的内置工具，支持 ReAct 协议调用：
+## 架构概览
 
-#### 文件系统操作
+核心逻辑位于 `packages/core`，UI 只负责交互与输出。
 
-- **read**：读取文件内容，支持偏移和限制
-- **write**：写入文件内容
-- **edit**：查找替换文件内容，支持全局替换
-- **glob**：文件模式匹配搜索
-- **grep**：文本内容搜索，支持上下文显示
+1. **配置层**（`config/`）：读取/写入 `~/.memo/config.toml`，选择 Provider，生成会话路径。
+2. **运行时**（`runtime/`）：`session.ts` 执行 ReAct 循环，`history.ts` 写事件，`prompt.ts` 维护 JSON 协议提示。
+3. **默认依赖**（`runtime/defaults.ts`）：拼装工具注册表、OpenAI SDK 的 `callLLM`、token counter、`maxSteps` 与日志 sink。
+4. **Hooks & Middlewares**：通过 `createAgentSession` 的 `onAssistantStep`、`hooks.onAction`、`onFinal` 等回调订阅生命周期。
 
-#### 系统与代码执行
+```ts
+import { createAgentSession } from '@memo/core'
 
-- **bash**：执行 Shell 命令
-- **run_bun**：代码解释器工具，在沙箱中运行 Bun (JS/TS) 代码，支持 top-level await
-    - Linux 使用 bubblewrap (`bwrap`) 沙箱
-    - macOS 使用 `sandbox-exec` profile
-    - 可配置网络访问权限
+const session = await createAgentSession({ onAssistantStep: console.log })
+await session.runTurn('你好') // 运行完整 ReAct 循环
+await session.close()
+```
 
-#### 网络与数据获取
+## 内置工具概览
 
-- **webfetch**：网页抓取工具，支持 http/https/data 协议
-    - 10秒超时，512KB 大小限制
-    - 自动将 HTML 转换为纯文本
-    - 剥离 `<script>`/`<style>` 标签，智能格式化
+- **文件系统**：`read` / `write` / `edit` / `glob` / `grep`，提供偏移、上下文、全局替换等能力。
+- **系统执行**：`bash` 直接运行 Shell；`run_bun` 在沙箱里执行 JS/TS（bubblewrap 或 `sandbox-exec`，可配置网络）。
+- **网络获取**：`webfetch` 支持 http/https/data，10 秒超时、512 KB 限制，自动清洗 HTML。
+- **辅助工具**：`save_memory`（写入 `~/.memo/memo.md`）、`todo` 管理、`time` 查询。
+- **MCP 外部工具**：支持 stdio 或 Streamable HTTP，工具名前会加 `<server>_` 前缀自动注入系统提示词。
 
-#### 状态管理与辅助
+详见 `docs/tool/*.md`。
 
-- **save_memory**：保存长期记忆到 `~/.memo/memo.md`
-- **todo**：任务管理工具，支持增删改查
-- **time**：获取系统时间信息（ISO/UTC/epoch/timezone）
-
-### 🔌 MCP 外部工具集成
-
-- **配置文件**：`~/.memo/config.toml`（可用 `MEMO_HOME` 覆盖）
-- **支持类型**：
-    - 本地 stdio 服务器（已有可执行文件）
-    - 远程 HTTP 服务器（Streamable HTTP，自动回退 SSE）
-    - 强制 SSE 模式（旧版 HTTP 传输）
-- **自动注入**：保存配置后重启 memo，外部工具会自动注入到系统提示词中
-- **工具前缀**：外部工具名前会带 `<server>_` 前缀
-
-### ⚙️ 配置系统
-
-- **配置文件**：TOML 格式，位于 `~/.memo/config.toml`
-- **多 Provider 支持**：可配置多个 LLM Provider
-- **默认 Provider**：DeepSeek（支持 OpenAI 兼容接口）
-- **MCP 服务器配置**：灵活配置外部工具服务器
-- **环境变量**：优先 `OPENAI_API_KEY`，回退 `DEEPSEEK_API_KEY`
-
-### 📊 Token 预算管理
-
-- **本地估算**：使用 tiktoken 进行 prompt token 估算
-- **LLM 对账**：与实际 LLM usage 进行对账
-- **预算预警**：支持提示超限预警和拒绝机制
-- **实时统计**：每轮对话显示 token 使用情况
-
-## 🚀 快速开始
-
-### 安装与配置
+## 快速开始
 
 1. **安装依赖**
 
-    ```bash
-    bun install
-    ```
+   ```bash
+   bun install
+   ```
 
-2. **配置 API Key**（优先 OPENAI_API_KEY，回退 DEEPSEEK_API_KEY）
+2. **配置 API Key**
 
-    ```bash
-    export DEEPSEEK_API_KEY=your_key_here
-    ```
+   ```bash
+   export OPENAI_API_KEY=your_key    # 或 DEEPSEEK_API_KEY
+   ```
 
-3. **首次运行自动配置**
-   首次运行时会引导配置 Provider 信息
+3. **首次运行**
 
-### 使用方式
+   ```bash
+   bun start
+   # 将引导填写 provider/model/base_url，并在 ~/.memo/config.toml 保存
+   ```
 
-#### 一次性对话（单轮）
+## CLI 使用
 
-```bash
-bun start "你的问题" --once
-```
+- **单轮对话**
 
-#### 交互式 REPL（多轮）
+  ```bash
+  bun start "你的问题" --once
+  ```
 
-```bash
-bun start
-# 输入问题开始对话
-# 输入 /exit 退出
-```
+- **交互式多轮**
 
-#### 构建二进制文件
+  ```bash
+  bun start
+  # 普通输入提问，/exit 退出
+  ```
 
-```bash
-bun run build:binary
-# 生成可执行文件 ./memo
-```
+- **构建二进制**
 
-### CLI 参数
+  ```bash
+  bun run build:binary   # 输出 ./memo
+  ```
 
-- `--once`：单轮对话后退出（默认交互式多轮）
+常用参数：`--once` 控制单轮；`--session <id>`（若 UI 已暴露）可恢复历史 session。
 
-## 🔧 配置详解
+## 配置详解
 
-### Provider 配置示例
+`~/.memo/config.toml` 管理 Provider、MCP 与运行选项，`MEMO_HOME` 可以重定向路径。
 
 ```toml
 current_provider = "deepseek"
@@ -130,76 +103,66 @@ model = "deepseek-chat"
 base_url = "https://api.deepseek.com"
 ```
 
-### MCP 服务器配置示例
-
-#### 本地 stdio 服务器
+MCP 服务器示例：
 
 ```toml
 [mcp_servers.local_tools]
 command = "/path/to/mcp-server"
 args = []
-```
 
-#### 远程 HTTP 服务器
-
-```toml
 [mcp_servers.bing_cn]
 type = "streamable_http"
 url = "https://mcp.api-inference.modelscope.net/496703c5b3ff47/mcp"
-# 可选：headers = { Authorization = "Bearer xxx" }
-# 可选：fallback_to_sse = true   # 默认开启
+# headers = { Authorization = "Bearer xxx" }
+# fallback_to_sse = true  # 默认开启
 ```
 
-## 📁 项目结构
+API Key 优先级：`当前 provider 的 env_api_key` > `OPENAI_API_KEY` > `DEEPSEEK_API_KEY`。缺失时 CLI 会提示交互输入并写入配置。
+
+## Session、日志与 Token
+
+- **日志路径**：`~/.memo/sessions/<sanitized-cwd>/<yyyy-mm-dd>_<HHMMss>_<id>.jsonl`。
+- **事件类型**：`session_start/turn_start/assistant/action/observation/final/turn_end/session_end`，可回放任意一步。
+- **Token 统计**：Prompt & completion 通过 `tiktoken` 估算，并在 UI 中展示本轮预算。
+- **Max Steps 防护**：默认 100，可在配置文件调整以避免无限工具循环。
+
+## 项目结构
 
 ```
 memo-cli/
 ├── packages/
-│   ├── core/           # 核心运行时
-│   │   ├── config/     # 配置加载（~/.memo/config.toml）
-│   │   ├── runtime/    # Session/Turn 运行时
-│   │   ├── llm/        # 模型适配与 tokenizer
-│   │   └── utils/      # 解析工具
-│   ├── tools/          # 内置工具集合
-│   └── ui/             # CLI 入口
-├── docs/               # 架构与设计文档
-│   └── tool/          # 每个工具的详细使用说明
-├── history/            # 会话历史记录（JSONL 格式）
-└── dist/              # 构建输出
+│   ├── core/      # 配置、Session/Turn 状态机、LLM/工具适配
+│   ├── tools/     # 内置工具实现
+│   └── ui/        # CLI 入口（REPL、日志输出、交互配置）
+├── docs/          # 架构、设计、内置工具与未来计划
+├── history/       # 运行期生成的 JSONL 示例
+├── dist/          # bun build 输出
+└── memo           # bun build --compile 生成的可执行文件
 ```
 
-## 🛠️ 开发脚本
+## 开发脚本
 
-- **安装依赖**：`bun install`
-- **运行 CLI**：`bun start "问题" --once`
-- **格式化代码**：`bun run format` / `bun run format:check`
-- **构建项目**：`bun build`
-- **构建二进制**：`bun run build:binary`
+- `bun install`：安装依赖
+- `bun start "问题" --once`：运行 CLI
+- `bun build`：构建 CLI（产物位于 `dist/`）
+- `bun run build:binary`：输出独立二进制
+- `bun run format` / `bun run format:check`：Prettier
 
-## 📚 工具文档
+## 文档索引
 
-每个内置工具都有详细的文档说明，位于 `docs/tool/` 目录下：
+- `docs/core.md`：核心状态机与 Session API
+- `docs/design/*.md`：UI、hooks/middleware、未来路线
+- `docs/multi-turn.md`：多轮策略
+- `docs/token-counting.md`：token 计费与估算
+- `docs/tool/*.md`：各工具的参数/返回值
 
-- `bash.md` - Shell 命令执行
-- `run_bun.md` - Bun 代码解释器（含沙箱说明）
-- `webfetch.md` - 网页抓取工具
-- `read.md` / `write.md` / `edit.md` - 文件操作
-- `glob.md` / `grep.md` - 文件搜索
-- `save_memory.md` - 长期记忆保存
-- `todo.md` - 任务管理
-- `time.md` - 时间信息获取
+## 安全特性
 
-## 🔒 安全特性
+- `run_bun` 依赖 bubblewrap 或 `sandbox-exec`，并可控制网络访问。
+- `webfetch`、`bash` 等工具限制超时时间、输出大小与允许路径，降低风险。
+- MCP 工具统一通过配置注入，避免在提示词中硬编码密钥。
 
-- **代码沙箱**：`run_bun` 工具在隔离环境中执行代码
-- **网络限制**：默认禁用网络访问，需显式开启
-- **文件权限**：严格控制文件系统访问范围
-- **大小限制**：网页抓取和代码输出有大小限制
+## 贡献与许可证
 
-## 🤝 贡献指南
-
-请参考 [CONTRIBUTING.md](CONTRIBUTING.md) 了解如何参与项目开发。
-
-## 📄 许可证
-
-本项目采用 MIT 许可证。
+- 贡献流程参见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+- 采用 MIT 许可证。

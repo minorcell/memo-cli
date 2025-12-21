@@ -111,6 +111,7 @@ class AgentSessionImpl implements AgentSession {
     private startedAt = Date.now()
     private maxSteps: number
     private hooks: HookRunnerMap
+    private closed = false
 
     constructor(
         private deps: AgentSessionDeps & {
@@ -397,6 +398,8 @@ class AgentSessionImpl implements AgentSession {
     }
 
     async close() {
+        if (this.closed) return
+        this.closed = true
         await this.emitEvent('session_end', {
             meta: {
                 durationMs: Date.now() - this.startedAt,
