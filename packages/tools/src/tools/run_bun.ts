@@ -131,12 +131,20 @@ const resolveCustomSandbox = (context: SandboxContext): SandboxSpec | null => {
         throw new Error('MEMO_RUN_BUN_SANDBOX must be a JSON array of command and args')
     }
 
-    if (!Array.isArray(parsed) || parsed.length === 0 || parsed.some((item) => typeof item !== 'string')) {
-        throw new Error('MEMO_RUN_BUN_SANDBOX must describe command and args, e.g. ["/usr/bin/env","-i"]')
+    if (
+        !Array.isArray(parsed) ||
+        parsed.length === 0 ||
+        parsed.some((item) => typeof item !== 'string')
+    ) {
+        throw new Error(
+            'MEMO_RUN_BUN_SANDBOX must describe command and args, e.g. ["/usr/bin/env","-i"]',
+        )
     }
 
     const [command, ...args] = parsed as string[]
-    const replaced = [command, ...args].map((value) => applySandboxTemplate(value as string, context))
+    const replaced = [command, ...args].map((value) =>
+        applySandboxTemplate(value as string, context),
+    )
 
     return {
         command: replaced[0]!,
@@ -145,7 +153,12 @@ const resolveCustomSandbox = (context: SandboxContext): SandboxSpec | null => {
     }
 }
 
-const resolveLinuxSandbox = ({ entryFile, runDir, env, allowNetwork }: SandboxContext): SandboxSpec => {
+const resolveLinuxSandbox = ({
+    entryFile,
+    runDir,
+    env,
+    allowNetwork,
+}: SandboxContext): SandboxSpec => {
     const bwrap = Bun.which('bwrap')
     if (!bwrap) {
         throw new Error(
@@ -237,4 +250,5 @@ const applySandboxTemplate = (value: string, context: SandboxContext): string =>
         .replaceAll('{{runDir}}', context.runDir)
         .replaceAll('{{allowNetwork}}', context.allowNetwork ? '1' : '0')
 
-const escapeForSandboxProfile = (value: string): string => value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+const escapeForSandboxProfile = (value: string): string =>
+    value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
