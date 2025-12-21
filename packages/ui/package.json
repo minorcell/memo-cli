@@ -7,8 +7,10 @@
         "@memo/core": "workspace:*",
         "@memo/tools": "workspace:*",
         "ink": "^5.0.0",
+        "marked": "^17.0.1",
         "react": "^18.2.0",
-        "react-reconciler": "^0.29.0"
+        "react-reconciler": "^0.29.0",
+        "string-width": "^7.2.0"
     },
     "devDependencies": {
         "@types/react": "^18.2.79"

@@ -12,4 +12,5 @@ export const HELP_TEXT = [
     '  Ctrl+C   退出',
 ].join('\n')
 
-export const PREFIX_GLYPH = '●'
+export const USER_PREFIX = '>'
+export const ASSISTANT_PREFIX = '•'

@@ -95,6 +95,7 @@ export function App({
                         index: turn,
                         userInput: input,
                         steps: [],
+                        startedAt: Date.now(),
                     }))
                 },
                 onAction: ({ turn, step, action }) => {
@@ -130,12 +131,18 @@ export function App({
                     })
                 },
                 onFinal: ({ turn, finalText, status, turnUsage }) => {
-                    updateTurn(turn, (turnState) => ({
-                        ...turnState,
-                        finalText,
-                        status,
-                        tokenUsage: turnUsage,
-                    }))
+                    updateTurn(turn, (turnState) => {
+                        const startedAt = turnState.startedAt ?? Date.now()
+                        const durationMs = Math.max(0, Date.now() - startedAt)
+                        return {
+                            ...turnState,
+                            finalText,
+                            status,
+                            tokenUsage: turnUsage,
+                            startedAt,
+                            durationMs,
+                        }
+                    })
                     setBusy(false)
                 },
             },

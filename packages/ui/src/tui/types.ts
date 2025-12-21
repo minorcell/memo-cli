@@ -17,6 +17,8 @@ export type TurnView = {
     status?: TurnStatus
     tokenUsage?: TokenUsage
     finalText?: string
+    startedAt?: number
+    durationMs?: number
 }
 
 export type SystemMessage = {

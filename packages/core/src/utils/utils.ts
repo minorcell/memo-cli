@@ -24,25 +24,10 @@ export function parseAssistant(content: string): ParsedAssistant {
             const obj = JSON.parse(jsonText)
 
             // 检查是否是合法的 action 结构
-            // 兼容 { "tool": ... } (Codex Style) 或 { "action": { "tool": ... } } (Old Style)
-            let toolName: string | undefined
-            let toolInput: unknown
-
-            if (obj.tool) {
-                // Format: { "tool": "name", "input": ... }
-                toolName = obj.tool
-                toolInput = obj.input
-            } else if (obj.action && typeof obj.action === 'object') {
-                // Format: { "action": { "tool": "name", "input": ... } }
-                const actionObj = obj.action as Record<string, unknown>
-                toolName = actionObj.tool as string
-                toolInput = actionObj.input
-            }
-
-            if (toolName && typeof toolName === 'string') {
+            if (obj && typeof obj === 'object' && typeof obj.tool === 'string') {
                 parsed.action = {
-                    tool: toolName.trim(),
-                    input: toolInput,
+                    tool: obj.tool.trim(),
+                    input: obj.input,
                 }
                 return parsed
             }

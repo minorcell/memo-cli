@@ -1,6 +1,5 @@
 import { Box, Text } from 'ink'
 import { useEffect, useState } from 'react'
-import { PREFIX_GLYPH } from '../constants'
 
 type StatusMessageProps = {
     text: string
@@ -30,7 +29,14 @@ function useSpinner(active: boolean) {
 
 export function StatusMessage({ text, kind }: StatusMessageProps) {
     const spinner = useSpinner(kind === 'running')
-    const icon = kind === 'running' ? spinner : PREFIX_GLYPH
+    const icon =
+        kind === 'running'
+            ? spinner
+            : kind === 'ready'
+              ? '●'
+              : kind === 'initializing'
+                ? '○'
+                : '✕'
     return (
         <Box>
             <Text color={STATUS_COLOR[kind]}>
