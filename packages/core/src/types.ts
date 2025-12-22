@@ -75,9 +75,14 @@ export type ParsedAssistant = {
 export type ToolRegistry = Record<string, McpTool<any>>
 
 /** LLM 调用接口：输入历史消息，返回模型回复文本或携带 usage，可选流式回调。 */
+export type CallLLMOptions = {
+    signal?: AbortSignal
+}
+
 export type CallLLM = (
     messages: ChatMessage[],
     onChunk?: (chunk: string) => void,
+    options?: CallLLMOptions,
 ) => Promise<LLMResponse>
 
 /**
@@ -138,7 +143,7 @@ export type AgentSessionDeps = AgentDeps & {
 }
 
 /** 单轮对话的状态码。 */
-export type TurnStatus = 'ok' | 'error' | 'max_steps' | 'prompt_limit'
+export type TurnStatus = 'ok' | 'error' | 'max_steps' | 'prompt_limit' | 'cancelled'
 
 /** 单轮对话的运行结果（含步骤与 token）。 */
 export type TurnResult = {
@@ -211,8 +216,12 @@ export type AgentSession = {
     mode: SessionMode
     /** 当前对话历史。 */
     history: ChatMessage[]
+    /** 当前 Session 日志文件路径（若存在）。 */
+    historyFilePath?: string
     /** 执行一轮对话。 */
     runTurn: (input: string) => Promise<TurnResult>
+    /** 取消当前运行中的 turn（若支持）。 */
+    cancelCurrentTurn?: (reason?: string) => void
     /** 结束 Session，释放资源。 */
     close: () => Promise<void>
 }

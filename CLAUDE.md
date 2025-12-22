@@ -55,7 +55,7 @@ current_provider = "deepseek"
 max_steps = 100
 stream_output = true
 
-[[providers]]
+[[providers.deepseek]]
 name = "deepseek"
 env_api_key = "DEEPSEEK_API_KEY"  # 仅存环境变量名
 model = "deepseek-chat"

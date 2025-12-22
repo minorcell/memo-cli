@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { readFile } from 'node:fs/promises'
 import { Box, useApp } from 'ink'
 import {
     createAgentSession,
     type AgentSession,
     type AgentSessionDeps,
     type AgentSessionOptions,
+    type ChatMessage,
+    type InputHistoryEntry,
 } from '@memo/core'
-import type { SystemMessage, TurnView } from './types'
+import type { StepView, SystemMessage, TurnView } from './types'
 import { HeaderBar } from './components/layout/HeaderBar'
 import { TokenBar } from './components/layout/TokenBar'
 import { MainContent } from './components/layout/MainContent'
@@ -21,6 +24,7 @@ export type AppProps = {
     configPath: string
     mcpServerNames: string[]
     cwd: string
+    sessionsDir: string
 }
 
 function createEmptyTurn(index: number): TurnView {
@@ -34,6 +38,7 @@ export function App({
     configPath,
     mcpServerNames,
     cwd,
+    sessionsDir,
 }: AppProps) {
     const { exit } = useApp()
     const [session, setSession] = useState<AgentSession | null>(null)
@@ -43,6 +48,9 @@ export function App({
     const [busy, setBusy] = useState(false)
     const currentTurnRef = useRef<number | null>(null)
     const [inputHistory, setInputHistory] = useState<string[]>([])
+    const [sessionLogPath, setSessionLogPath] = useState<string | null>(null)
+    const [historicalTurns, setHistoricalTurns] = useState<TurnView[]>([])
+    const [pendingHistoryMessages, setPendingHistoryMessages] = useState<ChatMessage[] | null>(null)
 
     const appendSystemMessage = useCallback((title: string, content: string) => {
         const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -156,6 +164,7 @@ export function App({
                 return
             }
             setSession(created)
+            setSessionLogPath(created.historyFilePath ?? null)
         })()
         return () => {
             active = false
@@ -181,7 +190,37 @@ export function App({
         setTurns([])
         setSystemMessages([])
         setStatusMessage(null)
+        setHistoricalTurns([])
+        setPendingHistoryMessages(null)
     }, [])
+
+    const handleHistorySelect = useCallback(
+        async (entry: InputHistoryEntry) => {
+            if (!entry.sessionFile) {
+                appendSystemMessage('历史记录', '该记录没有可加载的上下文文件。')
+                return
+            }
+            try {
+                const raw = await readFile(entry.sessionFile, 'utf8')
+                const parsed = parseHistoryLog(raw)
+                setHistoricalTurns(parsed.turns)
+                setPendingHistoryMessages(parsed.messages)
+                setTurns([])
+                appendSystemMessage('历史记录已加载', parsed.summary || entry.input)
+            } catch (err) {
+                appendSystemMessage(
+                    '历史记录加载失败',
+                    `无法读取 ${entry.sessionFile}: ${(err as Error).message}`,
+                )
+            }
+        },
+        [appendSystemMessage],
+    )
+
+    const handleCancelRun = useCallback(() => {
+        if (!busy) return
+        session?.cancelCurrentTurn?.()
+    }, [busy, session])
 
     const handleCommand = useCallback(
         async (raw: string) => {
@@ -221,6 +260,10 @@ export function App({
                 return
             }
             setInputHistory((prev) => [...prev, value])
+            if (pendingHistoryMessages?.length && session) {
+                session.history.push(...pendingHistoryMessages)
+                setPendingHistoryMessages(null)
+            }
             setBusy(true)
             try {
                 await session.runTurn(value)
@@ -229,7 +272,7 @@ export function App({
                 setBusy(false)
             }
         },
-        [busy, handleCommand, session],
+        [busy, handleCommand, session, pendingHistoryMessages],
     )
 
     const lastTurn = turns[turns.length - 1]
@@ -238,12 +281,14 @@ export function App({
         statusMessage !== null ? 'error' : !session ? 'initializing' : busy ? 'running' : 'ready'
     const tokenLine = formatTokenUsage(lastTurn?.tokenUsage)
 
+    const displayTurns = useMemo(() => [...historicalTurns, ...turns], [historicalTurns, turns])
+
     return (
         <Box flexDirection="column" gap={1}>
             <HeaderBar providerName={providerName} model={model} cwd={cwd} />
             <MainContent
                 systemMessages={systemMessages}
-                turns={turns}
+                turns={displayTurns}
                 statusText={statusLine}
                 statusKind={statusKind}
             />
@@ -252,9 +297,76 @@ export function App({
                 onSubmit={handleSubmit}
                 onExit={handleExit}
                 onClear={handleClear}
+                onCancelRun={handleCancelRun}
+                onHistorySelect={handleHistorySelect}
                 history={inputHistory}
+                cwd={cwd}
+                sessionsDir={sessionsDir}
+                currentSessionFile={sessionLogPath ?? undefined}
             />
             <TokenBar tokenLine={tokenLine} />
         </Box>
     )
+}
+
+function parseHistoryLog(raw: string): {
+    summary: string
+    messages: ChatMessage[]
+    turns: TurnView[]
+} {
+    const messages: ChatMessage[] = []
+    const turns: TurnView[] = []
+    const summaryParts: string[] = []
+    const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean)
+    let currentTurn: TurnView | null = null
+    let turnCount = 0
+
+    for (const line of lines) {
+        let event: any
+        try {
+            event = JSON.parse(line)
+        } catch {
+            continue
+        }
+        if (!event || typeof event !== 'object') continue
+        if (event.type === 'turn_start') {
+            const userInput = typeof event.content === 'string' ? event.content : ''
+            const index = -(turnCount + 1)
+            currentTurn = {
+                index,
+                userInput,
+                steps: [],
+                status: 'ok',
+            }
+            turns.push(currentTurn)
+            if (userInput) {
+                messages.push({ role: 'user', content: userInput })
+                summaryParts.push(`User: ${userInput}`)
+            }
+            turnCount += 1
+            continue
+        }
+        if (event.type === 'assistant') {
+            const assistantText = typeof event.content === 'string' ? event.content : ''
+            if (assistantText) {
+                messages.push({ role: 'assistant', content: assistantText })
+                summaryParts.push(`Assistant: ${assistantText}`)
+                if (currentTurn) {
+                    const step: StepView = {
+                        index: currentTurn.steps.length,
+                        assistantText,
+                    }
+                    currentTurn.steps = [...currentTurn.steps, step]
+                    currentTurn.finalText = assistantText
+                }
+            }
+            continue
+        }
+    }
+
+    return {
+        summary: summaryParts.join('\n'),
+        messages,
+        turns,
+    }
 }

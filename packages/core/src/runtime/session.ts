@@ -98,11 +98,16 @@ function parseToolInput(tool: ToolRegistry[string], rawInput: unknown) {
     return { ok: true as const, data: parsed.data }
 }
 
+function isAbortError(err: unknown): err is Error {
+    return err instanceof Error && err.name === 'AbortError'
+}
+
 /** 进程内的对话 Session，实现多轮运行与日志写入。 */
 class AgentSessionImpl implements AgentSession {
     public id: string
     public mode: SessionMode
     public history: ChatMessage[]
+    public historyFilePath?: string
 
     private turnIndex = 0
     private tokenCounter: TokenCounter
@@ -112,6 +117,8 @@ class AgentSessionImpl implements AgentSession {
     private maxSteps: number
     private hooks: HookRunnerMap
     private closed = false
+    private currentAbortController: AbortController | null = null
+    private cancelling = false
 
     constructor(
         private deps: AgentSessionDeps & {
@@ -122,6 +129,7 @@ class AgentSessionImpl implements AgentSession {
         systemPrompt: string,
         tokenCounter: TokenCounter,
         maxSteps: number,
+        historyFilePath?: string,
     ) {
         this.id = options.sessionId || randomUUID()
         this.mode = options.mode || DEFAULT_SESSION_MODE
@@ -130,6 +138,7 @@ class AgentSessionImpl implements AgentSession {
         this.sinks = deps.historySinks ?? []
         this.maxSteps = maxSteps
         this.hooks = buildHookRunners(deps)
+        this.historyFilePath = historyFilePath
     }
 
     /** 写入 Session 启动事件，记录配置与 token 限制。 */
@@ -146,6 +155,9 @@ class AgentSessionImpl implements AgentSession {
 
     /** 执行一次 Turn：接受用户输入，走 ReAct 循环，返回最终结果与步骤轨迹。 */
     async runTurn(input: string): Promise<TurnResult> {
+        const abortController = new AbortController()
+        this.currentAbortController = abortController
+        this.cancelling = false
         this.turnIndex += 1
         const turn = this.turnIndex
         const steps: AgentStepTrace[] = []
@@ -155,25 +167,26 @@ class AgentSessionImpl implements AgentSession {
         // 写入用户消息
         this.history.push({ role: 'user', content: input })
 
-        const promptTokens = this.tokenCounter.countMessages(this.history)
-        await this.emitEvent('turn_start', {
-            turn,
-            content: input,
-            meta: { tokens: { prompt: promptTokens } },
-        })
-        await runHook(this.hooks, 'onTurnStart', {
-            sessionId: this.id,
-            turn,
-            input,
-            history: snapshotHistory(this.history),
-        })
+        try {
+            const promptTokens = this.tokenCounter.countMessages(this.history)
+            await this.emitEvent('turn_start', {
+                turn,
+                content: input,
+                meta: { tokens: { prompt: promptTokens } },
+            })
+            await runHook(this.hooks, 'onTurnStart', {
+                sessionId: this.id,
+                turn,
+                input,
+                history: snapshotHistory(this.history),
+            })
 
-        let finalText = ''
-        let status: TurnStatus = 'ok'
-        let errorMessage: string | undefined
+            let finalText = ''
+            let status: TurnStatus = 'ok'
+            let errorMessage: string | undefined
 
-        // ReAct 主循环，受 MAX_STEPS 保护。
-        for (let step = 0; step < this.maxSteps; step++) {
+            // ReAct 主循环，受 MAX_STEPS 保护。
+            for (let step = 0; step < this.maxSteps; step++) {
             const estimatedPrompt = this.tokenCounter.countMessages(this.history)
             if (this.options.maxPromptTokens && estimatedPrompt > this.options.maxPromptTokens) {
                 const limitMessage = `Context tokens (${estimatedPrompt}) exceed the limit. Please shorten the input or restart the session.`
@@ -209,14 +222,39 @@ class AgentSessionImpl implements AgentSession {
             let usageFromLLM: Partial<TokenUsage> | undefined
             let streamed = false
             try {
-                const llmResult = await this.deps.callLLM(this.history, (chunk) =>
-                    this.deps.onAssistantStep?.(chunk, step),
+                const llmResult = await this.deps.callLLM(
+                    this.history,
+                    (chunk) => this.deps.onAssistantStep?.(chunk, step),
+                    { signal: abortController.signal },
                 )
                 const normalized = normalizeLLMResponse(llmResult)
                 assistantText = normalized.content
                 usageFromLLM = normalized.usage
                 streamed = Boolean(normalized.streamed)
             } catch (err) {
+                if (this.cancelling && isAbortError(err)) {
+                    status = 'cancelled'
+                    finalText = ''
+                    errorMessage = 'Turn cancelled'
+                    await this.emitEvent('final', {
+                        turn,
+                        step,
+                        content: '',
+                        role: 'assistant',
+                        meta: { cancelled: true },
+                    })
+                    await runHook(this.hooks, 'onFinal', {
+                        sessionId: this.id,
+                        turn,
+                        step,
+                        finalText,
+                        status,
+                        errorMessage,
+                        turnUsage: { ...turnUsage },
+                        steps,
+                    })
+                    break
+                }
                 const msg = `LLM call failed: ${(err as Error).message}`
                 const finalPayload = JSON.stringify({ final: msg })
                 this.history.push({ role: 'assistant', content: finalPayload })
@@ -361,7 +399,7 @@ class AgentSessionImpl implements AgentSession {
             break
         }
 
-        if (!finalText) {
+        if (!finalText && status !== 'cancelled') {
             if (status === 'ok') {
                 status = steps.length >= this.maxSteps ? 'max_steps' : 'error'
             }
@@ -385,22 +423,33 @@ class AgentSessionImpl implements AgentSession {
             })
         }
 
-        await this.emitEvent('turn_end', {
-            turn,
-            meta: {
-                status,
-                stepCount: steps.length,
-                durationMs: Date.now() - turnStartedAt,
-                tokens: turnUsage,
-            },
-        })
+            await this.emitEvent('turn_end', {
+                turn,
+                meta: {
+                    status,
+                    stepCount: steps.length,
+                    durationMs: Date.now() - turnStartedAt,
+                    tokens: turnUsage,
+                },
+            })
 
-        return {
-            finalText,
-            steps,
-            status,
-            errorMessage,
-            tokenUsage: turnUsage,
+            return {
+                finalText,
+                steps,
+                status,
+                errorMessage,
+                tokenUsage: turnUsage,
+            }
+        } finally {
+            this.currentAbortController = null
+            this.cancelling = false
+        }
+    }
+
+    cancelCurrentTurn() {
+        if (this.currentAbortController) {
+            this.cancelling = true
+            this.currentAbortController.abort()
         }
     }
 
@@ -463,6 +512,7 @@ export async function createAgentSession(
         systemPrompt,
         resolved.tokenCounter,
         resolved.maxSteps,
+        resolved.historyFilePath,
     )
     await session.init()
     return session

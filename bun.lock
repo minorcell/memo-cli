@@ -21,6 +21,7 @@
     "packages/core": {
       "name": "@memo/core",
       "dependencies": {
+        "ignore": "^7.0.5",
         "zod": "^4.1.13",
       },
     },
@@ -181,6 +182,8 @@
     "http-errors": ["http-errors@2.0.1", "https://registry.npmmirror.com/http-errors/-/http-errors-2.0.1.tgz", { "dependencies": { "depd": "~2.0.0", "inherits": "~2.0.4", "setprototypeof": "~1.2.0", "statuses": "~2.0.2", "toidentifier": "~1.0.1" } }, "sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ=="],
 
     "iconv-lite": ["iconv-lite@0.7.0", "https://registry.npmmirror.com/iconv-lite/-/iconv-lite-0.7.0.tgz", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-cf6L2Ds3h57VVmkZe+Pn+5APsT7FpqJtEhhieDCvrE2MK5Qk9MyffgQyuxQTm6BChfeZNtcOLHp9IcWRVcIcBQ=="],
+
+    "ignore": ["ignore@7.0.5", "https://registry.npmmirror.com/ignore/-/ignore-7.0.5.tgz", {}, "sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg=="],
 
     "indent-string": ["indent-string@5.0.0", "https://registry.npmmirror.com/indent-string/-/indent-string-5.0.0.tgz", {}, "sha512-m6FAo/spmsW2Ab2fU35JTYwtOKa2yAwXSwgjSv1TJzh4Mh7mC3lzAOVLBprb72XsTrgkEIsl7YrFNAiDiRhIGg=="],
 

@@ -1,7 +1,4 @@
-import { TOOLKIT } from '@memo/tools'
-import { HELP_TEXT } from './constants'
-
-export type SlashCommandContext = {
+export type SlashResolveContext = {
     configPath: string
     providerName: string
     model: string
@@ -13,32 +10,18 @@ export type SlashCommandResult =
     | { kind: 'clear' }
     | { kind: 'message'; title: string; content: string }
 
-export function resolveSlashCommand(raw: string, context: SlashCommandContext): SlashCommandResult {
+export function resolveSlashCommand(raw: string, context: SlashResolveContext): SlashCommandResult {
     const [command] = raw.trim().slice(1).split(/\s+/)
     switch (command) {
-        case 'help':
-            return { kind: 'message', title: 'help', content: HELP_TEXT }
         case 'exit':
             return { kind: 'exit' }
         case 'clear':
             return { kind: 'clear' }
-        case 'tools': {
-            const builtin = Object.keys(TOOLKIT).sort()
-            const external =
-                context.mcpServerNames.length > 0
-                    ? `MCP servers: ${context.mcpServerNames.join(', ')}`
-                    : 'MCP servers: (none)'
+        case 'history':
             return {
                 kind: 'message',
-                title: 'tools',
-                content: `Built-in tools (${builtin.length}): ${builtin.join(', ')}\n${external}`,
-            }
-        }
-        case 'config':
-            return {
-                kind: 'message',
-                title: 'config',
-                content: `config: ${context.configPath}\nprovider: ${context.providerName}\nmodel: ${context.model}`,
+                title: 'history',
+                content: '输入 "history" 能够按当前工作目录筛选历史记录并选择回填。',
             }
         default:
             return { kind: 'message', title: 'unknown', content: `Unknown command: ${raw}` }
