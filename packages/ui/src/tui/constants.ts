@@ -4,6 +4,7 @@ export const HELP_TEXT = [
     '  /exit   Exit the session',
     '  /clear  Clear the screen',
     '  /tools  List tools',
+    '  /models Pick a model from config',
     '  /config Show config and provider info',
     '',
     'Shortcuts:',

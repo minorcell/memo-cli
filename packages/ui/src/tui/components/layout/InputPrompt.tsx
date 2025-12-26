@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { Box, Text, useInput, useStdout } from 'ink'
-import { getFileSuggestions, getSessionLogDir, type InputHistoryEntry } from '@memo/core'
+import {
+    getFileSuggestions,
+    getSessionLogDir,
+    type InputHistoryEntry,
+    type ProviderConfig,
+} from '@memo/core'
 import { USER_PREFIX } from '../../constants'
 import { buildPaddedLine } from '../../utils'
 import { SuggestionList, type SuggestionListItem } from '../input/SuggestionList'
@@ -17,23 +22,31 @@ type InputPromptProps = {
     onClear: () => void
     onCancelRun: () => void
     onHistorySelect?: (entry: InputHistoryEntry) => void
+    onModelSelect?: (provider: ProviderConfig) => void
     history: string[]
     cwd: string
     sessionsDir: string
     currentSessionFile?: string
+    providers: ProviderConfig[]
 }
 
-type SuggestionMode = 'none' | 'file' | 'history' | 'slash'
+type SuggestionMode = 'none' | 'file' | 'history' | 'slash' | 'model'
 
 type SuggestionItem = SuggestionListItem & {
     value: string
-    meta?: { isDir?: boolean; slashCommand?: SlashCommand; historyEntry?: InputHistoryEntry }
+    meta?: {
+        isDir?: boolean
+        slashCommand?: SlashCommand
+        historyEntry?: InputHistoryEntry
+        provider?: ProviderConfig
+    }
 }
 
 type FileTrigger = { type: 'file'; query: string; tokenStart: number }
 type HistoryTrigger = { type: 'history'; keyword: string }
 type SlashTrigger = { type: 'slash'; keyword: string }
-type SuggestionTrigger = FileTrigger | HistoryTrigger | SlashTrigger
+type ModelsTrigger = { type: 'models'; keyword: string }
+type SuggestionTrigger = FileTrigger | HistoryTrigger | SlashTrigger | ModelsTrigger
 
 export function InputPrompt({
     disabled,
@@ -41,11 +54,13 @@ export function InputPrompt({
     onExit,
     onClear,
     onCancelRun,
+    onModelSelect,
     history,
     cwd,
     sessionsDir,
     currentSessionFile,
     onHistorySelect,
+    providers,
 }: InputPromptProps) {
     const { stdout } = useStdout()
     const [value, setValue] = useState('')
@@ -140,6 +155,29 @@ export function InputPrompt({
                     )
                     return
                 }
+                if (trigger.type === 'models') {
+                    const keyword = trigger.keyword.toLowerCase()
+                    const filtered = (providers ?? []).filter((p) => {
+                        const name = p.name?.toLowerCase() ?? ''
+                        const model = p.model?.toLowerCase() ?? ''
+                        if (!keyword) return true
+                        return name.includes(keyword) || model.includes(keyword)
+                    })
+                    const mapped = filtered.map((provider) => ({
+                        id: provider.name,
+                        title: `${provider.name}: ${provider.model}`,
+                        subtitle: provider.base_url ?? provider.env_api_key ?? '',
+                        kind: 'model' as const,
+                        value: `/models ${provider.name}`,
+                        meta: { provider },
+                    }))
+                    setSuggestionMode('model')
+                    setSuggestionItems(mapped)
+                    setActiveIndex((prev) =>
+                        mapped.length ? Math.min(prev, mapped.length - 1) : 0,
+                    )
+                    return
+                }
                 if (trigger.type === 'slash') {
                     const keyword = trigger.keyword.toLowerCase()
                     const filtered = keyword
@@ -175,7 +213,7 @@ export function InputPrompt({
         return () => {
             cancelled = true
         }
-    }, [trigger, cwd, sessionsDir, currentSessionFile])
+    }, [trigger, cwd, sessionsDir, currentSessionFile, providers])
 
     const applySuggestion = useCallback(
         (item?: SuggestionItem) => {
@@ -220,8 +258,16 @@ export function InputPrompt({
                 })
                 return
             }
+            if (suggestionMode === 'model' && item.meta?.provider) {
+                void onModelSelect?.(item.meta.provider)
+                setValue('')
+                setHistoryIndex(null)
+                setDraft('')
+                closeSuggestions()
+                return
+            }
         },
-        [closeSuggestions, onClear, onExit, suggestionMode, trigger, value],
+        [closeSuggestions, onClear, onExit, onModelSelect, suggestionMode, trigger, value],
     )
 
     useInput((input, key) => {
@@ -473,6 +519,8 @@ function formatSessionFileName(filePath: string) {
 }
 
 function detectSuggestionTrigger(value: string): SuggestionTrigger | null {
+    const modelsTrigger = detectModelsTrigger(value)
+    if (modelsTrigger) return modelsTrigger
     const slashTrigger = detectSlashTrigger(value)
     if (slashTrigger) return slashTrigger
     const fileTrigger = detectFileTrigger(value)
@@ -515,6 +563,14 @@ function detectHistoryTrigger(value: string): HistoryTrigger | null {
         type: 'history',
         keyword: rest.trim(),
     }
+}
+
+function detectModelsTrigger(value: string): ModelsTrigger | null {
+    const trimmedStart = value.trimStart()
+    if (!trimmedStart.startsWith('/models')) return null
+    const rest = trimmedStart.slice('/models'.length)
+    if (rest && !rest.startsWith(' ')) return null
+    return { type: 'models', keyword: rest.trim() }
 }
 
 function detectSlashTrigger(value: string): SlashTrigger | null {

@@ -4,7 +4,7 @@ export type SuggestionListItem = {
     id: string
     title: string
     subtitle?: string
-    kind: 'file' | 'history' | 'slash'
+    kind: 'file' | 'history' | 'slash' | 'model'
     badge?: string
 }
 

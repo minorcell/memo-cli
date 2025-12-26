@@ -182,6 +182,7 @@ async function runInteractiveTui(parsed: ParsedArgs) {
             mcpServerNames={Object.keys(loaded.config.mcp_servers ?? {})}
             cwd={process.cwd()}
             sessionsDir={sessionsDir}
+            providers={loaded.config.providers}
         />,
         { exitOnCtrlC: false },
     )

@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { readFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { Box, useApp } from 'ink'
 import {
     createAgentSession,
+    loadMemoConfig,
+    writeMemoConfig,
     type AgentSession,
     type AgentSessionDeps,
     type AgentSessionOptions,
     type ChatMessage,
     type InputHistoryEntry,
+    type ProviderConfig,
 } from '@memo/core'
 import type { StepView, SystemMessage, TurnView } from './types'
 import { HeaderBar } from './components/layout/HeaderBar'
@@ -25,6 +29,7 @@ export type AppProps = {
     mcpServerNames: string[]
     cwd: string
     sessionsDir: string
+    providers: ProviderConfig[]
 }
 
 function createEmptyTurn(index: number): TurnView {
@@ -39,8 +44,15 @@ export function App({
     mcpServerNames,
     cwd,
     sessionsDir,
+    providers,
 }: AppProps) {
     const { exit } = useApp()
+    const [currentProvider, setCurrentProvider] = useState(providerName)
+    const [currentModel, setCurrentModel] = useState(model)
+    const [sessionOptionsState, setSessionOptionsState] = useState<AgentSessionOptions>({
+        ...sessionOptions,
+        providerName,
+    })
     const [session, setSession] = useState<AgentSession | null>(null)
     const [turns, setTurns] = useState<TurnView[]>([])
     const [systemMessages, setSystemMessages] = useState<SystemMessage[]>([])
@@ -51,6 +63,7 @@ export function App({
     const [sessionLogPath, setSessionLogPath] = useState<string | null>(null)
     const [historicalTurns, setHistoricalTurns] = useState<TurnView[]>([])
     const [pendingHistoryMessages, setPendingHistoryMessages] = useState<ChatMessage[] | null>(null)
+    const sessionRef = useRef<AgentSession | null>(null)
 
     const appendSystemMessage = useCallback((title: string, content: string) => {
         const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -156,35 +169,40 @@ export function App({
     )
 
     useEffect(() => {
-        let active = true
+        let cancelled = false
         ;(async () => {
-            const created = await createAgentSession(deps, sessionOptions)
-            if (!active) {
+            const prev = sessionRef.current
+            if (prev) {
+                await prev.close()
+            }
+            const created = await createAgentSession(deps, sessionOptionsState)
+            if (cancelled) {
                 await created.close()
                 return
             }
+            sessionRef.current = created
             setSession(created)
             setSessionLogPath(created.historyFilePath ?? null)
         })()
         return () => {
-            active = false
+            cancelled = true
         }
-    }, [deps, sessionOptions])
+    }, [deps, sessionOptionsState])
 
     useEffect(() => {
         return () => {
-            if (session) {
-                void session.close()
+            if (sessionRef.current) {
+                void sessionRef.current.close()
             }
         }
-    }, [session])
+    }, [])
 
     const handleExit = useCallback(async () => {
-        if (session) {
-            await session.close()
+        if (sessionRef.current) {
+            await sessionRef.current.close()
         }
         exit()
-    }, [exit, session])
+    }, [exit])
 
     const handleClear = useCallback(() => {
         setTurns([])
@@ -217,18 +235,62 @@ export function App({
         [appendSystemMessage],
     )
 
+    const persistCurrentProvider = useCallback(
+        async (name: string) => {
+            try {
+                const loaded = await loadMemoConfig()
+                const nextConfig = { ...loaded.config, current_provider: name }
+                await writeMemoConfig(loaded.configPath, nextConfig)
+            } catch (err) {
+                appendSystemMessage('配置保存失败', `未能保存模型选择: ${(err as Error).message}`)
+            }
+        },
+        [appendSystemMessage],
+    )
+
     const handleCancelRun = useCallback(() => {
         if (!busy) return
         session?.cancelCurrentTurn?.()
     }, [busy, session])
 
+    const handleModelSelect = useCallback(
+        async (provider: ProviderConfig) => {
+            if (provider.name === currentProvider && provider.model === currentModel) {
+                appendSystemMessage('模型切换', `已在使用 ${provider.name} (${provider.model})`)
+                return
+            }
+            if (busy) {
+                appendSystemMessage('模型切换', '当前正在运行，按 Esc Esc 取消后再切换模型。')
+                return
+            }
+            setStatusMessage(null)
+            setTurns([])
+            setHistoricalTurns([])
+            setPendingHistoryMessages(null)
+            currentTurnRef.current = null
+            setSession(null)
+            setSessionLogPath(null)
+            setCurrentProvider(provider.name)
+            setCurrentModel(provider.model)
+            setSessionOptionsState((prev) => ({
+                ...prev,
+                sessionId: randomUUID(),
+                providerName: provider.name,
+            }))
+            await persistCurrentProvider(provider.name)
+            appendSystemMessage('模型切换', `已切换到 ${provider.name} (${provider.model})`)
+        },
+        [appendSystemMessage, busy, currentModel, currentProvider, persistCurrentProvider],
+    )
+
     const handleCommand = useCallback(
         async (raw: string) => {
             const result = resolveSlashCommand(raw, {
                 configPath,
-                providerName,
-                model,
+                providerName: currentProvider,
+                model: currentModel,
                 mcpServerNames,
+                providers,
             })
             if (result.kind === 'exit') {
                 await handleExit()
@@ -238,6 +300,10 @@ export function App({
                 handleClear()
                 return
             }
+            if (result.kind === 'switch_model') {
+                await handleModelSelect(result.provider)
+                return
+            }
             appendSystemMessage(result.title, result.content)
         },
         [
@@ -245,9 +311,11 @@ export function App({
             configPath,
             handleClear,
             handleExit,
+            handleModelSelect,
             mcpServerNames,
-            model,
-            providerName,
+            currentModel,
+            currentProvider,
+            providers,
         ],
     )
 
@@ -276,7 +344,8 @@ export function App({
     )
 
     const lastTurn = turns[turns.length - 1]
-    const statusLine = statusMessage ?? (!session ? 'Initializing...' : busy ? 'Running' : 'Ready')
+    const statusLine =
+        statusMessage ?? (!session ? 'Initializing...' : busy ? 'Running' : 'Ready')
     const statusKind =
         statusMessage !== null ? 'error' : !session ? 'initializing' : busy ? 'running' : 'ready'
     const tokenLine = formatTokenUsage(lastTurn?.tokenUsage)
@@ -285,7 +354,7 @@ export function App({
 
     return (
         <Box flexDirection="column" gap={1}>
-            <HeaderBar providerName={providerName} model={model} cwd={cwd} />
+            <HeaderBar providerName={currentProvider} model={currentModel} cwd={cwd} />
             <MainContent
                 systemMessages={systemMessages}
                 turns={displayTurns}
@@ -299,10 +368,12 @@ export function App({
                 onClear={handleClear}
                 onCancelRun={handleCancelRun}
                 onHistorySelect={handleHistorySelect}
+                onModelSelect={handleModelSelect}
                 history={inputHistory}
                 cwd={cwd}
                 sessionsDir={sessionsDir}
                 currentSessionFile={sessionLogPath ?? undefined}
+                providers={providers}
             />
             <TokenBar tokenLine={tokenLine} />
         </Box>
