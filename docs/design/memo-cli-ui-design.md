@@ -25,7 +25,7 @@
 
 ### 2.3 工具与 MCP
 
-- 内置工具：bash/run_bun/read/write/edit/glob/grep/webfetch/save_memory/time/todo。
+- 内置工具：bash/read/write/edit/glob/grep/webfetch/save_memory/time/todo。
 - MCP 外部工具来自 config.mcp*servers，自动注入 prompt，命名为 <server>*<tool>。
 - 工具返回以文本为主，UI 需做扁平化展示。
 

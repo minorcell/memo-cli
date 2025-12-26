@@ -97,7 +97,6 @@
 - **read**: `{"file_path": "/abs/...", "offset": 0, "limit": 200}`
 - **write**: `{"file_path": "/abs/...", "content": "..."}`
 - **edit**: `{"file_path": "/abs/...", "old_string": "...", "new_string": "...", "replace_all": false}`
-- **run_bun**: `{"code": "..."}`
 - **glob**: `{"pattern": "**/*.ts", "path": "/curr/dir"}`
 - **grep**: `{"pattern": "string", "path": "/dir", "glob": "*.ts", "-i": false, "-C": 2}`
 - **webfetch**: `{"url": "..."}`

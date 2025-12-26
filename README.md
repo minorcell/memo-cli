@@ -66,7 +66,7 @@ memo-cli 提供现代化的终端用户界面，包含以下特性：
 ## 内置工具概览
 
 - **文件系统**：`read` / `write` / `edit` / `glob` / `grep`，提供偏移、上下文、全局替换等能力。
-- **系统执行**：`bash` 直接运行 Shell；`run_bun` 在沙箱里执行 JS/TS（bubblewrap 或 `sandbox-exec`，可配置网络）。
+- **系统执行**：`bash` 直接运行 Shell。
 - **网络获取**：`webfetch` 支持 http/https/data，10 秒超时、512 KB 限制，自动清洗 HTML。
 - **辅助工具**：`save_memory`（写入 `~/.memo/memo.md`）、`todo` 管理、`time` 查询。
 - **MCP 外部工具**：支持 stdio 或 Streamable HTTP，工具名前会加 `<server>_` 前缀自动注入系统提示词。
@@ -278,7 +278,6 @@ memo-cli/
 
 ## 安全特性
 
-- `run_bun` 依赖 bubblewrap 或 `sandbox-exec`，并可控制网络访问。
 - `webfetch`、`bash` 等工具限制超时时间、输出大小与允许路径，降低风险。
 - MCP 工具统一通过配置注入，避免在提示词中硬编码密钥。
 
