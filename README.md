@@ -175,12 +175,14 @@ current_provider = "deepseek"
 max_steps = 100
 stream_output = false
 
-[[providers]]
+[[providers.deepseek]]
 name = "deepseek"
 env_api_key = "DEEPSEEK_API_KEY"
 model = "deepseek-chat"
 base_url = "https://api.deepseek.com"
 ```
+
+可通过多个 `[[providers.<name>]]` 段落配置多个 Provider。
 
 MCP 服务器示例：
 

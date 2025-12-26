@@ -16,7 +16,7 @@ export function StepView({ step }: StepViewProps) {
         <Box flexDirection="column">
             {shouldRenderAssistant ? <AssistantMessage text={assistantText} /> : null}
             {step.action ? (
-                <Box flexDirection="column" marginTop={1} marginLeft={2}>
+                <Box flexDirection="column" marginLeft={2}>
                     <Text color="yellow">
                         Tool: {step.action.tool} [{step.toolStatus ?? 'pending'}]
                     </Text>

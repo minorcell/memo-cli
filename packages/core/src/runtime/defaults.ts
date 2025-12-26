@@ -37,6 +37,7 @@ export async function withDefaultDeps(
     tokenCounter: TokenCounter
     maxSteps: number
     dispose: () => Promise<void>
+    historyFilePath?: string
 }> {
     const loaded = await loadMemoConfig()
     const config = loaded.config
@@ -83,6 +84,10 @@ export async function withDefaultDeps(
         return basePrompt
     }
     const streamOutput = options.stream ?? config.stream_output ?? false
+    const sessionsDir = getSessionsDir(loaded, options)
+    const historyFilePath = buildSessionPath(sessionsDir, sessionId)
+    const defaultHistorySink = new JsonlHistorySink(historyFilePath)
+
     return {
         tools: combinedTools,
         dispose: async () => {
@@ -91,7 +96,7 @@ export async function withDefaultDeps(
         },
         callLLM:
             deps.callLLM ??
-            (async (messages, onChunk) => {
+            (async (messages, onChunk, callOptions) => {
                 const provider = selectProvider(config, options.providerName)
                 const apiKey =
                     process.env[provider.env_api_key] ??
@@ -107,12 +112,15 @@ export async function withDefaultDeps(
                     baseURL: provider.base_url,
                 })
                 if (streamOutput) {
-                    const stream = await client.chat.completions.create({
-                        model: provider.model,
-                        messages,
-                        temperature: 0.35,
-                        stream: true,
-                    })
+                    const stream = await client.chat.completions.create(
+                        {
+                            model: provider.model,
+                            messages,
+                            temperature: 0.35,
+                            stream: true,
+                        },
+                        { signal: callOptions?.signal },
+                    )
                     let content = ''
                     for await (const part of stream) {
                         const delta = part.choices?.[0]?.delta?.content
@@ -123,11 +131,14 @@ export async function withDefaultDeps(
                     }
                     return { content, streamed: true }
                 } else {
-                    const data = await client.chat.completions.create({
-                        model: provider.model,
-                        messages,
-                        temperature: 0.35,
-                    })
+                    const data = await client.chat.completions.create(
+                        {
+                            model: provider.model,
+                            messages,
+                            temperature: 0.35,
+                        },
+                        { signal: callOptions?.signal },
+                    )
                     const content = data.choices?.[0]?.message?.content
                     if (typeof content !== 'string') {
                         throw new Error('OpenAI-compatible API returned empty content')
@@ -143,10 +154,9 @@ export async function withDefaultDeps(
                 }
             }),
         loadPrompt,
-        historySinks: deps.historySinks ?? [
-            new JsonlHistorySink(buildSessionPath(getSessionsDir(loaded, options), sessionId)),
-        ],
+        historySinks: deps.historySinks ?? [defaultHistorySink],
         tokenCounter: deps.tokenCounter ?? createTokenCounter(options.tokenizerModel),
         maxSteps: options.maxSteps ?? config.max_steps ?? 100,
+        historyFilePath: historyFilePath,
     }
 }

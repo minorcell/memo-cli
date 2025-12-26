@@ -23,6 +23,7 @@
         "@dqbd/tiktoken": "^1.0.22",
         "@modelcontextprotocol/sdk": "^1.24.3",
         "openai": "^6.10.0",
+        "react-devtools-core": "^7.0.1",
         "toml": "^3.0.0"
     }
 }

@@ -8,6 +8,7 @@ import {
     loadMemoConfig,
     writeMemoConfig,
     selectProvider,
+    getSessionsDir,
     type AgentSessionDeps,
     type AgentSessionOptions,
     type MemoConfig,
@@ -170,6 +171,7 @@ async function runInteractiveTui(parsed: ParsedArgs) {
         mode: 'interactive',
         stream: loaded.config.stream_output ?? false,
     }
+    const sessionsDir = getSessionsDir(loaded, sessionOptions)
 
     const app = render(
         <App
@@ -179,6 +181,8 @@ async function runInteractiveTui(parsed: ParsedArgs) {
             configPath={loaded.configPath}
             mcpServerNames={Object.keys(loaded.config.mcp_servers ?? {})}
             cwd={process.cwd()}
+            sessionsDir={sessionsDir}
+            providers={loaded.config.providers}
         />,
         { exitOnCtrlC: false },
     )

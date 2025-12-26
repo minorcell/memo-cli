@@ -1,12 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { readFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { Box, useApp } from 'ink'
 import {
     createAgentSession,
+    loadMemoConfig,
+    writeMemoConfig,
     type AgentSession,
     type AgentSessionDeps,
     type AgentSessionOptions,
+    type ChatMessage,
+    type InputHistoryEntry,
+    type ProviderConfig,
 } from '@memo/core'
-import type { SystemMessage, TurnView } from './types'
+import type { StepView, SystemMessage, TurnView } from './types'
 import { HeaderBar } from './components/layout/HeaderBar'
 import { TokenBar } from './components/layout/TokenBar'
 import { MainContent } from './components/layout/MainContent'
@@ -21,6 +28,8 @@ export type AppProps = {
     configPath: string
     mcpServerNames: string[]
     cwd: string
+    sessionsDir: string
+    providers: ProviderConfig[]
 }
 
 function createEmptyTurn(index: number): TurnView {
@@ -34,8 +43,16 @@ export function App({
     configPath,
     mcpServerNames,
     cwd,
+    sessionsDir,
+    providers,
 }: AppProps) {
     const { exit } = useApp()
+    const [currentProvider, setCurrentProvider] = useState(providerName)
+    const [currentModel, setCurrentModel] = useState(model)
+    const [sessionOptionsState, setSessionOptionsState] = useState<AgentSessionOptions>({
+        ...sessionOptions,
+        providerName,
+    })
     const [session, setSession] = useState<AgentSession | null>(null)
     const [turns, setTurns] = useState<TurnView[]>([])
     const [systemMessages, setSystemMessages] = useState<SystemMessage[]>([])
@@ -43,6 +60,10 @@ export function App({
     const [busy, setBusy] = useState(false)
     const currentTurnRef = useRef<number | null>(null)
     const [inputHistory, setInputHistory] = useState<string[]>([])
+    const [sessionLogPath, setSessionLogPath] = useState<string | null>(null)
+    const [historicalTurns, setHistoricalTurns] = useState<TurnView[]>([])
+    const [pendingHistoryMessages, setPendingHistoryMessages] = useState<ChatMessage[] | null>(null)
+    const sessionRef = useRef<AgentSession | null>(null)
 
     const appendSystemMessage = useCallback((title: string, content: string) => {
         const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -148,48 +169,135 @@ export function App({
     )
 
     useEffect(() => {
-        let active = true
+        let cancelled = false
         ;(async () => {
-            const created = await createAgentSession(deps, sessionOptions)
-            if (!active) {
+            const prev = sessionRef.current
+            if (prev) {
+                await prev.close()
+            }
+            const created = await createAgentSession(deps, sessionOptionsState)
+            if (cancelled) {
                 await created.close()
                 return
             }
+            sessionRef.current = created
             setSession(created)
+            setSessionLogPath(created.historyFilePath ?? null)
         })()
         return () => {
-            active = false
+            cancelled = true
         }
-    }, [deps, sessionOptions])
+    }, [deps, sessionOptionsState])
 
     useEffect(() => {
         return () => {
-            if (session) {
-                void session.close()
+            if (sessionRef.current) {
+                void sessionRef.current.close()
             }
         }
-    }, [session])
+    }, [])
 
     const handleExit = useCallback(async () => {
-        if (session) {
-            await session.close()
+        if (sessionRef.current) {
+            await sessionRef.current.close()
         }
         exit()
-    }, [exit, session])
+    }, [exit])
 
     const handleClear = useCallback(() => {
         setTurns([])
         setSystemMessages([])
         setStatusMessage(null)
+        setHistoricalTurns([])
+        setPendingHistoryMessages(null)
     }, [])
+
+    const handleHistorySelect = useCallback(
+        async (entry: InputHistoryEntry) => {
+            if (!entry.sessionFile) {
+                appendSystemMessage('历史记录', '该记录没有可加载的上下文文件。')
+                return
+            }
+            try {
+                const raw = await readFile(entry.sessionFile, 'utf8')
+                const parsed = parseHistoryLog(raw)
+                setHistoricalTurns(parsed.turns)
+                setPendingHistoryMessages(parsed.messages)
+                setBusy(false)
+                setStatusMessage(null)
+                setTurns([])
+                setSession(null)
+                setSessionLogPath(null)
+                currentTurnRef.current = null
+                // 重新拉起 session，避免旧上下文残留/计数错位
+                setSessionOptionsState((prev) => ({ ...prev, sessionId: randomUUID() }))
+                appendSystemMessage('历史记录已加载', parsed.summary || entry.input)
+            } catch (err) {
+                appendSystemMessage(
+                    '历史记录加载失败',
+                    `无法读取 ${entry.sessionFile}: ${(err as Error).message}`,
+                )
+            }
+        },
+        [appendSystemMessage],
+    )
+
+    const persistCurrentProvider = useCallback(
+        async (name: string) => {
+            try {
+                const loaded = await loadMemoConfig()
+                const nextConfig = { ...loaded.config, current_provider: name }
+                await writeMemoConfig(loaded.configPath, nextConfig)
+            } catch (err) {
+                appendSystemMessage('配置保存失败', `未能保存模型选择: ${(err as Error).message}`)
+            }
+        },
+        [appendSystemMessage],
+    )
+
+    const handleCancelRun = useCallback(() => {
+        if (!busy) return
+        session?.cancelCurrentTurn?.()
+    }, [busy, session])
+
+    const handleModelSelect = useCallback(
+        async (provider: ProviderConfig) => {
+            if (provider.name === currentProvider && provider.model === currentModel) {
+                appendSystemMessage('模型切换', `已在使用 ${provider.name} (${provider.model})`)
+                return
+            }
+            if (busy) {
+                appendSystemMessage('模型切换', '当前正在运行，按 Esc Esc 取消后再切换模型。')
+                return
+            }
+            setStatusMessage(null)
+            setTurns([])
+            setHistoricalTurns([])
+            setPendingHistoryMessages(null)
+            currentTurnRef.current = null
+            setSession(null)
+            setSessionLogPath(null)
+            setCurrentProvider(provider.name)
+            setCurrentModel(provider.model)
+            setSessionOptionsState((prev) => ({
+                ...prev,
+                sessionId: randomUUID(),
+                providerName: provider.name,
+            }))
+            await persistCurrentProvider(provider.name)
+            appendSystemMessage('模型切换', `已切换到 ${provider.name} (${provider.model})`)
+        },
+        [appendSystemMessage, busy, currentModel, currentProvider, persistCurrentProvider],
+    )
 
     const handleCommand = useCallback(
         async (raw: string) => {
             const result = resolveSlashCommand(raw, {
                 configPath,
-                providerName,
-                model,
+                providerName: currentProvider,
+                model: currentModel,
                 mcpServerNames,
+                providers,
             })
             if (result.kind === 'exit') {
                 await handleExit()
@@ -199,6 +307,10 @@ export function App({
                 handleClear()
                 return
             }
+            if (result.kind === 'switch_model') {
+                await handleModelSelect(result.provider)
+                return
+            }
             appendSystemMessage(result.title, result.content)
         },
         [
@@ -206,11 +318,22 @@ export function App({
             configPath,
             handleClear,
             handleExit,
+            handleModelSelect,
             mcpServerNames,
-            model,
-            providerName,
+            currentModel,
+            currentProvider,
+            providers,
         ],
     )
+
+    useEffect(() => {
+        if (!session || !pendingHistoryMessages?.length) return
+        // 用历史对话覆盖当前 session 的用户上下文，保留系统提示词。
+        const systemMessage = session.history[0]
+        if (!systemMessage) return
+        session.history.splice(0, session.history.length, systemMessage, ...pendingHistoryMessages)
+        setPendingHistoryMessages(null)
+    }, [pendingHistoryMessages, session])
 
     const handleSubmit = useCallback(
         async (value: string) => {
@@ -233,17 +356,20 @@ export function App({
     )
 
     const lastTurn = turns[turns.length - 1]
-    const statusLine = statusMessage ?? (!session ? 'Initializing...' : busy ? 'Running' : 'Ready')
+    const statusLine =
+        statusMessage ?? (!session ? 'Initializing...' : busy ? 'Running' : 'Ready')
     const statusKind =
         statusMessage !== null ? 'error' : !session ? 'initializing' : busy ? 'running' : 'ready'
     const tokenLine = formatTokenUsage(lastTurn?.tokenUsage)
 
+    const displayTurns = useMemo(() => [...historicalTurns, ...turns], [historicalTurns, turns])
+
     return (
         <Box flexDirection="column" gap={1}>
-            <HeaderBar providerName={providerName} model={model} cwd={cwd} />
+            <HeaderBar providerName={currentProvider} model={currentModel} cwd={cwd} />
             <MainContent
                 systemMessages={systemMessages}
-                turns={turns}
+                turns={displayTurns}
                 statusText={statusLine}
                 statusKind={statusKind}
             />
@@ -252,9 +378,78 @@ export function App({
                 onSubmit={handleSubmit}
                 onExit={handleExit}
                 onClear={handleClear}
+                onCancelRun={handleCancelRun}
+                onHistorySelect={handleHistorySelect}
+                onModelSelect={handleModelSelect}
                 history={inputHistory}
+                cwd={cwd}
+                sessionsDir={sessionsDir}
+                currentSessionFile={sessionLogPath ?? undefined}
+                providers={providers}
             />
             <TokenBar tokenLine={tokenLine} />
         </Box>
     )
+}
+
+function parseHistoryLog(raw: string): {
+    summary: string
+    messages: ChatMessage[]
+    turns: TurnView[]
+} {
+    const messages: ChatMessage[] = []
+    const turns: TurnView[] = []
+    const summaryParts: string[] = []
+    const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean)
+    let currentTurn: TurnView | null = null
+    let turnCount = 0
+
+    for (const line of lines) {
+        let event: any
+        try {
+            event = JSON.parse(line)
+        } catch {
+            continue
+        }
+        if (!event || typeof event !== 'object') continue
+        if (event.type === 'turn_start') {
+            const userInput = typeof event.content === 'string' ? event.content : ''
+            const index = -(turnCount + 1)
+            currentTurn = {
+                index,
+                userInput,
+                steps: [],
+                status: 'ok',
+            }
+            turns.push(currentTurn)
+            if (userInput) {
+                messages.push({ role: 'user', content: userInput })
+                summaryParts.push(`User: ${userInput}`)
+            }
+            turnCount += 1
+            continue
+        }
+        if (event.type === 'assistant') {
+            const assistantText = typeof event.content === 'string' ? event.content : ''
+            if (assistantText) {
+                messages.push({ role: 'assistant', content: assistantText })
+                summaryParts.push(`Assistant: ${assistantText}`)
+                if (currentTurn) {
+                    const step: StepView = {
+                        index: currentTurn.steps.length,
+                        assistantText,
+                    }
+                    currentTurn.steps = [...currentTurn.steps, step]
+                    currentTurn.finalText = assistantText
+                }
+            }
+            continue
+        }
+    }
+
+    return {
+        summary: summaryParts.join('\n'),
+        messages,
+        turns,
+    }
 }

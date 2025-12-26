@@ -45,6 +45,8 @@ export type MemoConfig = {
     providers: ProviderConfig[]
 }
 
+type ParsedMemoConfig = Omit<Partial<MemoConfig>, 'providers'> & { providers?: unknown }
+
 const DEFAULT_MEMO_HOME = join(homedir(), '.memo')
 const DEFAULT_SESSIONS_DIR = 'sessions'
 const DEFAULT_MEMORY_FILE = 'memo.md'
@@ -64,6 +66,29 @@ const DEFAULT_CONFIG: MemoConfig = {
     mcp_servers: {},
 }
 
+function formatTomlKey(key: string) {
+    return /^[A-Za-z0-9_-]+$/.test(key) ? key : JSON.stringify(key)
+}
+
+function normalizeProviders(input: unknown): ProviderConfig[] {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return []
+
+    const providers: ProviderConfig[] = []
+    for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+        if (!value) continue
+        const entries = Array.isArray(value) ? value : [value]
+        for (const entry of entries) {
+            if (!entry || typeof entry !== 'object') continue
+            const provider = { ...(entry as ProviderConfig) }
+            if ((typeof provider.name !== 'string' || provider.name.length === 0) && key) {
+                provider.name = key
+            }
+            providers.push(provider)
+        }
+    }
+    return providers
+}
+
 function expandHome(path: string) {
     if (path.startsWith('~')) {
         return join(homedir(), path.slice(1))
@@ -74,13 +99,23 @@ function expandHome(path: string) {
 function serializeConfig(config: MemoConfig) {
     const providers = config.providers
         .map(
-            (p) =>
-                `[[providers]]
-name = "${p.name}"
-env_api_key = "${p.env_api_key}"
-model = "${p.model}"
-${p.base_url ? `base_url = "${p.base_url}"\n` : ''}`,
+            (p) => {
+                const name = typeof p?.name === 'string' ? p.name : ''
+                if (!name) return ''
+                const key = formatTomlKey(name)
+                const lines = [
+                    `[[providers.${key}]]`,
+                    `name = ${JSON.stringify(name)}`,
+                    `env_api_key = ${JSON.stringify(String(p.env_api_key ?? ''))}`,
+                    `model = ${JSON.stringify(String(p.model ?? ''))}`,
+                ]
+                if (p.base_url) {
+                    lines.push(`base_url = ${JSON.stringify(String(p.base_url))}`)
+                }
+                return lines.join('\n')
+            },
         )
+        .filter(Boolean)
         .join('\n\n')
 
     let mcpSection = ''
@@ -139,12 +174,13 @@ export async function loadMemoConfig(): Promise<LoadedConfig> {
             return { config: DEFAULT_CONFIG, home, configPath, needsSetup: true }
         }
         const text = await file.text()
-        const parsed = parse(text) as Partial<MemoConfig>
+        const parsed = parse(text) as ParsedMemoConfig
+        const providers = normalizeProviders(parsed.providers)
         const merged: MemoConfig = {
             current_provider: parsed.current_provider ?? DEFAULT_CONFIG.current_provider,
             max_steps: parsed.max_steps ?? DEFAULT_CONFIG.max_steps,
             stream_output: parsed.stream_output ?? DEFAULT_CONFIG.stream_output,
-            providers: parsed.providers ?? [],
+            providers,
             mcp_servers: parsed.mcp_servers ?? {},
         }
         const needsSetup = !merged.providers.length
@@ -198,12 +234,20 @@ export function buildSessionPath(baseDir: string, sessionId: string) {
     const HH = String(now.getHours()).padStart(2, '0')
     const MM = String(now.getMinutes()).padStart(2, '0')
     const SS = String(now.getSeconds()).padStart(2, '0')
-    const cwd = process.cwd()
-    const safeParts = cwd.split(/[/\\]+/).map((p) => sanitizePathComponent(p))
-    const truncatedParts = truncatePath(safeParts, 180)
-    const dirName = truncatedParts.join('-')
+    const dirName = buildSessionDirName(process.cwd())
     const fileName = `${yyyy}-${mm}-${dd}_${HH}${MM}${SS}_${sessionId}.jsonl`
     return join(baseDir, dirName, fileName)
+}
+
+function buildSessionDirName(cwd: string) {
+    const safeParts = cwd.split(/[/\\]+/).map((p) => sanitizePathComponent(p))
+    const truncatedParts = truncatePath(safeParts, 180)
+    return truncatedParts.join('-') || 'root'
+}
+
+/** 获取某个 cwd 对应的 session 日志目录。 */
+export function getSessionLogDir(baseDir: string, cwd: string) {
+    return join(baseDir, buildSessionDirName(cwd))
 }
 
 /** 提供一个新的 sessionId，便于外部复用。 */

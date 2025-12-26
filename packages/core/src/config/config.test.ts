@@ -122,6 +122,7 @@ describe('mcp config serialization', () => {
         })
 
         const text = await Bun.file(configPath).text()
+        expect(text).toContain('[[providers.deepseek]]')
         expect(text).toContain('[mcp_servers.remote]')
         expect(text).toContain('type = "streamable_http"')
         expect(text).toContain('url = "https://example.com/mcp"')
@@ -141,7 +142,7 @@ current_provider = "deepseek"
 stream_output = false
 max_steps = 42
 
-[[providers]]
+[[providers.deepseek]]
 name = "deepseek"
 env_api_key = "DEEPSEEK_API_KEY"
 model = "deepseek-chat"
@@ -170,5 +171,24 @@ url = "https://legacy.example.com/mcp"
         const legacy = servers.legacy
         expectSseServer(legacy)
         expect(legacy.url).toBe('https://legacy.example.com/mcp')
+    })
+
+    test('loadMemoConfig ignores legacy providers array', async () => {
+        const home = join(tempBase, 'memo-home-legacy')
+        process.env.MEMO_HOME = home
+        await mkdir(home, { recursive: true })
+        const configText = `
+current_provider = "legacy"
+
+[[providers]]
+name = "legacy"
+env_api_key = "LEGACY_API_KEY"
+model = "legacy-model"
+`
+        await Bun.write(join(home, 'config.toml'), configText)
+
+        const loaded = await loadMemoConfig()
+        expect(loaded.needsSetup).toBe(true)
+        expect(loaded.config.current_provider).not.toBe('legacy')
     })
 })
