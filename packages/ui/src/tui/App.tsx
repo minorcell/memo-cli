@@ -223,7 +223,14 @@ export function App({
                 const parsed = parseHistoryLog(raw)
                 setHistoricalTurns(parsed.turns)
                 setPendingHistoryMessages(parsed.messages)
+                setBusy(false)
+                setStatusMessage(null)
                 setTurns([])
+                setSession(null)
+                setSessionLogPath(null)
+                currentTurnRef.current = null
+                // 重新拉起 session，避免旧上下文残留/计数错位
+                setSessionOptionsState((prev) => ({ ...prev, sessionId: randomUUID() }))
                 appendSystemMessage('历史记录已加载', parsed.summary || entry.input)
             } catch (err) {
                 appendSystemMessage(
@@ -319,6 +326,15 @@ export function App({
         ],
     )
 
+    useEffect(() => {
+        if (!session || !pendingHistoryMessages?.length) return
+        // 用历史对话覆盖当前 session 的用户上下文，保留系统提示词。
+        const systemMessage = session.history[0]
+        if (!systemMessage) return
+        session.history.splice(0, session.history.length, systemMessage, ...pendingHistoryMessages)
+        setPendingHistoryMessages(null)
+    }, [pendingHistoryMessages, session])
+
     const handleSubmit = useCallback(
         async (value: string) => {
             if (!session || busy) return
@@ -328,10 +344,6 @@ export function App({
                 return
             }
             setInputHistory((prev) => [...prev, value])
-            if (pendingHistoryMessages?.length && session) {
-                session.history.push(...pendingHistoryMessages)
-                setPendingHistoryMessages(null)
-            }
             setBusy(true)
             try {
                 await session.runTurn(value)
@@ -340,7 +352,7 @@ export function App({
                 setBusy(false)
             }
         },
-        [busy, handleCommand, session, pendingHistoryMessages],
+        [busy, handleCommand, session],
     )
 
     const lastTurn = turns[turns.length - 1]
