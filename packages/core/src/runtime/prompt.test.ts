@@ -66,12 +66,8 @@ describe('loadSystemPrompt', () => {
         expect(prompt).toContain('## User Personality Context (SOUL.md)')
         expect(prompt).toContain(`Loaded from: ${soulPath}`)
         expect(prompt).toContain('- calmer tone')
-        expect(prompt.indexOf('## User Personality Context (SOUL.md)')).toBeGreaterThan(
-            prompt.indexOf('head'),
-        )
-        expect(prompt.indexOf('tail')).toBeGreaterThan(
-            prompt.indexOf('## User Personality Context (SOUL.md)'),
-        )
+        expect(prompt.indexOf('## User Personality Context (SOUL.md)')).toBeGreaterThan(prompt.indexOf('head'))
+        expect(prompt.indexOf('tail')).toBeGreaterThan(prompt.indexOf('## User Personality Context (SOUL.md)'))
     })
 
     test('falls back to append SOUL.md when template has no placeholder', async () => {

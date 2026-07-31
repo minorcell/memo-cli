@@ -19,13 +19,7 @@ import {
 import { updatePlanTool } from '@memo/tools/tools/update_plan'
 import { getMemoryTool } from '@memo/tools/tools/get_memory'
 import { webfetchTool } from '@memo/tools/tools/webfetch'
-import {
-    closeAgentTool,
-    resumeAgentTool,
-    sendInputTool,
-    spawnAgentTool,
-    waitTool,
-} from '@memo/tools/tools/collab'
+import { closeAgentTool, resumeAgentTool, sendInputTool, spawnAgentTool, waitTool } from '@memo/tools/tools/collab'
 
 function buildCodexTools(): McpTool[] {
     const tools: McpTool[] = []

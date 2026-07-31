@@ -58,9 +58,7 @@ describe('tool orchestrator', () => {
                             new_string: z.string(),
                         })
                         const parsed = schema.safeParse(input)
-                        return parsed.success
-                            ? { ok: true, data: parsed.data }
-                            : { ok: false, error: 'invalid input' }
+                        return parsed.success ? { ok: true, data: parsed.data } : { ok: false, error: 'invalid input' }
                     },
                     execute: async () => ({
                         content: [{ type: 'text', text: 'written' }],

@@ -24,20 +24,11 @@ type DocsShellProps = {
     activeSlug?: string
     title?: string
     description?: string
-    sections?: DocSectionAnchor[]
     children: ReactNode
     lang: string
 }
 
-export function DocsShell({
-    pages,
-    activeSlug,
-    title,
-    description,
-    sections,
-    children,
-    lang,
-}: DocsShellProps) {
+export function DocsShell({ pages, activeSlug, title, description, children, lang }: DocsShellProps) {
     const messages = messagesByLocale[lang] || messagesByLocale.en
     const homeHref = `/${lang}`
     const docsHref = `/${lang}/docs`
@@ -60,17 +51,11 @@ export function DocsShell({
     return (
         <div className="mx-auto w-full max-w-[1300px] px-4 pb-20 pt-6 md:px-8">
             <nav className="mb-6 flex items-center gap-2 text-xs text-[var(--text-tertiary)]">
-                <Link
-                    href={homeHref}
-                    className="transition-colors hover:text-[var(--text-primary)]"
-                >
+                <Link href={homeHref} className="transition-colors hover:text-[var(--text-primary)]">
                     {t('blog.breadcrumb.home')}
                 </Link>
                 <ChevronRight className="h-3.5 w-3.5" />
-                <Link
-                    href={docsHref}
-                    className="transition-colors hover:text-[var(--text-primary)]"
-                >
+                <Link href={docsHref} className="transition-colors hover:text-[var(--text-primary)]">
                     {t('nav.docs')}
                 </Link>
                 {activePage ? (
@@ -138,9 +123,7 @@ export function DocsShell({
                                                                 : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                                                         }`}
                                                     >
-                                                        <p className="text-sm font-medium">
-                                                            {page.title}
-                                                        </p>
+                                                        <p className="text-sm font-medium">{page.title}</p>
                                                         <p className="mt-0.5 line-clamp-2 text-xs text-[var(--text-tertiary)]">
                                                             {page.summary}
                                                         </p>
@@ -167,9 +150,7 @@ export function DocsShell({
                                 {title}
                             </h1>
                             {description ? (
-                                <p className="mt-3 max-w-3xl text-base text-[var(--text-secondary)]">
-                                    {description}
-                                </p>
+                                <p className="mt-3 max-w-3xl text-base text-[var(--text-secondary)]">{description}</p>
                             ) : null}
                         </div>
 

@@ -144,9 +144,7 @@ export function resolveSlashCommand(raw: string, context: SlashContext): SlashCo
 
             const lines = context.providers.map((provider) => {
                 const marker =
-                    provider.name === context.providerName && provider.model === context.model
-                        ? ' (current)'
-                        : ''
+                    provider.name === context.providerName && provider.model === context.model ? ' (current)' : ''
                 const base = provider.base_url ? ` @ ${provider.base_url}` : ''
                 return `- ${provider.name}: ${provider.model}${base}${marker}`
             })

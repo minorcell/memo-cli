@@ -47,10 +47,7 @@ export function buildDesktopNotificationCommand(
     if (platform === 'darwin') {
         return {
             command: 'osascript',
-            args: [
-                '-e',
-                `display notification "${escapeAppleScript(body)}" with title "${escapeAppleScript(title)}"`,
-            ],
+            args: ['-e', `display notification "${escapeAppleScript(body)}" with title "${escapeAppleScript(title)}"`],
         }
     }
 

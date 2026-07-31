@@ -26,8 +26,7 @@ const ALLOWED_PROTOCOLS = new Set(['http:', 'https:'])
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 const MAX_REDIRECTS = 10
 const ROBOTS_MAX_BODY_BYTES = 1_000_000
-const DEFAULT_USER_AGENT =
-    'ModelContextProtocol/1.0 (Autonomous; +https://github.com/modelcontextprotocol/servers)'
+const DEFAULT_USER_AGENT = 'ModelContextProtocol/1.0 (Autonomous; +https://github.com/modelcontextprotocol/servers)'
 const DEFAULT_TIMEOUT_MS = 30_000
 const DEFAULT_MAX_BODY_BYTES = 5_000_000
 const DEFAULT_MAX_LENGTH = 5_000
@@ -66,10 +65,7 @@ function getRuntimeConfig(): WebfetchRuntimeConfig {
         userAgent: process.env.MEMO_WEBFETCH_USER_AGENT?.trim() || DEFAULT_USER_AGENT,
         ignoreRobotsTxt: parseBool(process.env.MEMO_WEBFETCH_IGNORE_ROBOTS_TXT, false),
         timeoutMs: parsePositiveInt(process.env.MEMO_WEBFETCH_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
-        maxBodyBytes: parsePositiveInt(
-            process.env.MEMO_WEBFETCH_MAX_BODY_BYTES,
-            DEFAULT_MAX_BODY_BYTES,
-        ),
+        maxBodyBytes: parsePositiveInt(process.env.MEMO_WEBFETCH_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES),
         blockPrivateNet: parseBool(process.env.MEMO_WEBFETCH_BLOCK_PRIVATE_NET, true),
     }
 }
@@ -84,20 +80,12 @@ function isBlockedIpRange(address: string) {
         if (parsed.range() === 'ipv4Mapped') {
             return isBlockedIpRange(parsed.toIPv4Address().toString())
         }
-        return new Set(['uniqueLocal', 'linkLocal', 'loopback', 'unspecified', 'reserved']).has(
-            parsed.range(),
-        )
+        return new Set(['uniqueLocal', 'linkLocal', 'loopback', 'unspecified', 'reserved']).has(parsed.range())
     }
 
-    return new Set([
-        'private',
-        'loopback',
-        'linkLocal',
-        'broadcast',
-        'carrierGradeNat',
-        'reserved',
-        'unspecified',
-    ]).has(parsed.range())
+    return new Set(['private', 'loopback', 'linkLocal', 'broadcast', 'carrierGradeNat', 'reserved', 'unspecified']).has(
+        parsed.range(),
+    )
 }
 
 async function assertPublicHost(url: URL) {
@@ -131,9 +119,7 @@ async function assertPublicHost(url: URL) {
 
     for (const record of resolved) {
         if (isBlockedIpRange(record.address)) {
-            throw new Error(
-                `Blocked private or local network host: ${hostname} (resolved to ${record.address})`,
-            )
+            throw new Error(`Blocked private or local network host: ${hostname} (resolved to ${record.address})`)
         }
     }
 }
@@ -176,11 +162,7 @@ async function readBodyWithLimit(response: Response, maxBodyBytes: number): Prom
     return text
 }
 
-function buildFetchInit(
-    signal: AbortSignal,
-    userAgent: string,
-    dispatcher: Dispatcher | undefined,
-): RequestInit {
+function buildFetchInit(signal: AbortSignal, userAgent: string, dispatcher: Dispatcher | undefined): RequestInit {
     return {
         method: 'GET',
         redirect: 'manual',
@@ -245,11 +227,7 @@ async function fetchWithRedirects(
 }
 
 function looksLikeHtml(contentType: string, bodyText: string) {
-    return (
-        /text\/html/i.test(contentType) ||
-        /^\s*<!doctype html/i.test(bodyText) ||
-        /^\s*<html[\s>]/i.test(bodyText)
-    )
+    return /text\/html/i.test(contentType) || /^\s*<!doctype html/i.test(bodyText) || /^\s*<html[\s>]/i.test(bodyText)
 }
 
 function extractContentFromHtml(html: string, pageUrl: string) {
@@ -411,10 +389,7 @@ export const webfetchTool = defineMcpTool<WebFetchInput>({
             })
 
             if (fetched.response.status >= 400) {
-                return textResult(
-                    `Failed to fetch ${url.toString()} - status code ${fetched.response.status}`,
-                    true,
-                )
+                return textResult(`Failed to fetch ${url.toString()} - status code ${fetched.response.status}`, true)
             }
 
             const contentType = fetched.response.headers.get('content-type') || ''

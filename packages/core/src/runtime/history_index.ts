@@ -107,16 +107,12 @@ function compareSummaries(
 
     if (sortBy === 'project') {
         const result = a.project.localeCompare(b.project)
-        return result === 0
-            ? a.date.updatedAt.localeCompare(b.date.updatedAt) * direction
-            : result * direction
+        return result === 0 ? a.date.updatedAt.localeCompare(b.date.updatedAt) * direction : result * direction
     }
 
     if (sortBy === 'title') {
         const result = a.title.localeCompare(b.title)
-        return result === 0
-            ? a.date.updatedAt.localeCompare(b.date.updatedAt) * direction
-            : result * direction
+        return result === 0 ? a.date.updatedAt.localeCompare(b.date.updatedAt) * direction : result * direction
     }
 
     if (sortBy === 'startedAt') {
@@ -130,12 +126,8 @@ function filterSummary(summary: SessionListItem, query: HistoryIndexListQuery): 
     const projectName = summary.project.trim()
     const cwd = summary.cwd.trim()
     const looksLikeFallbackName =
-        /^\d{4}-\d{2}-\d{2}T\d{2}[-:]\d{2}[-:]\d{2}(?:\.\d+)?(?:Z)?-[A-Za-z0-9._-]+$/i.test(
-            projectName,
-        ) ||
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-            projectName,
-        ) ||
+        /^\d{4}-\d{2}-\d{2}T\d{2}[-:]\d{2}[-:]\d{2}(?:\.\d+)?(?:Z)?-[A-Za-z0-9._-]+$/i.test(projectName) ||
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectName) ||
         projectName === summary.sessionId
 
     if (!projectName || !cwd || looksLikeFallbackName) {
@@ -158,9 +150,7 @@ function filterSummary(summary: SessionListItem, query: HistoryIndexListQuery): 
 
     const rawQ = query.q?.trim().toLowerCase()
     if (rawQ) {
-        const haystack = [summary.title, projectName, cwd, summary.sessionId, summary.filePath]
-            .join('\n')
-            .toLowerCase()
+        const haystack = [summary.title, projectName, cwd, summary.sessionId, summary.filePath].join('\n').toLowerCase()
         if (!haystack.includes(rawQ)) return false
     }
 
@@ -327,8 +317,7 @@ export function aggregateToolUsage(events: SessionEventItem[]): Record<string, T
             const tool = typeof event.meta?.tool === 'string' ? event.meta.tool : ''
             if (!tool) continue
             const bucket = getBucket(tool)
-            const status =
-                typeof event.meta?.status === 'string' ? event.meta.status.toLowerCase() : ''
+            const status = typeof event.meta?.status === 'string' ? event.meta.status.toLowerCase() : ''
             if (status === 'success') {
                 bucket.success += 1
             } else if (status === 'approval_denied') {

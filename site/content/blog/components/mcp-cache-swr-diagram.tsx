@@ -27,17 +27,11 @@ const layers = [
     },
     {
         title: '运行阶段 (Resources Cache)',
-        lines: [
-            'list* / read* -> 统一缓存层 -> TTL + in-flight 去重',
-            '跨会话与并发请求共用一套响应缓存策略',
-        ],
+        lines: ['list* / read* -> 统一缓存层 -> TTL + in-flight 去重', '跨会话与并发请求共用一套响应缓存策略'],
     },
     {
         title: '单一缓存文件 (~/.memo/cache/mcp.json)',
-        lines: [
-            'toolsByServer (启动用) | responses (运行时用)',
-            '单文件分区，避免两套缓存实现长期漂移',
-        ],
+        lines: ['toolsByServer (启动用) | responses (运行时用)', '单文件分区，避免两套缓存实现长期漂移'],
     },
 ]
 
@@ -159,8 +153,7 @@ export function McpCacheSWRDiagram() {
                                             style={{
                                                 marginTop: 12,
                                                 color: '#cbd5e1',
-                                                fontFamily:
-                                                    '"JetBrains Mono", "Fira Code", ui-monospace, monospace',
+                                                fontFamily: '"JetBrains Mono", "Fira Code", ui-monospace, monospace',
                                                 fontSize: 18,
                                                 fontWeight: 500,
                                                 lineHeight: 1.45,

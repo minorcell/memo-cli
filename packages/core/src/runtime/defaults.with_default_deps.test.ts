@@ -1,10 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import type {
-    AgentSessionDeps,
-    AgentSessionOptions,
-    ChatMessage,
-    ToolRegistry,
-} from '@memo/core/types'
+import type { AgentSessionDeps, AgentSessionOptions, ChatMessage, ToolRegistry } from '@memo/core/types'
 import type { MCPServerConfig } from '@memo/core/config/config'
 import type { Tool } from '@memo/tools/router'
 
@@ -266,9 +261,9 @@ describe('withDefaultDeps (default path)', () => {
         const { withDefaultDeps } = await import('@memo/core/runtime/defaults')
         const resolved = await withDefaultDeps({}, {} as AgentSessionOptions, 'session-3')
 
-        await expect(
-            resolved.callLLM([{ role: 'user', content: 'hello' } as ChatMessage]),
-        ).rejects.toThrow('Missing env var MOCK_API_KEY')
+        await expect(resolved.callLLM([{ role: 'user', content: 'hello' } as ChatMessage])).rejects.toThrow(
+            'Missing env var MOCK_API_KEY',
+        )
     })
 
     test('falls back to OPENAI_API_KEY when provider key is missing', async () => {
@@ -286,9 +281,7 @@ describe('withDefaultDeps (default path)', () => {
     test('maps tool calls into tool_use blocks and keeps parse errors as text', async () => {
         process.env.MOCK_API_KEY = 'test-key'
         const { withDefaultDeps } = await import('@memo/core/runtime/defaults')
-        const callOptionsTools = [
-            { type: 'function', function: { name: 'override', parameters: {} } },
-        ]
+        const callOptionsTools = [{ type: 'function', function: { name: 'override', parameters: {} } }]
         const signal = new AbortController().signal
 
         state.openaiResponse = {
@@ -381,19 +374,13 @@ describe('withDefaultDeps (default path)', () => {
             messages: Array<Record<string, unknown>>
         }
         expect(request.toolDefinitions).toEqual(callOptionsTools)
+        expect(request.messages.some((msg) => msg.role === 'tool' && msg.tool_call_id === 'prev-call')).toBe(true)
         expect(
-            request.messages.some((msg) => msg.role === 'tool' && msg.tool_call_id === 'prev-call'),
-        ).toBe(true)
-        expect(
-            request.messages.some(
-                (msg) => msg.role === 'assistant' && msg.reasoning_content === 'reasoning content',
-            ),
+            request.messages.some((msg) => msg.role === 'assistant' && msg.reasoning_content === 'reasoning content'),
         ).toBe(true)
 
         expect(state.openaiCreateCalls).toHaveLength(1)
-        expect(
-            (state.openaiCreateCalls[0] as { options: { signal: AbortSignal } }).options.signal,
-        ).toBe(signal)
+        expect((state.openaiCreateCalls[0] as { options: { signal: AbortSignal } }).options.signal).toBe(signal)
     })
 
     test('returns end_turn when tool_calls has no usable function calls', async () => {
@@ -470,8 +457,8 @@ describe('withDefaultDeps (default path)', () => {
         }
 
         const resolved = await withDefaultDeps({}, {} as AgentSessionOptions, 'session-6')
-        await expect(
-            resolved.callLLM([{ role: 'user', content: 'x' } as ChatMessage]),
-        ).rejects.toThrow('OpenAI-compatible API returned empty content')
+        await expect(resolved.callLLM([{ role: 'user', content: 'x' } as ChatMessage])).rejects.toThrow(
+            'OpenAI-compatible API returned empty content',
+        )
     })
 })

@@ -1,11 +1,7 @@
 import assert from 'node:assert'
 import { describe, test } from 'vitest'
 import type { MCPServerConfig } from '@memo/core'
-import {
-    detectGitHubMcpToolPrefixes,
-    findActiveGitHubMcpServer,
-    isGitHubMcpServer,
-} from './backend'
+import { detectGitHubMcpToolPrefixes, findActiveGitHubMcpServer, isGitHubMcpServer } from './backend'
 
 describe('github review backend detection', () => {
     test('detects github server by name', () => {

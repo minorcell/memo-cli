@@ -61,7 +61,7 @@ export const ChatWidget = memo(function ChatWidget({
         cwdRef.current = header.cwd
     }, [header.cwd])
 
-    const { completedTurns, inProgressTurn, staticItems } = useMemo(() => {
+    const { inProgressTurn, staticItems } = useMemo(() => {
         const allTurns = [...historicalTurns, ...turns]
         const lastTurn = allTurns.length > 0 ? allTurns[allTurns.length - 1] : undefined
         const lastTurnComplete =
@@ -98,13 +98,10 @@ export const ChatWidget = memo(function ChatWidget({
                             >
                                 <Text bold>Memo Code</Text>
                                 <Text color="gray">
-                                    {item.data.providerName} / {item.data.model} • v
-                                    {item.data.version}
+                                    {item.data.providerName} / {item.data.model} • v{item.data.version}
                                 </Text>
                                 <Text color="gray">cwd: {item.data.cwd}</Text>
-                                <Text color="gray">
-                                    mcp: {item.data.mcpNames.join(', ') || 'none'}
-                                </Text>
+                                <Text color="gray">mcp: {item.data.mcpNames.join(', ') || 'none'}</Text>
                             </Box>
                         )
                     }
@@ -113,13 +110,7 @@ export const ChatWidget = memo(function ChatWidget({
                         return <SystemCell key={item.id} message={item} />
                     }
 
-                    return (
-                        <TurnCell
-                            key={`turn-${item.sequence ?? item.index}`}
-                            turn={item}
-                            cwd={stableCwd}
-                        />
-                    )
+                    return <TurnCell key={`turn-${item.sequence ?? item.index}`} turn={item} cwd={stableCwd} />
                 }}
             </Static>
 

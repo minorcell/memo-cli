@@ -3,7 +3,6 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import type { MCPServerConfig } from '../types'
 import {
     deleteMcpOAuthCredential,
     getMcpAuthStatus,
@@ -96,8 +95,7 @@ describe('mcp oauth credential storage', () => {
     })
 
     test('keyring mode surfaces a clear error when unavailable', async () => {
-        const expected =
-            'Keyring storage is not available. Set mcp_oauth_credentials_store_mode = "file".'
+        const expected = 'Keyring storage is not available. Set mcp_oauth_credentials_store_mode = "file".'
 
         await expect(
             getMcpOAuthCredential(TEST_URL, {
@@ -226,12 +224,7 @@ describe('mcp auth status', () => {
         vi.stubGlobal(
             'fetch',
             vi.fn(async (input) => {
-                const url =
-                    typeof input === 'string'
-                        ? input
-                        : input instanceof URL
-                          ? input.toString()
-                          : input.url
+                const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
                 calls.push(url)
                 if (url.includes('/v1/mcp/.well-known/oauth-authorization-server')) {
                     return new Response(

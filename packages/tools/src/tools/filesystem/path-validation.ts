@@ -3,10 +3,7 @@ import path from 'node:path'
 /**
  * Checks whether a target absolute path is within any allowed directory.
  */
-export function isPathWithinAllowedDirectories(
-    absolutePath: string,
-    allowedDirectories: string[],
-): boolean {
+export function isPathWithinAllowedDirectories(absolutePath: string, allowedDirectories: string[]): boolean {
     if (typeof absolutePath !== 'string' || !Array.isArray(allowedDirectories)) {
         return false
     }
@@ -57,10 +54,7 @@ export function isPathWithinAllowedDirectories(
         if (path.sep === '\\' && normalizedDir.match(/^[A-Za-z]:\\?$/)) {
             const dirDrive = normalizedDir.charAt(0).toLowerCase()
             const targetDrive = normalizedPath.charAt(0).toLowerCase()
-            return (
-                targetDrive === dirDrive &&
-                normalizedPath.startsWith(normalizedDir.replace(/\\?$/, '\\'))
-            )
+            return targetDrive === dirDrive && normalizedPath.startsWith(normalizedDir.replace(/\\?$/, '\\'))
         }
 
         return normalizedPath.startsWith(normalizedDir + path.sep)

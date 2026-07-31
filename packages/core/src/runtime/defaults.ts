@@ -2,12 +2,7 @@
 import { NATIVE_TOOLS } from '@memo/tools'
 import OpenAI from 'openai'
 import { createTokenCounter } from '@memo/core/utils/tokenizer'
-import {
-    buildSessionPath,
-    getSessionsDir,
-    loadMemoConfig,
-    selectProvider,
-} from '@memo/core/config/config'
+import { buildSessionPath, getSessionsDir, loadMemoConfig, selectProvider } from '@memo/core/config/config'
 import { JsonlHistorySink } from '@memo/core/runtime/history'
 import { buildChatCompletionRequest, resolveModelProfile } from '@memo/core/runtime/model_profile'
 import { loadSystemPrompt as defaultLoadPrompt } from '@memo/core/runtime/prompt'
@@ -127,14 +122,11 @@ export async function withDefaultDeps(
     router.registerNativeTools(NATIVE_TOOLS)
 
     // 3. Load external MCP tools (follows MEMO_HOME)
-    await router.loadMcpServers(
-        filterMcpServersBySelection(config.mcp_servers, options.activeMcpServers),
-        {
-            memoHome: loaded.home,
-            storeMode: config.mcp_oauth_credentials_store_mode,
-            callbackPort: config.mcp_oauth_callback_port,
-        },
-    )
+    await router.loadMcpServers(filterMcpServersBySelection(config.mcp_servers, options.activeMcpServers), {
+        memoHome: loaded.home,
+        storeMode: config.mcp_oauth_credentials_store_mode,
+        callbackPort: config.mcp_oauth_callback_port,
+    })
 
     // 4. Merge user custom tools (deps.tools has highest priority)
     if (deps.tools) {
@@ -190,23 +182,16 @@ export async function withDefaultDeps(
             (async (messages, _onChunk, callOptions) => {
                 const provider = selectProvider(config, options.providerName)
                 const apiKey =
-                    process.env[provider.env_api_key] ??
-                    process.env.OPENAI_API_KEY ??
-                    process.env.DEEPSEEK_API_KEY
+                    process.env[provider.env_api_key] ?? process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY
                 if (!apiKey) {
-                    throw new Error(
-                        `Missing env var ${provider.env_api_key} (or OPENAI_API_KEY/DEEPSEEK_API_KEY)`,
-                    )
+                    throw new Error(`Missing env var ${provider.env_api_key} (or OPENAI_API_KEY/DEEPSEEK_API_KEY)`)
                 }
                 const client = new OpenAI({
                     apiKey,
                     baseURL: provider.base_url,
                 })
                 const openAIMessages = messages.map(toOpenAIMessage)
-                const { profile: modelProfile } = resolveModelProfile(
-                    provider,
-                    config.model_profiles,
-                )
+                const { profile: modelProfile } = resolveModelProfile(provider, config.model_profiles)
 
                 const effectiveToolDefinitions = callOptions?.tools ?? toolDefinitions
                 const request = buildChatCompletionRequest({
@@ -229,8 +214,7 @@ export async function withDefaultDeps(
                 // 检查是否有工具调用
                 if (message?.tool_calls && message.tool_calls.length > 0) {
                     const content: Array<
-                        | { type: 'text'; text: string }
-                        | { type: 'tool_use'; id: string; name: string; input: unknown }
+                        { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; input: unknown }
                     > = []
 
                     // 添加文本内容（如果有）

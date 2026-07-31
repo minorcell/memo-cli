@@ -4,10 +4,7 @@ import { describe, test } from 'vitest'
 import { createAgentSession, createTokenCounter } from '@memo/core'
 import type { ChatMessage, HistoryEvent, LLMResponse, TokenCounter } from '@memo/core'
 import type { Tool } from '@memo/tools/router'
-import {
-    CONTEXT_COMPACTION_SYSTEM_PROMPT,
-    CONTEXT_SUMMARY_PREFIX,
-} from '@memo/core/runtime/compact_prompt'
+import { CONTEXT_COMPACTION_SYSTEM_PROMPT, CONTEXT_SUMMARY_PREFIX } from '@memo/core/runtime/compact_prompt'
 
 const echoTool: Tool = {
     name: 'echo',
@@ -50,10 +47,7 @@ function toolUseResponse(id: string, name: string, input: unknown, text?: string
     }
 }
 
-function multiToolUseResponse(
-    calls: Array<{ id: string; name: string; input: unknown }>,
-    text?: string,
-): LLMResponse {
+function multiToolUseResponse(calls: Array<{ id: string; name: string; input: unknown }>, text?: string): LLMResponse {
     return {
         content: [
             ...(text ? [{ type: 'text' as const, text }] : []),
@@ -79,8 +73,7 @@ function createLengthTokenCounter(): TokenCounter {
     return {
         model: 'test-length-counter',
         countText: (text: string) => text.length,
-        countMessages: (messages) =>
-            messages.reduce((sum, message) => sum + message.content.length, 0),
+        countMessages: (messages) => messages.reduce((sum, message) => sum + message.content.length, 0),
         dispose: () => {},
     }
 }
@@ -113,10 +106,7 @@ function hasInvalidToolProtocol(messages: ChatMessage[]): boolean {
 
 describe('session hooks & middleware', () => {
     test('invokes hooks and middlewares in order', async () => {
-        const outputs: LLMResponse[] = [
-            toolUseResponse('action-1', 'echo', { text: 'foo' }),
-            endTurnResponse('done'),
-        ]
+        const outputs: LLMResponse[] = [toolUseResponse('action-1', 'echo', { text: 'foo' }), endTurnResponse('done')]
         const hookLog: string[] = []
         const session = await createAgentSession(
             {
@@ -259,20 +249,14 @@ describe('session hooks & middleware', () => {
             const systemMessages = session.history.filter((m) => m.role === 'system')
             // 0: initial system prompt, 1: warning
             assert.strictEqual(systemMessages.length, 2)
-            assert.ok(
-                systemMessages[1]?.content.includes('连续3次调用同一工具'),
-                'should insert repetition warning',
-            )
+            assert.ok(systemMessages[1]?.content.includes('连续3次调用同一工具'), 'should insert repetition warning')
         } finally {
             await session.close()
         }
     })
 
     test('bypasses approval in dangerous mode', async () => {
-        const outputs: LLMResponse[] = [
-            toolUseResponse('action-1', 'echo', { text: 'safe' }),
-            endTurnResponse('done'),
-        ]
+        const outputs: LLMResponse[] = [toolUseResponse('action-1', 'echo', { text: 'safe' }), endTurnResponse('done')]
         const session = await createAgentSession(
             {
                 tools: { echo: echoTool },
@@ -357,10 +341,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('rejects native tool input via validateInput before execute', async () => {
-        const outputs: LLMResponse[] = [
-            toolUseResponse('action-1', 'read_text_file', {}),
-            endTurnResponse('done'),
-        ]
+        const outputs: LLMResponse[] = [toolUseResponse('action-1', 'read_text_file', {}), endTurnResponse('done')]
         const session = await createAgentSession(
             {
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
@@ -446,10 +427,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('records structured tool call/result messages without json fallback payloads', async () => {
-        const outputs: LLMResponse[] = [
-            toolUseResponse('action-1', 'echo', { text: 'x' }),
-            endTurnResponse('done'),
-        ]
+        const outputs: LLMResponse[] = [toolUseResponse('action-1', 'echo', { text: 'x' }), endTurnResponse('done')]
         const session = await createAgentSession(
             {
                 tools: { echo: echoTool },
@@ -466,8 +444,7 @@ describe('session hooks & middleware', () => {
 
             const assistantToolMessage = session.history.find(
                 (message) =>
-                    message.role === 'assistant' &&
-                    message.tool_calls?.some((toolCall) => toolCall.id === 'action-1'),
+                    message.role === 'assistant' && message.tool_calls?.some((toolCall) => toolCall.id === 'action-1'),
             )
             assert.ok(assistantToolMessage, 'assistant tool_calls message should exist')
 
@@ -482,15 +459,13 @@ describe('session hooks & middleware', () => {
 
             assert.ok(
                 !session.history.some(
-                    (message) =>
-                        message.role === 'assistant' && message.content.startsWith('{"tool":'),
+                    (message) => message.role === 'assistant' && message.content.startsWith('{"tool":'),
                 ),
                 'assistant history should not contain plain-text tool json payloads',
             )
             assert.ok(
                 !session.history.some(
-                    (message) =>
-                        message.role === 'user' && message.content.includes('"observation"'),
+                    (message) => message.role === 'user' && message.content.includes('"observation"'),
                 ),
                 'history should not inject observation json through user messages',
             )
@@ -647,9 +622,7 @@ describe('session hooks & middleware', () => {
         try {
             const result = await session.runTurn('empty response')
             expect(result.status).toBe('error')
-            expect(result.finalText).toBe(
-                'Unable to produce a final answer. Please retry or adjust the request.',
-            )
+            expect(result.finalText).toBe('Unable to produce a final answer. Please retry or adjust the request.')
             expect(result.errorMessage).toBe(result.finalText)
             const last = session.history[session.history.length - 1]
             expect(last?.role).toBe('assistant')
@@ -681,10 +654,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('emits context usage hooks at turn start and each step', async () => {
-        const outputs: LLMResponse[] = [
-            toolUseResponse('action-1', 'echo', { text: 'x' }),
-            endTurnResponse('done'),
-        ]
+        const outputs: LLMResponse[] = [toolUseResponse('action-1', 'echo', { text: 'x' }), endTurnResponse('done')]
         const phases: string[] = []
 
         const session = await createAgentSession(
@@ -837,18 +807,14 @@ describe('session hooks & middleware', () => {
         )
 
         try {
-            const result = await session.runTurn(
-                'this input is intentionally long enough '.repeat(8),
-            )
+            const result = await session.runTurn('this input is intentionally long enough '.repeat(8))
             assert.strictEqual(result.status, 'prompt_limit')
             assert.ok(result.finalText.includes('Context tokens'))
             assert.ok(compactStatuses.includes('failed'))
             assert.strictEqual(regularLLMCalls, 0)
             assert.strictEqual(
                 session.history.some(
-                    (message) =>
-                        message.role === 'user' &&
-                        message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
+                    (message) => message.role === 'user' && message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
                 ),
                 false,
             )
@@ -953,9 +919,7 @@ describe('session hooks & middleware', () => {
             assert.strictEqual(hasInvalidToolProtocol(session.history), false)
             assert.ok(
                 session.history.some(
-                    (message) =>
-                        message.role === 'user' &&
-                        message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
+                    (message) => message.role === 'user' && message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
                 ),
                 'summary message should be preserved in compacted history',
             )
@@ -1093,9 +1057,7 @@ describe('session hooks & middleware', () => {
             assert.strictEqual(result.status, 'success')
 
             const summaryMessages = session.history.filter(
-                (message) =>
-                    message.role === 'user' &&
-                    message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
+                (message) => message.role === 'user' && message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
             )
             assert.strictEqual(summaryMessages.length, 1)
             assert.ok(summaryMessages[0]?.content.endsWith('new summary'))
@@ -1133,9 +1095,7 @@ describe('session hooks & middleware', () => {
 
         try {
             await session.close()
-            assert.ok(
-                errors.some((message) => message.includes('History flush failed: flush failed')),
-            )
+            assert.ok(errors.some((message) => message.includes('History flush failed: flush failed')))
         } finally {
             console.error = originalError
         }

@@ -190,10 +190,7 @@ type SuggestionBuildResult = {
     items: SuggestionRecord[]
 }
 
-function buildModelSuggestions(
-    providers: ProviderConfig[],
-    keyword: string,
-): SuggestionBuildResult {
+function buildModelSuggestions(providers: ProviderConfig[], keyword: string): SuggestionBuildResult {
     const items: SuggestionRecord[] = providers
         .filter((provider) => {
             if (!keyword) return true
@@ -217,10 +214,7 @@ function buildToolSuggestions(toolPermissionMode: ToolPermissionMode): Suggestio
     const items: SuggestionRecord[] = TOOL_MODE_OPTIONS.map((option) => ({
         id: option.mode,
         title: option.mode,
-        subtitle:
-            option.mode === toolPermissionMode
-                ? `Current · ${option.description}`
-                : option.description,
+        subtitle: option.mode === toolPermissionMode ? `Current · ${option.description}` : option.description,
         kind: 'tools',
         value: `${TOOLS_SLASH_PREFIX} ${option.mode}`,
         meta: { type: 'tools', mode: option.mode },
@@ -229,9 +223,7 @@ function buildToolSuggestions(toolPermissionMode: ToolPermissionMode): Suggestio
 }
 
 function buildSlashSuggestions(keyword: string): SuggestionBuildResult {
-    const items: SuggestionRecord[] = SLASH_SPECS.filter((spec) =>
-        spec.name.startsWith(keyword),
-    ).map((spec) => ({
+    const items: SuggestionRecord[] = SLASH_SPECS.filter((spec) => spec.name.startsWith(keyword)).map((spec) => ({
         id: spec.name,
         title: `/${spec.name}`,
         subtitle: spec.description,
@@ -466,9 +458,7 @@ export const Composer = memo(function Composer({
                 if (cancelled || requestId !== requestIdRef.current) return
                 setMode(nextMode)
                 setItems(nextItems)
-                setActiveIndex((prev) =>
-                    nextItems.length ? Math.min(prev, nextItems.length - 1) : 0,
-                )
+                setActiveIndex((prev) => (nextItems.length ? Math.min(prev, nextItems.length - 1) : 0))
             } finally {
                 if (!cancelled && requestId === requestIdRef.current) {
                     setLoading(false)
@@ -479,15 +469,7 @@ export const Composer = memo(function Composer({
         return () => {
             cancelled = true
         }
-    }, [
-        trigger,
-        cwd,
-        sessionsDir,
-        currentSessionFile,
-        providers,
-        toolPermissionMode,
-        closeSuggestions,
-    ])
+    }, [trigger, cwd, sessionsDir, currentSessionFile, providers, toolPermissionMode, closeSuggestions])
 
     const applySuggestion = useCallback(
         (record?: SuggestionRecord) => {
@@ -526,10 +508,7 @@ export const Composer = memo(function Composer({
                     return
 
                 case 'slash':
-                    commitEditor(
-                        { value: `${record.value} `, cursor: `${record.value} `.length },
-                        true,
-                    )
+                    commitEditor({ value: `${record.value} `, cursor: `${record.value} `.length }, true)
                     closeSuggestions(false)
                     return
 
@@ -762,10 +741,7 @@ export const Composer = memo(function Composer({
                 return
             }
 
-            if (
-                pasteBurstRef.current.hasPendingFirstChar() &&
-                !pasteBurstRef.current.isBuffering()
-            ) {
+            if (pasteBurstRef.current.hasPendingFirstChar() && !pasteBurstRef.current.isBuffering()) {
                 flushPasteBurstBeforeModifiedInput(false)
             }
 
@@ -900,10 +876,7 @@ export const Composer = memo(function Composer({
             if (decision.type === 'retain_first_char') {
                 return
             }
-            if (
-                decision.type === 'buffer_append' ||
-                decision.type === 'begin_buffer_from_pending'
-            ) {
+            if (decision.type === 'buffer_append' || decision.type === 'begin_buffer_from_pending') {
                 pasteBurstRef.current.appendCharToBuffer(ch, now)
                 return
             }
@@ -934,9 +907,7 @@ export const Composer = memo(function Composer({
                 {lines.map((line, index) => {
                     const lineText = line.text
                     const isCursorRow = !disabled && index === wrappedLayout.row
-                    const before = isCursorRow
-                        ? lineText.slice(0, wrappedLayout.cursorInRow)
-                        : lineText
+                    const before = isCursorRow ? lineText.slice(0, wrappedLayout.cursorInRow) : lineText
                     const after = isCursorRow ? lineText.slice(wrappedLayout.cursorInRow) : ''
 
                     return (

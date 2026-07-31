@@ -150,8 +150,7 @@ export function ToolSystemArchitectureDiagram() {
                                             style={{
                                                 marginTop: 12,
                                                 color: '#cbd5e1',
-                                                fontFamily:
-                                                    '"JetBrains Mono", "Fira Code", ui-monospace, monospace',
+                                                fontFamily: '"JetBrains Mono", "Fira Code", ui-monospace, monospace',
                                                 fontSize: 18,
                                                 fontWeight: 500,
                                                 lineHeight: 1.45,

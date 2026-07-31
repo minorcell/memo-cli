@@ -82,11 +82,7 @@ export function buildHookRunners(deps: AgentSessionDeps): HookRunnerMap {
     return map
 }
 
-export async function runHook<K extends HookName>(
-    map: HookRunnerMap,
-    name: K,
-    payload: HookPayloadMap[K],
-) {
+export async function runHook<K extends HookName>(map: HookRunnerMap, name: K, payload: HookPayloadMap[K]) {
     const handlers = map[name]
     if (!handlers.length) return
     for (const handler of handlers) {

@@ -10,9 +10,7 @@ export function inferToolStatus(resultStatus?: ToolActionStatus): ToolStatus {
     return resultStatus === TOOL_ACTION_STATUS_SUCCESS ? TOOL_STATUS.SUCCESS : TOOL_STATUS.ERROR
 }
 
-export function inferParallelToolStatuses(
-    parallelResultStatuses?: ToolActionStatus[],
-): ToolStatus[] | undefined {
+export function inferParallelToolStatuses(parallelResultStatuses?: ToolActionStatus[]): ToolStatus[] | undefined {
     if (!parallelResultStatuses?.length) return undefined
     return parallelResultStatuses.map((status) => inferToolStatus(status))
 }

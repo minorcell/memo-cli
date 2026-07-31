@@ -117,10 +117,7 @@ describe('helpers.ignore', () => {
         assert.strictEqual(matcher.ignores(join(root, 'foo.tmp')), true)
         assert.strictEqual(matcher.ignores(join(root, 'custom', 'a.txt')), true)
         assert.strictEqual(matcher.ignores(join(root, 'src', 'index.ts')), false)
-        assert.strictEqual(
-            matcher.ignores(join(tmpdir(), `outside-${crypto.randomUUID()}.ts`)),
-            false,
-        )
+        assert.strictEqual(matcher.ignores(join(tmpdir(), `outside-${crypto.randomUUID()}.ts`)), false)
     })
 
     test('reuses cached matcher for the same root', async () => {

@@ -89,9 +89,7 @@ describe('createTokenCounter', () => {
         })
 
         test('counts system message', () => {
-            const messages: ChatMessage[] = [
-                { role: 'system', content: 'You are a helpful assistant.' },
-            ]
+            const messages: ChatMessage[] = [{ role: 'system', content: 'You are a helpful assistant.' }]
             const count = counter.countMessages(messages)
             expect(count).toBeGreaterThan(0)
         })
@@ -159,9 +157,7 @@ describe('createTokenCounter', () => {
                     ],
                 },
             ]
-            const messagesWithoutToolCalls: ChatMessage[] = [
-                { role: 'assistant', content: 'Let me check' },
-            ]
+            const messagesWithoutToolCalls: ChatMessage[] = [{ role: 'assistant', content: 'Let me check' }]
             const withCalls = counter.countMessages(messagesWithToolCalls)
             const withoutCalls = counter.countMessages(messagesWithoutToolCalls)
             expect(withCalls).toBeGreaterThan(withoutCalls)

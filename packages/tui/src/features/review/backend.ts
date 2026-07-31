@@ -181,25 +181,16 @@ async function probeGhCli(cwd: string): Promise<GhProbeResult> {
 
     const auth = await runCommand('gh', ['auth', 'status', '-h', 'github.com'], cwd)
     if (!auth.ok) {
-        const detail =
-            auth.stderr.trim() || auth.stdout.trim() || auth.errorMessage || 'unknown error'
+        const detail = auth.stderr.trim() || auth.stdout.trim() || auth.errorMessage || 'unknown error'
         return {
             ok: false,
             reason: `GitHub CLI is installed but not authenticated for github.com. Run: gh auth login -h github.com (detail: ${detail})`,
         }
     }
 
-    const repoView = await runCommand(
-        'gh',
-        ['repo', 'view', '--json', 'nameWithOwner,viewerPermission'],
-        cwd,
-    )
+    const repoView = await runCommand('gh', ['repo', 'view', '--json', 'nameWithOwner,viewerPermission'], cwd)
     if (!repoView.ok) {
-        const detail =
-            repoView.stderr.trim() ||
-            repoView.stdout.trim() ||
-            repoView.errorMessage ||
-            'unknown error'
+        const detail = repoView.stderr.trim() || repoView.stdout.trim() || repoView.errorMessage || 'unknown error'
         return {
             ok: false,
             reason: `GitHub CLI authentication works, but this directory is not a readable GitHub repo for gh (detail: ${detail})`,
@@ -266,10 +257,7 @@ export async function resolveReviewBackend(options: {
         }
     }
 
-    const { active, inactiveCandidates } = findActiveGitHubMcpServer(
-        options.mcpServers,
-        options.activeMcpServerNames,
-    )
+    const { active, inactiveCandidates } = findActiveGitHubMcpServer(options.mcpServers, options.activeMcpServerNames)
 
     if (active && hasServerToolPrefix(active)) {
         return {

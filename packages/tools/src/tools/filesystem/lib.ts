@@ -31,7 +31,7 @@ export function formatSize(bytes: number): string {
 
     const index = Math.floor(Math.log(bytes) / Math.log(1024))
 
-    if (index < 0 || index === 0) return `${bytes} ${units[0]}`
+    if (index <= 0) return `${bytes} ${units[0]}`
 
     const unitIndex = Math.min(index, units.length - 1)
     return `${(bytes / Math.pow(1024, unitIndex)).toFixed(2)} ${units[unitIndex]}`
@@ -41,28 +41,14 @@ export function normalizeLineEndings(text: string): string {
     return text.replace(/\r\n/g, '\n')
 }
 
-export function createUnifiedDiff(
-    originalContent: string,
-    newContent: string,
-    filepath = 'file',
-): string {
+export function createUnifiedDiff(originalContent: string, newContent: string, filepath = 'file'): string {
     const normalizedOriginal = normalizeLineEndings(originalContent)
     const normalizedNew = normalizeLineEndings(newContent)
 
-    return createTwoFilesPatch(
-        filepath,
-        filepath,
-        normalizedOriginal,
-        normalizedNew,
-        'original',
-        'modified',
-    )
+    return createTwoFilesPatch(filepath, filepath, normalizedOriginal, normalizedNew, 'original', 'modified')
 }
 
-function resolveRelativePathAgainstAllowedDirectories(
-    relativePath: string,
-    allowedDirectories: string[],
-): string {
+function resolveRelativePathAgainstAllowedDirectories(relativePath: string, allowedDirectories: string[]): string {
     if (allowedDirectories.length === 0) {
         return path.resolve(process.cwd(), relativePath)
     }
@@ -79,10 +65,7 @@ function resolveRelativePathAgainstAllowedDirectories(
     return path.resolve(allowedDirectories[0], relativePath)
 }
 
-export async function validatePath(
-    requestedPath: string,
-    allowedDirectories: string[],
-): Promise<string> {
+export async function validatePath(requestedPath: string, allowedDirectories: string[]): Promise<string> {
     const expandedPath = expandHome(requestedPath)
     const absolute = path.isAbsolute(expandedPath)
         ? path.resolve(expandedPath)
@@ -143,10 +126,7 @@ export async function getFileStats(filePath: string): Promise<FileInfo> {
     }
 }
 
-export async function readFileContent(
-    filePath: string,
-    encoding: BufferEncoding = 'utf-8',
-): Promise<string> {
+export async function readFileContent(filePath: string, encoding: BufferEncoding = 'utf-8'): Promise<string> {
     return await fs.readFile(filePath, encoding)
 }
 
@@ -174,11 +154,7 @@ export async function writeFileContent(filePath: string, content: string): Promi
     }
 }
 
-export async function applyFileEdits(
-    filePath: string,
-    edits: FileEdit[],
-    dryRun = false,
-): Promise<string> {
+export async function applyFileEdits(filePath: string, edits: FileEdit[], dryRun = false): Promise<string> {
     const content = normalizeLineEndings(await fs.readFile(filePath, 'utf-8'))
 
     let modifiedContent = content
@@ -216,9 +192,7 @@ export async function applyFileEdits(
                 const newIndent = line.match(/^\s*/)?.[0] ?? ''
                 if (oldIndent && newIndent) {
                     const relativeIndent = newIndent.length - oldIndent.length
-                    return (
-                        originalIndent + ' '.repeat(Math.max(0, relativeIndent)) + line.trimStart()
-                    )
+                    return originalIndent + ' '.repeat(Math.max(0, relativeIndent)) + line.trimStart()
                 }
 
                 return line
@@ -292,11 +266,7 @@ export async function tailFile(filePath: string, numLines: number): Promise<stri
                 chunkLines.shift()
             }
 
-            for (
-                let index = chunkLines.length - 1;
-                index >= 0 && linesFound < numLines;
-                index -= 1
-            ) {
+            for (let index = chunkLines.length - 1; index >= 0 && linesFound < numLines; index -= 1) {
                 lines.unshift(chunkLines[index] ?? '')
                 linesFound += 1
             }

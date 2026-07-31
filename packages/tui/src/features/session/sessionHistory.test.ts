@@ -13,11 +13,7 @@ function buildHistoryLine(event: Record<string, unknown>): string {
     })
 }
 
-async function writeSessionFile(
-    sessionsDir: string,
-    fileName: string,
-    lines: string[],
-): Promise<string> {
+async function writeSessionFile(sessionsDir: string, fileName: string, lines: string[]): Promise<string> {
     await mkdir(sessionsDir, { recursive: true })
     const filePath = join(sessionsDir, fileName)
     await writeFile(filePath, `${lines.join('\n')}\n`, 'utf8')

@@ -199,12 +199,9 @@ describe('runHook', () => {
     })
 
     test('handles sync and async handlers', async () => {
-        const syncHandler = vi.fn(() => {
-            syncHandler.mock.calls.length
-        })
+        const syncHandler = vi.fn()
         const asyncHandler = vi.fn(async () => {
             await Promise.resolve()
-            asyncHandler.mock.calls.length
         })
         const runners = {
             onFinal: [syncHandler, asyncHandler],

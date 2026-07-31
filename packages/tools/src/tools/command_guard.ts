@@ -14,9 +14,7 @@ export type DangerousCommandMatch = {
     matchedSegment: string
 }
 
-export type CommandGuardResult =
-    | { blocked: false }
-    | { blocked: true; xml: string; match: DangerousCommandMatch }
+export type CommandGuardResult = { blocked: false } | { blocked: true; xml: string; match: DangerousCommandMatch }
 
 const BLOCK_DEVICE_PATH_REGEX =
     /^\/dev\/(?:sd[a-z]\d*|vd[a-z]\d*|xvd[a-z]\d*|hd[a-z]\d*|nvme\d+n\d+(?:p\d+)?|mmcblk\d+(?:p\d+)?|disk\d+|rdisk\d+)$/i
@@ -62,18 +60,12 @@ type ParsedSegment = {
 }
 
 function escapeXmlAttr(value: string): string {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
+    return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 function previewCommand(command: string): string {
     const compact = command.replace(/\s+/g, ' ').trim()
-    return compact.length > MAX_COMMAND_PREVIEW
-        ? `${compact.slice(0, MAX_COMMAND_PREVIEW)}…`
-        : compact
+    return compact.length > MAX_COMMAND_PREVIEW ? `${compact.slice(0, MAX_COMMAND_PREVIEW)}…` : compact
 }
 
 function normalizeCommandName(token: string): string {
@@ -457,13 +449,9 @@ export function detectDangerousCommand(command: string): DangerousCommandMatch |
     return null
 }
 
-export function buildDangerousCommandHintXml(
-    context: GuardContext,
-    match: DangerousCommandMatch,
-): string {
+export function buildDangerousCommandHintXml(context: GuardContext, match: DangerousCommandMatch): string {
     const commandPreview = previewCommand(context.command)
-    const sessionAttr =
-        typeof context.sessionId === 'number' ? ` session_id="${context.sessionId}"` : ''
+    const sessionAttr = typeof context.sessionId === 'number' ? ` session_id="${context.sessionId}"` : ''
 
     return `<system_hint type="tool_call_denied" tool="${escapeXmlAttr(context.toolName)}" reason="dangerous_command" policy="blacklist" rule="${escapeXmlAttr(match.ruleId)}"${sessionAttr} command="${escapeXmlAttr(commandPreview)}">Blocked a high-risk shell command to prevent irreversible data loss. Use a safer and scoped alternative.</system_hint>`
 }

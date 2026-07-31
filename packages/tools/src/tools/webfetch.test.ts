@@ -24,22 +24,18 @@ function textPayload(result: ToolResult) {
 }
 
 function installFetchMock(
-    sequence: Array<
-        Response | ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response> | Response)
-    >,
+    sequence: Array<Response | ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response> | Response)>,
 ) {
     let idx = 0
-    const fetchMock = vi.fn(
-        async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-            const entry = sequence[idx]
-            idx += 1
-            if (!entry) {
-                throw new Error(`Unexpected fetch call #${idx}`)
-            }
-            if (entry instanceof Response) return entry
-            return await entry(input, init)
-        },
-    )
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const entry = sequence[idx]
+        idx += 1
+        if (!entry) {
+            throw new Error(`Unexpected fetch call #${idx}`)
+        }
+        if (entry instanceof Response) return entry
+        return await entry(input, init)
+    })
     Object.assign(globalThis, { fetch: fetchMock as unknown as typeof globalThis.fetch })
     return fetchMock
 }
@@ -90,13 +86,10 @@ describe('webfetch tool', () => {
     test('returns markdown content for html pages', async () => {
         installFetchMock([
             new Response('User-agent: *\nAllow: /', { status: 200 }),
-            new Response(
-                '<html><body><article><h1>Hello</h1><p>World</p></article></body></html>',
-                {
-                    status: 200,
-                    headers: { 'content-type': 'text/html; charset=utf-8' },
-                },
-            ),
+            new Response('<html><body><article><h1>Hello</h1><p>World</p></article></body></html>', {
+                status: 200,
+                headers: { 'content-type': 'text/html; charset=utf-8' },
+            }),
         ])
         const res = await webfetchTool.execute({ url: 'https://example.com' })
         const text = textPayload(res)

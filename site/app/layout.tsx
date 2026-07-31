@@ -27,8 +27,7 @@ export const metadata: Metadata = {
     authors: [{ name: 'Memo Team' }],
     openGraph: {
         title: 'Memo CLI - AI Coding Agent for Terminal',
-        description:
-            'A lightweight, open-source coding agent that understands your project context.',
+        description: 'A lightweight, open-source coding agent that understands your project context.',
         type: 'website',
         siteName: 'Memo CLI',
     },
@@ -51,11 +50,7 @@ export default function RootLayout({
     children: React.ReactNode
 }>) {
     return (
-        <html
-            lang="en"
-            className={`${inter.variable} ${jetbrainsMono.variable}`}
-            suppressHydrationWarning
-        >
+        <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
             <body className="bg-[var(--bg-primary)]">{children}</body>
         </html>
     )

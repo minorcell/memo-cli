@@ -18,9 +18,7 @@ afterEach(() => {
 
 describe('tool router mcp oauth wiring', () => {
     test('loadMcpServers forwards oauth settings to mcp registry', async () => {
-        const loadSpy = vi
-            .spyOn(McpToolRegistry.prototype, 'loadServersWithOptions')
-            .mockResolvedValue(1)
+        const loadSpy = vi.spyOn(McpToolRegistry.prototype, 'loadServersWithOptions').mockResolvedValue(1)
         const router = new ToolRouter()
         const settings = { memoHome: '/tmp/memo', storeMode: 'file' as const, callbackPort: 4567 }
 
@@ -31,9 +29,7 @@ describe('tool router mcp oauth wiring', () => {
     })
 
     test('createToolRouter passes mcpOAuthSettings when loading servers', async () => {
-        const loadSpy = vi
-            .spyOn(McpToolRegistry.prototype, 'loadServersWithOptions')
-            .mockResolvedValue(1)
+        const loadSpy = vi.spyOn(McpToolRegistry.prototype, 'loadServersWithOptions').mockResolvedValue(1)
         const settings = {
             memoHome: '/tmp/memo-home',
             storeMode: 'auto' as const,
@@ -49,9 +45,7 @@ describe('tool router mcp oauth wiring', () => {
     })
 
     test('createToolRouter skips load when no mcp servers are configured', async () => {
-        const loadSpy = vi
-            .spyOn(McpToolRegistry.prototype, 'loadServersWithOptions')
-            .mockResolvedValue(0)
+        const loadSpy = vi.spyOn(McpToolRegistry.prototype, 'loadServersWithOptions').mockResolvedValue(0)
 
         await createToolRouter({})
 
@@ -143,9 +137,7 @@ describe('ToolRouter', () => {
 
     test('execute throws when tool not found', async () => {
         const router = new ToolRouter()
-        await expect(router.execute('nonexistent', {})).rejects.toThrow(
-            "Tool 'nonexistent' not found",
-        )
+        await expect(router.execute('nonexistent', {})).rejects.toThrow("Tool 'nonexistent' not found")
     })
 
     test('execute runs tool successfully', async () => {

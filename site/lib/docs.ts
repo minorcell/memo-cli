@@ -122,9 +122,7 @@ function parseDocFile(markdown: string, fileName: string): ParsedDocFile {
     const match = normalized.match(FRONTMATTER_REGEX)
 
     if (!match) {
-        throw new Error(
-            `Missing frontmatter in ${fileName}. Required fields: title, description, order, category.`,
-        )
+        throw new Error(`Missing frontmatter in ${fileName}. Required fields: title, description, order, category.`)
     }
 
     const fieldMap = parseFrontmatterFields(match[1])
@@ -136,9 +134,7 @@ function parseDocFile(markdown: string, fileName: string): ParsedDocFile {
     const slugRaw = fieldMap.get('slug')
 
     if (!title || !description || Number.isNaN(order) || !categoryRaw) {
-        throw new Error(
-            `Invalid frontmatter in ${fileName}. Expected title, description, order(number), category.`,
-        )
+        throw new Error(`Invalid frontmatter in ${fileName}. Expected title, description, order(number), category.`)
     }
 
     if (!isDocCategory(categoryRaw)) {
@@ -196,9 +192,7 @@ function splitMarkdownDoc(markdown: string, locale: string): SplitDocResult {
         const sectionTitle = match[1].trim()
         const contentStart = (match.index ?? 0) + match[0].length
         const contentEnd =
-            index < sectionMatches.length - 1
-                ? (sectionMatches[index + 1].index ?? body.length)
-                : body.length
+            index < sectionMatches.length - 1 ? (sectionMatches[index + 1].index ?? body.length) : body.length
         const sectionMarkdown = body.slice(contentStart, contentEnd).trim()
 
         let id = slugifyHeading(sectionTitle)
@@ -261,8 +255,7 @@ const loadDocByFileName = cache(async (fileName: string, locale: string): Promis
     const markdown = await loadMarkdownFile(fileName, locale)
     const parsedFile = parseDocFile(markdown, fileName)
     const parsedBody = splitMarkdownDoc(parsedFile.body, locale)
-    const summary =
-        parsedFile.meta.description || parsedBody.summary || `Read ${parsedFile.meta.title}`
+    const summary = parsedFile.meta.description || parsedBody.summary || `Read ${parsedFile.meta.title}`
 
     const [introContent, sectionContents] = await Promise.all([
         parsedBody.introMarkdown ? renderMdx(parsedBody.introMarkdown) : Promise.resolve(null),

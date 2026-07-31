@@ -59,10 +59,7 @@ export type AppProps = {
     initialHistory?: ParsedHistoryLog
 }
 
-function normalizeActiveMcpServers(
-    availableNames: string[],
-    configuredActiveNames: string[] | undefined,
-): string[] {
+function normalizeActiveMcpServers(availableNames: string[], configuredActiveNames: string[] | undefined): string[] {
     if (availableNames.length === 0) return []
     if (configuredActiveNames === undefined) {
         return [...availableNames]
@@ -108,30 +105,21 @@ export function App({
     initialHistory,
 }: AppProps) {
     const { exit } = useApp()
-    const availableMcpServerNames = useMemo(
-        () => Object.keys(mcpServers ?? {}).sort(),
-        [mcpServers],
-    )
+    const availableMcpServerNames = useMemo(() => Object.keys(mcpServers ?? {}).sort(), [mcpServers])
     const initialActiveMcpServers = useMemo(
         () => normalizeActiveMcpServers(availableMcpServerNames, sessionOptions.activeMcpServers),
         [availableMcpServerNames, sessionOptions.activeMcpServers],
     )
     const defaultToolPermissionMode: ToolPermissionMode =
-        sessionOptions.toolPermissionMode ??
-        (dangerous ? TOOL_PERMISSION_MODES.FULL : TOOL_PERMISSION_MODES.ONCE)
+        sessionOptions.toolPermissionMode ?? (dangerous ? TOOL_PERMISSION_MODES.FULL : TOOL_PERMISSION_MODES.ONCE)
 
-    const [timeline, dispatchTimeline] = useReducer(
-        chatTimelineReducer,
-        undefined,
-        createInitialTimelineState,
-    )
+    const [timeline, dispatchTimeline] = useReducer(chatTimelineReducer, undefined, createInitialTimelineState)
 
     const [currentProvider, setCurrentProvider] = useState(providerName)
     const [currentModel, setCurrentModel] = useState(model)
     const [providersState, setProvidersState] = useState(providers)
     const [modelProfilesState, setModelProfilesState] = useState(modelProfiles)
-    const [toolPermissionMode, setToolPermissionMode] =
-        useState<ToolPermissionMode>(defaultToolPermissionMode)
+    const [toolPermissionMode, setToolPermissionMode] = useState<ToolPermissionMode>(defaultToolPermissionMode)
 
     const resolveContextLimit = useCallback(
         (providerConfig: Pick<ProviderConfig, 'name' | 'model'>) =>
@@ -149,17 +137,12 @@ export function App({
 
     const [inputHistory, setInputHistory] = useState<string[]>([])
 
-    const [contextLimit, setContextLimit] = useState<number>(
-        resolveContextLimit({ name: providerName, model }),
-    )
+    const [contextLimit, setContextLimit] = useState<number>(resolveContextLimit({ name: providerName, model }))
     const [currentContextTokens, setCurrentContextTokens] = useState(0)
 
     const [setupPending, setSetupPending] = useState(needsSetup)
-    const [mcpSelectionPending, setMcpSelectionPending] = useState(
-        !needsSetup && availableMcpServerNames.length > 0,
-    )
-    const [activeMcpServerNames, setActiveMcpServerNames] =
-        useState<string[]>(initialActiveMcpServers)
+    const [mcpSelectionPending, setMcpSelectionPending] = useState(!needsSetup && availableMcpServerNames.length > 0)
+    const [activeMcpServerNames, setActiveMcpServerNames] = useState<string[]>(initialActiveMcpServers)
     const [exitMessage, setExitMessage] = useState<string | null>(null)
 
     const [busy, setBusy] = useState(false)
@@ -170,8 +153,7 @@ export function App({
     const currentTurnRef = useRef<number | null>(null)
     const nextUserInputOverrideRef = useRef<string | null>(null)
 
-    const { pendingApproval, setPendingApproval, approvalResolverRef, handleApprovalDecision } =
-        useApproval()
+    const { pendingApproval, setPendingApproval, approvalResolverRef, handleApprovalDecision } = useApproval()
 
     const localPackageInfo = useMemo(() => findLocalPackageInfoSync(), [])
 
@@ -219,8 +201,7 @@ export function App({
                 dispatch({ type: 'assistant_chunk', turn, step, chunk })
             },
             requestApproval:
-                toolPermissionMode === TOOL_PERMISSION_MODES.FULL ||
-                toolPermissionMode === TOOL_PERMISSION_MODES.NONE
+                toolPermissionMode === TOOL_PERMISSION_MODES.FULL || toolPermissionMode === TOOL_PERMISSION_MODES.NONE
                     ? undefined
                     : (request) =>
                           new Promise((resolve) => {
@@ -258,14 +239,7 @@ export function App({
                         phase,
                     })
                 },
-                onContextCompacted: ({
-                    reason,
-                    status,
-                    beforeTokens,
-                    afterTokens,
-                    reductionPercent,
-                    errorMessage,
-                }) => {
+                onContextCompacted: ({ reason, status, beforeTokens, afterTokens, reductionPercent, errorMessage }) => {
                     if (status === 'success') {
                         setCurrentContextTokens(afterTokens)
                     }
@@ -301,13 +275,7 @@ export function App({
                         parallelActions,
                     })
                 },
-                onObservation: ({
-                    turn,
-                    step,
-                    observation,
-                    resultStatus,
-                    parallelResultStatuses,
-                }) => {
+                onObservation: ({ turn, step, observation, resultStatus, parallelResultStatuses }) => {
                     dispatch({
                         type: 'tool_observation',
                         turn,
@@ -360,11 +328,7 @@ export function App({
                 setSession(null)
                 setSessionLogPath(null)
                 setBusy(false)
-                appendSystemMessage(
-                    'Session',
-                    `Failed to create session: ${(err as Error).message}`,
-                    'error',
-                )
+                appendSystemMessage('Session', `Failed to create session: ${(err as Error).message}`, 'error')
             }
         })()
 
@@ -419,11 +383,7 @@ export function App({
             return
         }
         if (pendingApproval) {
-            appendSystemMessage(
-                'Clear',
-                'Resolve current approval request before clearing timeline.',
-                'warning',
-            )
+            appendSystemMessage('Clear', 'Resolve current approval request before clearing timeline.', 'warning')
             return
         }
         dispatch({ type: 'clear_current_timeline' })
@@ -434,11 +394,7 @@ export function App({
 
     const handleNewSession = useCallback(() => {
         if (busy) {
-            appendSystemMessage(
-                'New Session',
-                'Cancel current run before starting a new session.',
-                'warning',
-            )
+            appendSystemMessage('New Session', 'Cancel current run before starting a new session.', 'warning')
             return
         }
         if (pendingApproval) {
@@ -469,11 +425,7 @@ export function App({
                     current_provider: name,
                 })
             } catch (err) {
-                appendSystemMessage(
-                    'Config',
-                    `Failed to persist provider: ${(err as Error).message}`,
-                    'warning',
-                )
+                appendSystemMessage('Config', `Failed to persist provider: ${(err as Error).message}`, 'warning')
             }
         },
         [appendSystemMessage],
@@ -482,19 +434,12 @@ export function App({
     const handleModelSelect = useCallback(
         async (provider: ProviderConfig) => {
             if (busy) {
-                appendSystemMessage(
-                    'Model switch',
-                    'Cancel current run before switching models.',
-                    'warning',
-                )
+                appendSystemMessage('Model switch', 'Cancel current run before switching models.', 'warning')
                 return
             }
 
             if (provider.name === currentProvider && provider.model === currentModel) {
-                appendSystemMessage(
-                    'Model switch',
-                    `Already using ${provider.name} (${provider.model}).`,
-                )
+                appendSystemMessage('Model switch', `Already using ${provider.name} (${provider.model}).`)
                 return
             }
 
@@ -536,11 +481,7 @@ export function App({
     const handleSetToolPermission = useCallback(
         (mode: ToolPermissionMode) => {
             if (busy) {
-                appendSystemMessage(
-                    'Tools',
-                    'Cancel current run before changing tool permission mode.',
-                    'warning',
-                )
+                appendSystemMessage('Tools', 'Cancel current run before changing tool permission mode.', 'warning')
                 return
             }
 
@@ -579,11 +520,7 @@ export function App({
                     active_mcp_servers: names,
                 })
             } catch (err) {
-                appendSystemMessage(
-                    'MCP',
-                    `Failed to persist active MCP servers: ${(err as Error).message}`,
-                    'warning',
-                )
+                appendSystemMessage('MCP', `Failed to persist active MCP servers: ${(err as Error).message}`, 'warning')
             }
         },
         [appendSystemMessage],
@@ -610,11 +547,7 @@ export function App({
     const handleHistorySelect = useCallback(
         async (entry: SessionHistoryEntry) => {
             if (busy) {
-                appendSystemMessage(
-                    'History',
-                    'Cancel current run before loading session history.',
-                    'warning',
-                )
+                appendSystemMessage('History', 'Cancel current run before loading session history.', 'warning')
                 return
             }
             if (pendingApproval) {
@@ -660,19 +593,11 @@ export function App({
 
     const runCompactCommand = useCallback(async () => {
         if (busy) {
-            appendSystemMessage(
-                'Compact',
-                'Cancel current run before compacting context.',
-                'warning',
-            )
+            appendSystemMessage('Compact', 'Cancel current run before compacting context.', 'warning')
             return
         }
         if (pendingApproval) {
-            appendSystemMessage(
-                'Compact',
-                'Resolve current approval request before compacting context.',
-                'warning',
-            )
+            appendSystemMessage('Compact', 'Resolve current approval request before compacting context.', 'warning')
             return
         }
         if (!session) return
@@ -681,11 +606,7 @@ export function App({
             const result = await session.compactHistory('manual')
             setCurrentContextTokens(result.afterTokens)
         } catch (err) {
-            appendSystemMessage(
-                'Compact',
-                `Failed to compact context: ${(err as Error).message}`,
-                'error',
-            )
+            appendSystemMessage('Compact', `Failed to compact context: ${(err as Error).message}`, 'error')
         }
     }, [appendSystemMessage, busy, pendingApproval, session])
 
@@ -701,11 +622,7 @@ export function App({
             await session.runTurn(prompt)
         } catch (err) {
             setBusy(false)
-            appendSystemMessage(
-                'Init',
-                `Failed to run init task: ${(err as Error).message}`,
-                'error',
-            )
+            appendSystemMessage('Init', `Failed to run init task: ${(err as Error).message}`, 'error')
         }
     }, [appendSystemMessage, busy, session])
 
@@ -740,8 +657,7 @@ export function App({
                     pr_number: String(prNumber),
                     backend_strategy: backend.strategy,
                     backend_details: backend.details,
-                    mcp_server_prefix:
-                        backend.kind === 'github_mcp' ? backend.mcpServerPrefix : 'github',
+                    mcp_server_prefix: backend.kind === 'github_mcp' ? backend.mcpServerPrefix : 'github',
                 })
 
                 setInputHistory((prev) => [...prev, reviewCommand])
@@ -758,15 +674,7 @@ export function App({
                 )
             }
         },
-        [
-            activeMcpServerNames,
-            appendSystemMessage,
-            busy,
-            cwd,
-            mcpServers,
-            session,
-            toolPermissionMode,
-        ],
+        [activeMcpServerNames, appendSystemMessage, busy, cwd, mcpServers, session, toolPermissionMode],
     )
 
     const handleSubmit = useCallback(
@@ -818,11 +726,7 @@ export function App({
             setSetupPending(false)
             appendSystemMessage('Setup', `Config saved to ${loaded.configPath}`)
         } catch (err) {
-            appendSystemMessage(
-                'Setup',
-                `Failed to reload config: ${(err as Error).message}`,
-                'error',
-            )
+            appendSystemMessage('Setup', `Failed to reload config: ${(err as Error).message}`, 'error')
         }
     }, [appendSystemMessage])
 
@@ -863,13 +767,7 @@ export function App({
     }
 
     if (setupPending) {
-        return (
-            <SetupWizard
-                configPath={configPath}
-                onComplete={handleSetupComplete}
-                onExit={handleExit}
-            />
-        )
+        return <SetupWizard configPath={configPath} onComplete={handleSetupComplete} onExit={handleExit} />
     }
 
     if (mcpSelectionPending) {
@@ -932,15 +830,9 @@ export function App({
                 onSystemMessage={appendSystemMessage}
             />
 
-            {pendingApproval ? (
-                <ApprovalOverlay request={pendingApproval} onDecision={handleApprovalDecision} />
-            ) : null}
+            {pendingApproval ? <ApprovalOverlay request={pendingApproval} onDecision={handleApprovalDecision} /> : null}
 
-            <Footer
-                busy={busy}
-                pendingApproval={Boolean(pendingApproval)}
-                contextPercent={contextPercent}
-            />
+            <Footer busy={busy} pendingApproval={Boolean(pendingApproval)} contextPercent={contextPercent} />
         </Box>
     )
 }

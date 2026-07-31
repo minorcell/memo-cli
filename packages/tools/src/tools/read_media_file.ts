@@ -43,11 +43,7 @@ export const readMediaFileTool = defineMcpTool<ReadMediaFileInput>({
             const mimeType = MIME_TYPES[extension] ?? 'application/octet-stream'
             const data = (await readFile(validPath)).toString('base64')
 
-            const type = mimeType.startsWith('image/')
-                ? 'image'
-                : mimeType.startsWith('audio/')
-                  ? 'audio'
-                  : 'blob'
+            const type = mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('audio/') ? 'audio' : 'blob'
 
             return textResult(JSON.stringify({ type, mimeType, data }))
         } catch (err) {

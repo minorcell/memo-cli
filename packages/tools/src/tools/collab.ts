@@ -311,9 +311,7 @@ async function startSubmission(record: AgentRecord, message: string): Promise<st
 
     proc.on('close', (code) => {
         const exitCode = typeof code === 'number' ? code : -1
-        const interrupted = Boolean(
-            record.running?.id === submissionId && record.running.interrupted,
-        )
+        const interrupted = Boolean(record.running?.id === submissionId && record.running.interrupted)
         finalizeSubmission({
             record,
             submissionId,
@@ -410,10 +408,7 @@ export const sendInputTool = defineMcpTool<SendInput>({
         }
 
         if (record.status === 'closed') {
-            return textResult(
-                `send_input failed: agent ${id} is closed; run resume_agent first`,
-                true,
-            )
+            return textResult(`send_input failed: agent ${id} is closed; run resume_agent first`, true)
         }
 
         if (record.running) {

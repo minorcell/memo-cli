@@ -29,10 +29,7 @@ function textPayload(result: { content?: Array<{ type: string; text?: string }> 
     return first?.text ?? ''
 }
 
-function assertPatchOk(result: {
-    isError?: boolean
-    content?: Array<{ type: string; text?: string }>
-}) {
+function assertPatchOk(result: { isError?: boolean; content?: Array<{ type: string; text?: string }> }) {
     const payload = textPayload(result)
     assert.ok(!result.isError, payload)
 }
@@ -152,14 +149,9 @@ describe('apply_patch tool (structured patch)', () => {
         await writeFile(target, 'foo\nbar\nbaz\n', 'utf8')
 
         const result = await executePatch(
-            [
-                '*** Begin Patch',
-                '*** Update File: append.txt',
-                '@@',
-                '+quux',
-                '*** End of File',
-                '*** End Patch',
-            ].join('\n'),
+            ['*** Begin Patch', '*** Update File: append.txt', '@@', '+quux', '*** End of File', '*** End Patch'].join(
+                '\n',
+            ),
         )
 
         assertPatchOk(result)
@@ -191,14 +183,7 @@ describe('apply_patch tool (structured patch)', () => {
         await writeFile(target, 'before\n', 'utf8')
 
         const result = await executePatch(
-            [
-                ' *** Begin Patch',
-                '*** Update File: padded.txt',
-                '@@',
-                '-before',
-                '+after',
-                '*** End Patch ',
-            ].join('\n'),
+            [' *** Begin Patch', '*** Update File: padded.txt', '@@', '-before', '+after', '*** End Patch '].join('\n'),
         )
 
         assertPatchOk(result)
@@ -210,13 +195,7 @@ describe('apply_patch tool (structured patch)', () => {
         await writeFile(target, 'import foo\n', 'utf8')
 
         const result = await executePatch(
-            [
-                '*** Begin Patch',
-                '*** Update File: omit-marker.txt',
-                ' import foo',
-                '+bar',
-                '*** End Patch',
-            ].join('\n'),
+            ['*** Begin Patch', '*** Update File: omit-marker.txt', ' import foo', '+bar', '*** End Patch'].join('\n'),
         )
 
         assertPatchOk(result)
@@ -248,56 +227,37 @@ describe('apply_patch tool (structured patch)', () => {
     })
 
     test('rejects invalid end marker', async () => {
-        const result = await executePatch(
-            ['*** Begin Patch', '*** Add File: a.txt', '+hi'].join('\n'),
-        )
+        const result = await executePatch(['*** Begin Patch', '*** Add File: a.txt', '+hi'].join('\n'))
         assertPatchError(result, "The last line of the patch must be '*** End Patch'")
     })
 
     test('rejects invalid hunk header', async () => {
-        const result = await executePatch(
-            ['*** Begin Patch', '*** Frobnicate File: foo', '*** End Patch'].join('\n'),
-        )
+        const result = await executePatch(['*** Begin Patch', '*** Frobnicate File: foo', '*** End Patch'].join('\n'))
         assertPatchError(result, 'is not a valid hunk header')
     })
 
     test('rejects empty update hunk', async () => {
-        const result = await executePatch(
-            ['*** Begin Patch', '*** Update File: foo.txt', '*** End Patch'].join('\n'),
-        )
+        const result = await executePatch(['*** Begin Patch', '*** Update File: foo.txt', '*** End Patch'].join('\n'))
         assertPatchError(result, "Update file hunk for path 'foo.txt' is empty")
     })
 
     test('rejects unexpected update hunk line prefix', async () => {
         await writeFile(join(tempDir, 'bad-line.txt'), 'hello\n', 'utf8')
         const result = await executePatch(
-            [
-                '*** Begin Patch',
-                '*** Update File: bad-line.txt',
-                '@@',
-                '#not-valid',
-                '*** End Patch',
-            ].join('\n'),
+            ['*** Begin Patch', '*** Update File: bad-line.txt', '@@', '#not-valid', '*** End Patch'].join('\n'),
         )
         assertPatchError(result, 'Unexpected line found in update hunk')
     })
 
     test('rejects absolute file paths', async () => {
         const result = await executePatch(
-            [
-                '*** Begin Patch',
-                `*** Add File: ${join(tempDir, 'absolute.txt')}`,
-                '+x',
-                '*** End Patch',
-            ].join('\n'),
+            ['*** Begin Patch', `*** Add File: ${join(tempDir, 'absolute.txt')}`, '+x', '*** End Patch'].join('\n'),
         )
         assertPatchError(result, 'File references must be relative, NEVER ABSOLUTE')
     })
 
     test('rejects empty file paths in headers', async () => {
-        const result = await executePatch(
-            ['*** Begin Patch', '*** Add File: ', '*** End Patch'].join('\n'),
-        )
+        const result = await executePatch(['*** Begin Patch', '*** Add File: ', '*** End Patch'].join('\n'))
         assertPatchError(result, 'is not a valid hunk header')
     })
 
@@ -349,14 +309,7 @@ describe('apply_patch tool (structured patch)', () => {
 
     test('fails when update target file is missing', async () => {
         const result = await executePatch(
-            [
-                '*** Begin Patch',
-                '*** Update File: missing.txt',
-                '@@',
-                '-old',
-                '+new',
-                '*** End Patch',
-            ].join('\n'),
+            ['*** Begin Patch', '*** Update File: missing.txt', '@@', '-old', '+new', '*** End Patch'].join('\n'),
         )
         assertPatchError(result, 'Failed to read file to update missing.txt')
     })
@@ -378,9 +331,7 @@ describe('apply_patch tool (structured patch)', () => {
         try {
             const result = await executePatchIn(
                 nestedCwd,
-                ['*** Begin Patch', '*** Add File: ../outside.txt', '+oops', '*** End Patch'].join(
-                    '\n',
-                ),
+                ['*** Begin Patch', '*** Add File: ../outside.txt', '+oops', '*** End Patch'].join('\n'),
             )
             assertPatchError(result, 'sandbox write denied')
         } finally {
@@ -406,14 +357,7 @@ describe('apply_patch tool (structured patch)', () => {
 
     test('accepts heredoc-wrapped patch input in lenient mode', async () => {
         const result = await executePatch(
-            [
-                "<<'EOF'",
-                '*** Begin Patch',
-                '*** Add File: heredoc.txt',
-                '+hi',
-                '*** End Patch',
-                'EOF',
-            ].join('\n'),
+            ["<<'EOF'", '*** Begin Patch', '*** Add File: heredoc.txt', '+hi', '*** End Patch', 'EOF'].join('\n'),
         )
 
         assertPatchOk(result)

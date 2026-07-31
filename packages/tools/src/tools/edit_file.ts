@@ -25,8 +25,7 @@ type EditFileInput = z.infer<typeof EDIT_FILE_INPUT_SCHEMA>
 
 export const editFileTool = defineMcpTool<EditFileInput>({
     name: 'edit_file',
-    description:
-        'Apply ordered edit operations to a text file and return a unified diff (dryRun previews only).',
+    description: 'Apply ordered edit operations to a text file and return a unified diff (dryRun previews only).',
     inputSchema: EDIT_FILE_INPUT_SCHEMA,
     supportsParallelToolCalls: false,
     isMutating: true,

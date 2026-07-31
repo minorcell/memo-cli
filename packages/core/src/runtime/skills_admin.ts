@@ -190,9 +190,7 @@ function parseFrontmatter(content: string): { name: string; description: string 
 
 function buildSkillContent(name: string, description: string, body: string | undefined): string {
     const contentBody = body?.trim() || `# ${name}\n\n${description}\n`
-    return ['---', `name: ${name}`, `description: ${description}`, '---', '', contentBody, ''].join(
-        '\n',
-    )
+    return ['---', `name: ${name}`, `description: ${description}`, '---', '', contentBody, ''].join('\n')
 }
 
 function pathWithinRoot(path: string, root: string): boolean {
@@ -234,9 +232,7 @@ export async function listSkills(options: ListSkillsOptions): Promise<{ items: S
     const q = normalizeQuery(options.q)
     const scopeInput = typeof options.scope === 'string' ? options.scope : ''
     const workspaceCwd =
-        typeof options.workspaceCwd === 'string' && options.workspaceCwd.trim()
-            ? options.workspaceCwd.trim()
-            : null
+        typeof options.workspaceCwd === 'string' && options.workspaceCwd.trim() ? options.workspaceCwd.trim() : null
 
     const scopes: SkillScope[] = []
     if (scopeInput === 'project') {
@@ -259,8 +255,7 @@ export async function listSkills(options: ListSkillsOptions): Promise<{ items: S
     const items: SkillRecord[] = []
 
     for (const scope of scopes) {
-        const root =
-            scope === 'global' ? globalSkillRoot() : projectSkillRoot(workspaceCwd as string)
+        const root = scope === 'global' ? globalSkillRoot() : projectSkillRoot(workspaceCwd as string)
         const files = await walkSkillFiles(root)
         for (const filePath of files) {
             const raw = await readFile(filePath, 'utf8')
@@ -302,9 +297,7 @@ export async function getSkill(id: string, options?: SkillLookupOptions): Promis
     }
 }
 
-export async function createSkill(
-    input: CreateSkillOptions,
-): Promise<{ created: true; item: SkillRecord }> {
+export async function createSkill(input: CreateSkillOptions): Promise<{ created: true; item: SkillRecord }> {
     const scope = parseScope(input.scope)
     if (!scope) throw new SkillsAdminError('BAD_REQUEST', 'scope must be project or global')
 
@@ -312,18 +305,14 @@ export async function createSkill(
     if (!name) throw new SkillsAdminError('BAD_REQUEST', 'name is required')
 
     const description =
-        typeof input.description === 'string' && input.description.trim()
-            ? input.description.trim()
-            : `${name} skill`
+        typeof input.description === 'string' && input.description.trim() ? input.description.trim() : `${name} skill`
 
     let root: string
     if (scope === 'global') {
         root = globalSkillRoot()
     } else {
         const workspaceCwd =
-            typeof input.workspaceCwd === 'string' && input.workspaceCwd.trim()
-                ? input.workspaceCwd.trim()
-                : ''
+            typeof input.workspaceCwd === 'string' && input.workspaceCwd.trim() ? input.workspaceCwd.trim() : ''
         if (!workspaceCwd) {
             throw new SkillsAdminError('BAD_REQUEST', 'workspaceId is required when scope=project')
         }
@@ -342,17 +331,11 @@ export async function createSkill(
     }
 
     await mkdir(skillDir, { recursive: true })
-    const content = buildSkillContent(
-        name,
-        description,
-        typeof input.content === 'string' ? input.content : undefined,
-    )
+    const content = buildSkillContent(name, description, typeof input.content === 'string' ? input.content : undefined)
     await writeFile(skillPath, content, 'utf8')
     const activeSelection = await loadActiveSkillSelection()
     const normalizedSkillPath = normalizeSkillPath(skillPath)
-    const isActive = activeSelection.explicit
-        ? new Set(activeSelection.activePaths).has(normalizedSkillPath)
-        : true
+    const isActive = activeSelection.explicit ? new Set(activeSelection.activePaths).has(normalizedSkillPath) : true
 
     return {
         created: true,
@@ -387,20 +370,13 @@ export async function updateSkill(
             ? input.description.trim()
             : parsed.description || `${name} skill`
 
-    const content = buildSkillContent(
-        name,
-        description,
-        typeof input.content === 'string' ? input.content : current,
-    )
+    const content = buildSkillContent(name, description, typeof input.content === 'string' ? input.content : current)
     await writeFile(path, content, 'utf8')
 
     return { updated: true }
 }
 
-export async function removeSkill(
-    id: string,
-    options?: SkillLookupOptions,
-): Promise<{ deleted: true }> {
+export async function removeSkill(id: string, options?: SkillLookupOptions): Promise<{ deleted: true }> {
     const path = decodePath(id)
     await ensureAllowedSkillPath(path, options)
     const exists = await fileExists(path)
@@ -413,10 +389,7 @@ export async function removeSkill(
     return { deleted: true }
 }
 
-export async function setActiveSkills(
-    ids: string[],
-    options?: SkillLookupOptions,
-): Promise<{ active: string[] }> {
+export async function setActiveSkills(ids: string[], options?: SkillLookupOptions): Promise<{ active: string[] }> {
     const activePaths: string[] = []
     const seen = new Set<string>()
 

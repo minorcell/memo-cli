@@ -34,10 +34,7 @@ describe('mcp helpers', () => {
 
         test('handles special characters', () => {
             const result = textResult('<tag attr="value">\n<script>alert(1)</script>')
-            assert.strictEqual(
-                result.content[0].text,
-                '<tag attr="value">\n<script>alert(1)</script>',
-            )
+            assert.strictEqual(result.content[0].text, '<tag attr="value">\n<script>alert(1)</script>')
         })
 
         test('handles very long content', () => {

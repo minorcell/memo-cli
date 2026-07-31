@@ -27,12 +27,7 @@ import type {
     TurnResult,
     TurnStatus,
 } from '@memo/core/types'
-import {
-    buildHookRunners,
-    runHook,
-    snapshotHistory,
-    type HookRunnerMap,
-} from '@memo/core/runtime/hooks'
+import { buildHookRunners, runHook, snapshotHistory, type HookRunnerMap } from '@memo/core/runtime/hooks'
 import {
     createToolOrchestrator,
     type ToolApprovalHooks,
@@ -174,9 +169,7 @@ export class AgentSessionImpl implements AgentSession {
     }
 
     private resolveThresholdTokens(contextWindow: number): number {
-        const threshold = Math.floor(
-            (contextWindow * this.resolveAutoCompactThresholdPercent()) / 100,
-        )
+        const threshold = Math.floor((contextWindow * this.resolveAutoCompactThresholdPercent()) / 100)
         return Math.max(1, threshold)
     }
 
@@ -309,11 +302,7 @@ export class AgentSessionImpl implements AgentSession {
         return normalized
     }
 
-    private async compactHistoryInternal(
-        reason: CompactReason,
-        turn: number,
-        step: number,
-    ): Promise<CompactResult> {
+    private async compactHistoryInternal(reason: CompactReason, turn: number, step: number): Promise<CompactResult> {
         const contextWindow = this.resolveContextWindow()
         const thresholdTokens = this.resolveThresholdTokens(contextWindow)
         const beforeTokens = this.tokenCounter.countMessages(this.history)
@@ -354,10 +343,7 @@ export class AgentSessionImpl implements AgentSession {
 
             const reductionPercent =
                 beforeTokens > 0
-                    ? Math.max(
-                          0,
-                          Math.round(((beforeTokens - afterTokens) / beforeTokens) * 10_000) / 100,
-                      )
+                    ? Math.max(0, Math.round(((beforeTokens - afterTokens) / beforeTokens) * 10_000) / 100)
                     : 0
 
             const result: CompactResult = {
@@ -466,8 +452,7 @@ export class AgentSessionImpl implements AgentSession {
             let autoCompactedThisTurn = false
 
             if (!this.sessionStartEmitted) {
-                const systemPrompt =
-                    this.history[0]?.role === 'system' ? this.history[0].content : undefined
+                const systemPrompt = this.history[0]?.role === 'system' ? this.history[0].content : undefined
                 await this.emitEvent('session_start', {
                     content: systemPrompt,
                     role: systemPrompt ? 'system' : undefined,
@@ -501,14 +486,7 @@ export class AgentSessionImpl implements AgentSession {
                     promptTokens,
                     history: snapshotHistory(this.history),
                 })
-                await this.emitContextUsage(
-                    turn,
-                    0,
-                    promptTokens,
-                    contextWindow,
-                    thresholdTokens,
-                    'turn_start',
-                )
+                await this.emitContextUsage(turn, 0, promptTokens, contextWindow, thresholdTokens, 'turn_start')
                 await this.maybeGenerateSessionTitle(turn, input)
 
                 let finalText = ''
@@ -569,10 +547,7 @@ export class AgentSessionImpl implements AgentSession {
                         })
                         break
                     }
-                    if (
-                        this.options.warnPromptTokens &&
-                        estimatedPrompt > this.options.warnPromptTokens
-                    ) {
+                    if (this.options.warnPromptTokens && estimatedPrompt > this.options.warnPromptTokens) {
                         console.warn(`Prompt tokens are near the limit: ${estimatedPrompt}`)
                     }
 
@@ -663,9 +638,7 @@ export class AgentSessionImpl implements AgentSession {
                         // parsed.action 复用单 action 结构，取首个工具作为主 action 语义。
                         const firstTool = toolUseBlocks[0]
                         if (firstTool) {
-                            const thinking = assistantText
-                                ? buildThinking([assistantText])
-                                : undefined
+                            const thinking = assistantText ? buildThinking([assistantText]) : undefined
                             parsed = {
                                 action: {
                                     tool: firstTool.name,
@@ -860,8 +833,7 @@ export class AgentSessionImpl implements AgentSession {
                             const tool = this.deps.tools[block.name]
                             return Boolean(tool?.isMutating)
                         })
-                        const executionMode =
-                            allSupportParallel && !hasMutatingTool ? 'parallel' : 'sequential'
+                        const executionMode = allSupportParallel && !hasMutatingTool ? 'parallel' : 'sequential'
 
                         const execution = await this.toolOrchestrator.executeActions(
                             toolUseBlocks.map((block) => ({
@@ -904,13 +876,10 @@ export class AgentSessionImpl implements AgentSession {
                         const combinedObservation = protocolResults
                             .map((result) => `[${result.tool}]: ${result.observation}`)
                             .join('\n\n')
-                        const parallelResultStatuses = protocolResults.map(
-                            (result) => result.status,
-                        )
+                        const parallelResultStatuses = protocolResults.map((result) => result.status)
                         const resultStatus =
-                            parallelResultStatuses.find(
-                                (candidate) => candidate !== TOOL_ACTION_SUCCESS_STATUS,
-                            ) ?? TOOL_ACTION_SUCCESS_STATUS
+                            parallelResultStatuses.find((candidate) => candidate !== TOOL_ACTION_SUCCESS_STATUS) ??
+                            TOOL_ACTION_SUCCESS_STATUS
                         const lastStep = steps[steps.length - 1]
                         if (lastStep) {
                             lastStep.observation = combinedObservation
@@ -929,9 +898,7 @@ export class AgentSessionImpl implements AgentSession {
 
                         // 如果被拒绝，停止本轮次
                         if (execution.hasRejection) {
-                            const rejectionResult = protocolResults.find(
-                                (result) => result.rejected,
-                            )
+                            const rejectionResult = protocolResults.find((result) => result.rejected)
                             status = 'cancelled'
                             finalText = '用户拒绝了工具执行，已停止当前操作。'
                             await this.emitEvent('final', {
@@ -966,8 +933,7 @@ export class AgentSessionImpl implements AgentSession {
                     // 注意：当 toolUseBlocks.length > 1 时，已在上面处理，这里跳过
                     else if (parsed.action) {
                         this.maybeWarnRepeatedAction(parsed.action.tool, parsed.action.input)
-                        const actionId =
-                            toolUseBlocks[0]?.id ?? `${turn}:${step}:single:${parsed.action.tool}`
+                        const actionId = toolUseBlocks[0]?.id ?? `${turn}:${step}:single:${parsed.action.tool}`
                         await this.emitEvent('action', {
                             turn,
                             step,
@@ -1003,8 +969,7 @@ export class AgentSessionImpl implements AgentSession {
                                 toToolHistoryMessage({
                                     ...result,
                                     observation:
-                                        result.observation ||
-                                        `User denied tool execution: ${parsed.action.tool}`,
+                                        result.observation || `User denied tool execution: ${parsed.action.tool}`,
                                 }),
                             )
                             status = 'cancelled'
@@ -1095,8 +1060,7 @@ export class AgentSessionImpl implements AgentSession {
                             role: 'assistant',
                             meta: {
                                 tokens: stepUsage,
-                                fallback_from_previous_text:
-                                    shouldFallbackFromPreviousText || undefined,
+                                fallback_from_previous_text: shouldFallbackFromPreviousText || undefined,
                             },
                         })
                         await runHook(this.hooks, 'onFinal', {
@@ -1121,8 +1085,7 @@ export class AgentSessionImpl implements AgentSession {
                     if (status === 'ok') {
                         status = 'error'
                     }
-                    finalText =
-                        'Unable to produce a final answer. Please retry or adjust the request.'
+                    finalText = 'Unable to produce a final answer. Please retry or adjust the request.'
                     errorMessage = finalText
                     this.history.push({ role: 'assistant', content: finalText })
                     await this.emitEvent('final', {
@@ -1215,10 +1178,7 @@ export class AgentSessionImpl implements AgentSession {
     }
 
     /** 将结构化事件发送到所有历史 sink，独立于主流程错误。 */
-    private async emitEvent(
-        type: HistoryEvent['type'],
-        payload: Omit<HistoryEvent, 'ts' | 'sessionId' | 'type'>,
-    ) {
+    private async emitEvent(type: HistoryEvent['type'], payload: Omit<HistoryEvent, 'ts' | 'sessionId' | 'type'>) {
         if (!this.sinks.length) return
         const event = createHistoryEvent({
             sessionId: this.id,

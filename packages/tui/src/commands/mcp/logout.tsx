@@ -5,9 +5,7 @@ import { loadMemoConfig } from '@memo/core'
 import { logoutMcpServerOAuth } from '@memo/tools/router/mcp/oauth'
 import { getErrorMessage, oauthSettingsFromLoaded } from '../../features/mcp/mcpHelpers'
 
-export const args = zod
-    .array(zod.string())
-    .describe(argument({ name: 'name', description: 'Server name' }))
+export const args = zod.array(zod.string()).describe(argument({ name: 'name', description: 'Server name' }))
 
 export default function McpLogout({ args: positionals }: { args: zod.infer<typeof args> }) {
     useEffect(() => {

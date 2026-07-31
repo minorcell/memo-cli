@@ -97,9 +97,7 @@ export function HomeClient({
                         <h1 className="mt-8 max-w-5xl text-4xl font-semibold tracking-tight text-[var(--text-primary)] md:text-6xl">
                             {t('home.title')}
                         </h1>
-                        <p className="mt-5 max-w-3xl text-lg text-[var(--text-secondary)]">
-                            {t('home.subtitle')}
-                        </p>
+                        <p className="mt-5 max-w-3xl text-lg text-[var(--text-secondary)]">{t('home.subtitle')}</p>
 
                         <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row">
                             <Link href={gettingStartedHref} className="btn-primary min-w-[160px]">
@@ -127,9 +125,7 @@ export function HomeClient({
                         <h2 className="text-2xl font-semibold text-[var(--text-primary)] md:text-3xl">
                             {t('home.features.title')}
                         </h2>
-                        <p className="mt-3 max-w-2xl text-[var(--text-secondary)]">
-                            {t('home.features.subtitle')}
-                        </p>
+                        <p className="mt-3 max-w-2xl text-[var(--text-secondary)]">{t('home.features.subtitle')}</p>
 
                         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             {features.map((feature) => (
@@ -143,9 +139,7 @@ export function HomeClient({
                                     <h3 className="mt-4 text-base font-semibold text-[var(--text-primary)]">
                                         {t(feature.titleKey)}
                                     </h3>
-                                    <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                                        {t(feature.descKey)}
-                                    </p>
+                                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{t(feature.descKey)}</p>
                                 </div>
                             ))}
                         </div>
@@ -158,9 +152,7 @@ export function HomeClient({
                         <h2 className="mt-4 max-w-4xl text-2xl font-semibold text-[var(--text-primary)] md:text-3xl">
                             {t('home.architecture.title')}
                         </h2>
-                        <p className="mt-3 max-w-3xl text-[var(--text-secondary)]">
-                            {t('home.architecture.subtitle')}
-                        </p>
+                        <p className="mt-3 max-w-3xl text-[var(--text-secondary)]">{t('home.architecture.subtitle')}</p>
 
                         <div className="mt-8 overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)]">
                             <MemoArchitectureDiagram />
@@ -189,9 +181,7 @@ export function HomeClient({
                                             <h3 className="text-sm font-semibold text-[var(--text-primary)]">
                                                 {t(item.titleKey)}
                                             </h3>
-                                            <p className="text-sm text-[var(--text-secondary)]">
-                                                {t(item.descKey)}
-                                            </p>
+                                            <p className="text-sm text-[var(--text-secondary)]">{t(item.descKey)}</p>
                                         </div>
                                     </div>
                                 ))}
@@ -205,12 +195,9 @@ export function HomeClient({
                             <div className="space-y-4 p-5 font-mono text-sm">
                                 {workflowSteps.map((item) => (
                                     <div key={item.step}>
-                                        <p className="text-[var(--text-tertiary)]">
-                                            # {t(item.titleKey)}
-                                        </p>
+                                        <p className="text-[var(--text-tertiary)]"># {t(item.titleKey)}</p>
                                         <p className="text-[var(--text-primary)]">
-                                            <span className="text-[var(--text-secondary)]">$</span>{' '}
-                                            {item.code}
+                                            <span className="text-[var(--text-secondary)]">$</span> {item.code}
                                         </p>
                                     </div>
                                 ))}
@@ -254,21 +241,13 @@ export function HomeClient({
                                 alt="Memo Logo"
                                 className="rounded-md"
                             />
-                            <span className="text-sm font-semibold text-[var(--text-primary)]">
-                                Memo Code
-                            </span>
+                            <span className="text-sm font-semibold text-[var(--text-primary)]">Memo Code</span>
                         </div>
                         <div className="flex gap-6 text-sm text-[var(--text-secondary)]">
-                            <Link
-                                href={docsHref}
-                                className="transition-colors hover:text-[var(--text-primary)]"
-                            >
+                            <Link href={docsHref} className="transition-colors hover:text-[var(--text-primary)]">
                                 {t('nav.docs')}
                             </Link>
-                            <Link
-                                href={blogHref}
-                                className="transition-colors hover:text-[var(--text-primary)]"
-                            >
+                            <Link href={blogHref} className="transition-colors hover:text-[var(--text-primary)]">
                                 {t('nav.blog')}
                             </Link>
                             <a
@@ -288,9 +267,7 @@ export function HomeClient({
                                 {t('nav.npm')}
                             </a>
                         </div>
-                        <p className="text-xs text-[var(--text-tertiary)]">
-                            {t('home.footer.copyright')}
-                        </p>
+                        <p className="text-xs text-[var(--text-tertiary)]">{t('home.footer.copyright')}</p>
                     </div>
                 </footer>
             </main>

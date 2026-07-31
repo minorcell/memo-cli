@@ -112,10 +112,7 @@ describe('slash registry', () => {
             assert.ok(unsupported.content.includes('Unsupported mode'))
         }
 
-        const already = resolveSlashCommand(
-            '/tools ask',
-            makeContext({ toolPermissionMode: 'once' }),
-        )
+        const already = resolveSlashCommand('/tools ask', makeContext({ toolPermissionMode: 'once' }))
         assert.strictEqual(already.kind, 'message')
         if (already.kind === 'message') {
             assert.ok(already.content.includes('Already using once'))

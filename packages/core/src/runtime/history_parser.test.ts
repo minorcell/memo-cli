@@ -82,8 +82,7 @@ describe('parseHistoryLogToSessionDetail', () => {
                 ts: '2026-02-15T10:00:01.000Z',
                 sessionId: 's2',
                 type: 'session_title',
-                content:
-                    '<think>internal chain of thought</think>  Build release plan <thinking>hidden</thinking>',
+                content: '<think>internal chain of thought</think>  Build release plan <thinking>hidden</thinking>',
             }),
         ].join('\n')
 

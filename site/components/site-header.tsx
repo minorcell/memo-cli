@@ -41,9 +41,7 @@ export function SiteHeader({ lang }: { lang: string }) {
                         </div>
                         <div className="hidden sm:block">
                             <p className="text-sm font-semibold tracking-tight text-white">Memo</p>
-                            <p className="-mt-0.5 text-[10px] text-[var(--text-tertiary)]">
-                                Coding Agent
-                            </p>
+                            <p className="-mt-0.5 text-[10px] text-[var(--text-tertiary)]">Coding Agent</p>
                         </div>
                     </Link>
 
@@ -96,11 +94,7 @@ export function SiteHeader({ lang }: { lang: string }) {
                             className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] text-[var(--text-secondary)] md:hidden"
                             aria-label="Toggle menu"
                         >
-                            {mobileMenuOpen ? (
-                                <X className="h-4 w-4" />
-                            ) : (
-                                <Menu className="h-4 w-4" />
-                            )}
+                            {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
                         </button>
                     </div>
                 </nav>

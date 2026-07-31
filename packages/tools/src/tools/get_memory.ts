@@ -38,7 +38,7 @@ export const getMemoryTool = defineMcpTool<GetMemoryInput>({
                     2,
                 ),
             )
-        } catch (err) {
+        } catch {
             return textResult(`memory not found for memory_id=${memory_id}`, true)
         }
     },

@@ -15,11 +15,7 @@ export async function generateStaticParams() {
     return params
 }
 
-export default async function BlogPostPage({
-    params,
-}: {
-    params: Promise<{ lang: string; slug: string }>
-}) {
+export default async function BlogPostPage({ params }: { params: Promise<{ lang: string; slug: string }> }) {
     const { lang, slug } = await params
     const post = await getBlogPost(slug, lang)
 

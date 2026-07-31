@@ -1,0 +1,9 @@
+{
+    "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "overrides": [
+        {
+            "files": ["site/**/*.{ts,tsx,js,jsx,mjs,cjs}"],
+            "plugins": ["react", "nextjs"]
+        }
+    ]
+}

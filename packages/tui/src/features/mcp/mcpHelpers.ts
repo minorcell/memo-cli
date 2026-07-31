@@ -1,11 +1,6 @@
 /** Shared helpers for MCP CLI commands. */
 import { loadMemoConfig, type MCPServerConfig } from '@memo/core'
-import {
-    getMcpAuthStatus,
-    loginMcpServerOAuth,
-    logoutMcpServerOAuth,
-    type McpAuthStatus,
-} from '@memo/tools/router/mcp/oauth'
+import type { McpAuthStatus } from '@memo/tools/router/mcp/oauth'
 
 export function getErrorMessage(error: unknown): string {
     if (error instanceof Error) return error.message
@@ -21,11 +16,7 @@ export function parseEnvAssignment(raw: string): { key: string; value: string } 
     return { key, value }
 }
 
-export function formatServer(
-    name: string,
-    config: MCPServerConfig,
-    authStatus?: McpAuthStatus,
-): string {
+export function formatServer(name: string, config: MCPServerConfig, authStatus?: McpAuthStatus): string {
     const lines: string[] = []
     lines.push(`${name}`)
     if (authStatus) lines.push(`  auth_status: ${authStatus}`)

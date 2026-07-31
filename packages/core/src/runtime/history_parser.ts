@@ -175,10 +175,7 @@ function parseEventLine(line: string, index: number): SessionEventItem | null {
     return event
 }
 
-function accumulateTokenUsage(
-    target: TokenUsageSummary,
-    source: Record<string, unknown> | undefined,
-): void {
+function accumulateTokenUsage(target: TokenUsageSummary, source: Record<string, unknown> | undefined): void {
     if (!source) return
     const prompt = asNumber(source.prompt)
     const completion = asNumber(source.completion)
@@ -325,7 +322,7 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
             const turn = ensureTurn(state, event.turn)
             const step = ensureStep(turn, event.step ?? turn.steps.length)
             const names = collectActionToolNames(event.meta)
-            for (const name of names) {
+            for (const _name of names) {
                 state.toolUsage.total += 1
             }
 

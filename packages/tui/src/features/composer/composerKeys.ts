@@ -26,7 +26,7 @@ export function resolveDeleteKind(input: string, key: KeyLike): DeleteKind {
         return 'backspace'
     }
 
-    if (Boolean(key.delete)) {
+    if (key.delete) {
         return 'delete'
     }
 

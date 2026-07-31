@@ -217,10 +217,7 @@ export class McpCacheStore {
         this.persistTimer.unref?.()
     }
 
-    async getServerTools(
-        serverName: string,
-        serverConfig: MCPServerConfig,
-    ): Promise<CachedServerToolsSnapshot | null> {
+    async getServerTools(serverName: string, serverConfig: MCPServerConfig): Promise<CachedServerToolsSnapshot | null> {
         await this.ensureLoaded()
         const entry = this.data.toolsByServer[serverName]
         if (!entry) return null
@@ -258,11 +255,7 @@ export class McpCacheStore {
         this.schedulePersist()
     }
 
-    async withResponseCache<T>(
-        cacheKey: string,
-        ttlMs: number,
-        loadValue: () => Promise<T>,
-    ): Promise<T> {
+    async withResponseCache<T>(cacheKey: string, ttlMs: number, loadValue: () => Promise<T>): Promise<T> {
         await this.ensureLoaded()
 
         const existing = this.data.responses[cacheKey]

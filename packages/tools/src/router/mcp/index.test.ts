@@ -85,10 +85,7 @@ describe('mcp tool registry cache bootstrap', () => {
             .mockImplementation(
                 async () =>
                     new Promise((resolve) =>
-                        setTimeout(
-                            () => resolve(createConnection('alpha', 'fresh_tool') as any),
-                            0,
-                        ),
+                        setTimeout(() => resolve(createConnection('alpha', 'fresh_tool') as any), 0),
                     ),
             )
 

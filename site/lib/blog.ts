@@ -3,7 +3,6 @@ import { resolve } from 'node:path'
 import { cache } from 'react'
 import type { ReactNode } from 'react'
 import { renderMdx } from '@/lib/mdx'
-import type { Locale } from '@/lib/i18n/config'
 
 export type BlogPostSummary = {
     slug: string
@@ -35,9 +34,7 @@ function parseFrontmatter(markdown: string, slug: string) {
     const normalized = markdown.replace(/\r/g, '').trim()
     const match = normalized.match(FRONTMATTER_REGEX)
     if (!match) {
-        throw new Error(
-            `Missing frontmatter in blog post: ${slug}. Required fields: title, description, date, order.`,
-        )
+        throw new Error(`Missing frontmatter in blog post: ${slug}. Required fields: title, description, date, order.`)
     }
 
     const frontmatter = match[1]
@@ -65,9 +62,7 @@ function parseFrontmatter(markdown: string, slug: string) {
     const order = Number.parseInt(orderRaw ?? '', 10)
 
     if (!title || !description || !date || Number.isNaN(order)) {
-        throw new Error(
-            `Invalid frontmatter in ${slug}. Expected title, description, date(YYYY-MM-DD), order(number).`,
-        )
+        throw new Error(`Invalid frontmatter in ${slug}. Expected title, description, date(YYYY-MM-DD), order(number).`)
     }
 
     return {
@@ -130,9 +125,7 @@ const loadPostByFileName = cache(async (fileName: string, locale: string): Promi
 
 export const listBlogPosts = cache(async (locale: string = 'en'): Promise<BlogPostSummary[]> => {
     const fileNames = await listMarkdownFiles(locale)
-    const posts = await Promise.all(
-        fileNames.map((fileName) => loadPostByFileName(fileName, locale)),
-    )
+    const posts = await Promise.all(fileNames.map((fileName) => loadPostByFileName(fileName, locale)))
     return posts
         .sort((a, b) => b.order - a.order || b.publishedAt.localeCompare(a.publishedAt))
         .map(({ slug, title, summary, publishedAt, order }) => ({

@@ -48,11 +48,9 @@ async function ensureProviderConfig(mode: 'plain' | 'tui') {
     if (!loaded.needsSetup) return loaded
 
     const defaultProvider = loaded.config.providers[0]
-    const envCandidates = [
-        defaultProvider?.env_api_key,
-        'OPENAI_API_KEY',
-        'DEEPSEEK_API_KEY',
-    ].filter(Boolean) as string[]
+    const envCandidates = [defaultProvider?.env_api_key, 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY'].filter(
+        Boolean,
+    ) as string[]
 
     const hasEnvKey = envCandidates.some((key) => Boolean(process.env[key]))
 
@@ -76,10 +74,7 @@ async function ensureProviderConfig(mode: 'plain' | 'tui') {
         const name = await ask('Provider name [deepseek]: ', 'deepseek')
         const envKey = await ask('API key env var [DEEPSEEK_API_KEY]: ', 'DEEPSEEK_API_KEY')
         const model = await ask('Model name [deepseek-chat]: ', 'deepseek-chat')
-        const baseUrl = await ask(
-            'Base URL [https://api.deepseek.com]: ',
-            'https://api.deepseek.com',
-        )
+        const baseUrl = await ask('Base URL [https://api.deepseek.com]: ', 'https://api.deepseek.com')
 
         const config: MemoConfig = {
             current_provider: name,
@@ -130,13 +125,7 @@ export default function DefaultCommand({
     return <TuiMode opts={opts} />
 }
 
-function PlainMode({
-    opts,
-    question: initialQuestion,
-}: {
-    opts: zod.infer<typeof options>
-    question: string
-}) {
+function PlainMode({ opts, question: initialQuestion }: { opts: zod.infer<typeof options>; question: string }) {
     useEffect(() => {
         async function run() {
             let question = initialQuestion
@@ -161,9 +150,7 @@ function PlainMode({
                 dangerous: opts.dangerous,
             }
             const sessionsDir = getSessionsDir(loaded, sessionOptions)
-            const prevSession = opts.prev
-                ? await loadPreviousSession(sessionsDir, process.cwd())
-                : null
+            const prevSession = opts.prev ? await loadPreviousSession(sessionsDir, process.cwd()) : null
 
             if (opts.prev && !prevSession) {
                 console.error('No previous session found for current directory.')
@@ -178,17 +165,14 @@ function PlainMode({
                 requestApproval: opts.dangerous
                     ? undefined
                     : (request) => {
-                          console.log(
-                              `\n[approval required] ${request.toolName}: ${request.reason}`,
-                          )
+                          console.log(`\n[approval required] ${request.toolName}: ${request.reason}`)
                           console.log(`[approval] Run with --dangerous to bypass approval`)
                           return Promise.resolve('deny')
                       },
                 hooks: {
                     onAction: ({ action }) => {
                         console.log(`\n[tool] ${action.tool}`)
-                        if (action.input !== undefined)
-                            console.log(`[input] ${JSON.stringify(action.input)}`)
+                        if (action.input !== undefined) console.log(`[input] ${JSON.stringify(action.input)}`)
                     },
                     onObservation: () => {},
                 },
@@ -198,12 +182,7 @@ function PlainMode({
             if (prevSession) {
                 const sysMsg = session.history[0]
                 if (sysMsg && prevSession.messages.length) {
-                    session.history.splice(
-                        0,
-                        session.history.length,
-                        sysMsg,
-                        ...prevSession.messages,
-                    )
+                    session.history.splice(0, session.history.length, sysMsg, ...prevSession.messages)
                 }
                 console.log('[session] Continued from previous session context.')
             }
@@ -248,9 +227,7 @@ function TuiMode({ opts }: { opts: zod.infer<typeof options> }) {
                 dangerous: opts.dangerous,
             }
             const sessionsDir = getSessionsDir(loaded, sessionOptions)
-            const prevSession = opts.prev
-                ? await loadPreviousSession(sessionsDir, process.cwd())
-                : null
+            const prevSession = opts.prev ? await loadPreviousSession(sessionsDir, process.cwd()) : null
 
             if (opts.prev && !prevSession) {
                 setError('No previous session found for current directory.')

@@ -21,7 +21,7 @@ const SAFE_SHELL_ARG = /^[A-Za-z0-9_./:@%+-]+$/
 function shellQuote(part: string) {
     if (part.length === 0) return "''"
     if (SAFE_SHELL_ARG.test(part)) return part
-    return `'${part.replace(/'/g, `'\"'\"'`)}'`
+    return `'${part.replace(/'/g, `'"'"'`)}'`
 }
 
 function shellJoin(argv: string[]) {

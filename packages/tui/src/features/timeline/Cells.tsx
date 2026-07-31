@@ -1,12 +1,6 @@
 import { memo } from 'react'
 import { Box, Text } from 'ink'
-import {
-    TOOL_STATUS,
-    type SystemMessage,
-    type StepView,
-    type ToolStatus,
-    type TurnView,
-} from '../../shared/types'
+import { TOOL_STATUS, type SystemMessage, type StepView, type ToolStatus, type TurnView } from '../../shared/types'
 import { looksLikePathInput, safeStringify, toRelativeDisplayPath, truncate } from '../../shared/lib/utils'
 import { MarkdownRenderer } from './MarkdownRenderer'
 
@@ -69,13 +63,7 @@ const StepCell = memo(function StepCell({ step, cwd }: { step: StepView; cwd: st
                       const param = mainParam(action.input, cwd)
                       return (
                           <Box key={`${action.tool}-${index}`}>
-                              <Text
-                                  color={statusColor(
-                                      step.parallelToolStatuses?.[index] ?? step.toolStatus,
-                                  )}
-                              >
-                                  ●{' '}
-                              </Text>
+                              <Text color={statusColor(step.parallelToolStatuses?.[index] ?? step.toolStatus)}>● </Text>
                               <Text color="gray">Used </Text>
                               <Text color="cyan">{action.tool}</Text>
                               {param ? <Text color="gray"> ({param})</Text> : null}
@@ -114,9 +102,7 @@ export const TurnCell = memo(function TurnCell({ turn, cwd }: { turn: TurnView; 
                 </Box>
             ) : null}
 
-            {turn.status && turn.status !== 'ok' ? (
-                <Text color="red">Status: {turn.status}</Text>
-            ) : null}
+            {turn.status && turn.status !== 'ok' ? <Text color="red">Status: {turn.status}</Text> : null}
 
             {turn.errorMessage ? <Text color="red">{turn.errorMessage}</Text> : null}
         </Box>

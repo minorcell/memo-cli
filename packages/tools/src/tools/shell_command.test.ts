@@ -139,9 +139,7 @@ describe('shell_command tool', () => {
         })
 
         test('handles timeout errors', async () => {
-            vi.mocked(startExecSession).mockRejectedValue(
-                new Error('command timed out after 5000ms'),
-            )
+            vi.mocked(startExecSession).mockRejectedValue(new Error('command timed out after 5000ms'))
 
             const result = await shellCommandTool.execute({ command: 'sleep 10', timeout_ms: 1000 })
 

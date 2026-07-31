@@ -17,9 +17,7 @@ export const options = zod.object({
         ),
 })
 
-export const args = zod
-    .array(zod.string())
-    .describe(argument({ name: 'name', description: 'Server name' }))
+export const args = zod.array(zod.string()).describe(argument({ name: 'name', description: 'Server name' }))
 
 export default function McpLogin({
     options: opts,
@@ -67,9 +65,7 @@ export default function McpLogin({
                         console.log('Browser launch failed. Open the URL above manually.')
                     },
                 })
-                console.log(
-                    `OAuth login completed for "${name}" (credentials stored in ${result.backend}).`,
-                )
+                console.log(`OAuth login completed for "${name}" (credentials stored in ${result.backend}).`)
                 process.exit(0)
             } catch (error) {
                 console.error(getErrorMessage(error))

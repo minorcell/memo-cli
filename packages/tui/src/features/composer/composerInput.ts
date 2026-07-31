@@ -263,11 +263,7 @@ export function getCursorLayout(value: string, cursor: number): CursorLayout {
     return { lines, row: lastRow, column: lastColumn }
 }
 
-export function getWrappedCursorLayout(
-    value: string,
-    cursor: number,
-    columns: number,
-): WrappedCursorLayout {
+export function getWrappedCursorLayout(value: string, cursor: number, columns: number): WrappedCursorLayout {
     const safeCursor = clampCursorToBoundary(value, cursor)
     const wrapColumns = Number.isFinite(columns) ? Math.max(1, Math.floor(columns)) : 1
 

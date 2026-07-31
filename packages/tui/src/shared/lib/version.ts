@@ -121,10 +121,7 @@ export function findLocalPackageInfoSync(): PackageInfo | null {
     return null
 }
 
-export async function fetchLatestVersion(
-    packageName: string,
-    timeoutMs = 1500,
-): Promise<string | null> {
+export async function fetchLatestVersion(packageName: string, timeoutMs = 1500): Promise<string | null> {
     const encoded = encodeURIComponent(packageName)
     const url = `https://registry.npmjs.org/${encoded}/latest`
 

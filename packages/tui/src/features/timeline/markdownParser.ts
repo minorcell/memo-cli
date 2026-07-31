@@ -36,8 +36,7 @@ function extractTextFromInlineTokens(tokens: unknown[]): string {
                 return item.items
                     .map((child) => {
                         if (typeof child.text === 'string') return child.text
-                        if (Array.isArray(child.tokens))
-                            return extractTextFromInlineTokens(child.tokens)
+                        if (Array.isArray(child.tokens)) return extractTextFromInlineTokens(child.tokens)
                         return ''
                     })
                     .filter(Boolean)
@@ -63,17 +62,11 @@ function parseInlineNodeToken(token: string): InlineNode {
         return { type: 'inlineCode', content: token.slice(1, -1) }
     }
 
-    if (
-        (token.startsWith('**') && token.endsWith('**')) ||
-        (token.startsWith('__') && token.endsWith('__'))
-    ) {
+    if ((token.startsWith('**') && token.endsWith('**')) || (token.startsWith('__') && token.endsWith('__'))) {
         return { type: 'bold', content: token.slice(2, -2) }
     }
 
-    if (
-        (token.startsWith('*') && token.endsWith('*')) ||
-        (token.startsWith('_') && token.endsWith('_'))
-    ) {
+    if ((token.startsWith('*') && token.endsWith('*')) || (token.startsWith('_') && token.endsWith('_'))) {
         return { type: 'italic', content: token.slice(1, -1) }
     }
 
@@ -199,9 +192,7 @@ export function parseMarkdownContent(markdown: string): MarkdownBlock[] {
             case 'list': {
                 const items = Array.isArray(token.items)
                     ? token.items
-                          .map((item: { text?: string; tokens?: unknown[] }) =>
-                              parseListItemText(item),
-                          )
+                          .map((item: { text?: string; tokens?: unknown[] }) => parseListItemText(item))
                           .filter((line: string) => line.trim().length > 0)
                     : []
                 if (items.length > 0) {

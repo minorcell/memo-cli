@@ -8,11 +8,7 @@ describe('buildThinking', () => {
     })
 
     test('aggregates multiple think blocks', () => {
-        const thinking = buildThinking([
-            '<think>first</think>',
-            'ignored',
-            '<thinking>second</thinking>',
-        ])
+        const thinking = buildThinking(['<think>first</think>', 'ignored', '<thinking>second</thinking>'])
         expect(thinking).toBe('first\n\nsecond')
     })
 

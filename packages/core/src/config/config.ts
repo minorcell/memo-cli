@@ -86,13 +86,7 @@ const DEFAULT_CONFIG: MemoConfig = {
 }
 
 function normalizeAutoCompactThresholdPercent(value: unknown): number {
-    if (
-        typeof value === 'number' &&
-        Number.isInteger(value) &&
-        Number.isFinite(value) &&
-        value >= 1 &&
-        value <= 100
-    ) {
+    if (typeof value === 'number' && Number.isInteger(value) && Number.isFinite(value) && value >= 1 && value <= 100) {
         return value
     }
     return DEFAULT_AUTO_COMPACT_THRESHOLD_PERCENT
@@ -233,9 +227,7 @@ function serializeConfig(config: MemoConfig) {
                   const tableKey = formatTomlKey(key)
                   lines.push(`[model_profiles.${tableKey}]`)
                   if (typeof value.supports_parallel_tool_calls === 'boolean') {
-                      lines.push(
-                          `supports_parallel_tool_calls = ${value.supports_parallel_tool_calls}`,
-                      )
+                      lines.push(`supports_parallel_tool_calls = ${value.supports_parallel_tool_calls}`)
                   }
                   if (typeof value.supports_reasoning_content === 'boolean') {
                       lines.push(`supports_reasoning_content = ${value.supports_reasoning_content}`)
@@ -262,9 +254,7 @@ function serializeConfig(config: MemoConfig) {
                     lines.push(`type = "${conf.type ?? 'streamable_http'}"`)
                     lines.push(`url = "${conf.url}"`)
                     if (conf.bearer_token_env_var) {
-                        lines.push(
-                            `bearer_token_env_var = ${JSON.stringify(conf.bearer_token_env_var)}`,
-                        )
+                        lines.push(`bearer_token_env_var = ${JSON.stringify(conf.bearer_token_env_var)}`)
                     }
                     const headers = conf.http_headers ?? conf.headers
                     if (headers && Object.keys(headers).length > 0) {
@@ -359,9 +349,7 @@ export async function loadMemoConfig(): Promise<LoadedConfig> {
             parsed.mcp_oauth_callback_port <= 65535
                 ? parsed.mcp_oauth_callback_port
                 : undefined
-        const autoCompactThresholdPercent = normalizeAutoCompactThresholdPercent(
-            parsed.auto_compact_threshold_percent,
-        )
+        const autoCompactThresholdPercent = normalizeAutoCompactThresholdPercent(parsed.auto_compact_threshold_percent)
         const modelProfiles = normalizeModelProfiles(parsed.model_profiles)
         const merged: MemoConfig = {
             current_provider: parsed.current_provider ?? DEFAULT_CONFIG.current_provider,
@@ -407,9 +395,7 @@ export function getSessionsDir(loaded: LoadedConfig, options: AgentSessionOption
         return join(absoluteBase, '-root')
     }
 
-    const encodedProjectPath = `-${segments
-        .map((segment) => segment.replace(/[^A-Za-z0-9._-]/g, '_'))
-        .join('-')}`
+    const encodedProjectPath = `-${segments.map((segment) => segment.replace(/[^A-Za-z0-9._-]/g, '_')).join('-')}`
 
     return join(absoluteBase, encodedProjectPath)
 }

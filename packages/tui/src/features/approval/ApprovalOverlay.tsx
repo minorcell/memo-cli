@@ -30,10 +30,7 @@ function shortParam(params: unknown): string {
     return `${key}=${raw?.slice(0, 60) ?? ''}${raw && raw.length > 60 ? '...' : ''}`
 }
 
-export const ApprovalOverlay = memo(function ApprovalOverlay({
-    request,
-    onDecision,
-}: ApprovalOverlayProps) {
+export const ApprovalOverlay = memo(function ApprovalOverlay({ request, onDecision }: ApprovalOverlayProps) {
     useInput((input, key) => {
         if (key.escape || (key.ctrl && input === 'c')) {
             onDecision('deny')

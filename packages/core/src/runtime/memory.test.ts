@@ -75,15 +75,8 @@ describe('runtime prompt injection', () => {
         try {
             const systemPrompt = session.history[0]?.content ?? ''
             assert.ok(systemPrompt.includes(process.cwd()), 'system prompt should include pwd')
-            assert.ok(
-                systemPrompt.includes(userInfo().username),
-                'system prompt should include username',
-            )
-            assert.match(
-                systemPrompt,
-                /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:/,
-                'system prompt should include ISO date',
-            )
+            assert.ok(systemPrompt.includes(userInfo().username), 'system prompt should include username')
+            assert.match(systemPrompt, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:/, 'system prompt should include ISO date')
             assert.ok(!systemPrompt.includes('{{date}}'), 'template variables should be rendered')
         } finally {
             await session.close()

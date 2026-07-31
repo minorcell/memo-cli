@@ -7,11 +7,7 @@ type FooterProps = {
     contextPercent: number
 }
 
-export const Footer = memo(function Footer({
-    busy,
-    pendingApproval = false,
-    contextPercent,
-}: FooterProps) {
+export const Footer = memo(function Footer({ busy, pendingApproval = false, contextPercent }: FooterProps) {
     const context = `${contextPercent.toFixed(1)}%`
     const helpText = pendingApproval
         ? 'Approval pending • Enter confirm • Esc deny'
@@ -19,13 +15,7 @@ export const Footer = memo(function Footer({
 
     return (
         <Box justifyContent="space-between">
-            <Box>
-                {busy ? (
-                    <Text color="yellow">Working...</Text>
-                ) : (
-                    <Text color="gray">{helpText}</Text>
-                )}
-            </Box>
+            <Box>{busy ? <Text color="yellow">Working...</Text> : <Text color="gray">{helpText}</Text>}</Box>
             <Text color="gray">context: {context}</Text>
         </Box>
     )

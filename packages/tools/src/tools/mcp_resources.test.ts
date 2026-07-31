@@ -103,20 +103,16 @@ describe('mcp resource tools', () => {
 
     test('deduplicates in-flight list requests with same cache key', async () => {
         let callCount = 0
-        let resolveList:
-            | ((value: { resources: Array<{ uri: string; name: string }> }) => void)
-            | null = null
+        let resolveList: ((value: { resources: Array<{ uri: string; name: string }> }) => void) | null = null
 
         const connection = {
             name: 'alpha',
             client: {
                 listResources: async () => {
                     callCount += 1
-                    return await new Promise<{ resources: Array<{ uri: string; name: string }> }>(
-                        (resolve) => {
-                            resolveList = resolve
-                        },
-                    )
+                    return await new Promise<{ resources: Array<{ uri: string; name: string }> }>((resolve) => {
+                        resolveList = resolve
+                    })
                 },
             },
         }
@@ -330,9 +326,7 @@ describe('mcp resource tools', () => {
                 responses?: Record<string, unknown>
             }
             assert.ok(parsed.responses)
-            assert.ok(
-                Object.keys(parsed.responses ?? {}).some((k) => k.startsWith('list_resources:')),
-            )
+            assert.ok(Object.keys(parsed.responses ?? {}).some((k) => k.startsWith('list_resources:')))
 
             __resetMcpResourceCacheForTests()
             await listMcpResourcesTool.execute({ server: 'alpha' })

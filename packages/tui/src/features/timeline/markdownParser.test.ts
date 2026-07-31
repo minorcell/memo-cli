@@ -14,21 +14,10 @@ describe('markdown parser', () => {
     })
 
     test('parses inline styles and link segments', () => {
-        const nodes = parseInlineNodes(
-            'plain **bold** *italic* `code` [memo](https://memo.example)',
-        )
+        const nodes = parseInlineNodes('plain **bold** *italic* `code` [memo](https://memo.example)')
         const kinds = nodes.map((node) => node.type)
 
-        assert.deepStrictEqual(kinds, [
-            'text',
-            'bold',
-            'text',
-            'italic',
-            'text',
-            'inlineCode',
-            'text',
-            'link',
-        ])
+        assert.deepStrictEqual(kinds, ['text', 'bold', 'text', 'italic', 'text', 'inlineCode', 'text', 'link'])
         const link = nodes.find((node) => node.type === 'link')
         assert.ok(link)
         if (link?.type === 'link') {

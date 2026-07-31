@@ -13,9 +13,7 @@ export class JsonlHistorySink implements HistorySink {
 
     private ensureDirectory() {
         if (!this.ensureDirPromise) {
-            this.ensureDirPromise = mkdir(dirname(this.filePath), { recursive: true }).then(
-                () => {},
-            )
+            this.ensureDirPromise = mkdir(dirname(this.filePath), { recursive: true }).then(() => {})
         }
         return this.ensureDirPromise
     }

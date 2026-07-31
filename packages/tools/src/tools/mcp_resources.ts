@@ -1,10 +1,7 @@
 import { z } from 'zod'
 import { defineMcpTool } from '@memo/tools/tools/types'
 import { textResult } from '@memo/tools/tools/mcp'
-import {
-    getGlobalMcpCacheStore,
-    resetGlobalMcpCacheStoreForTests,
-} from '@memo/tools/router/mcp/cache_store'
+import { getGlobalMcpCacheStore, resetGlobalMcpCacheStoreForTests } from '@memo/tools/router/mcp/cache_store'
 import { getActiveMcpCacheStore, getActiveMcpPool } from '@memo/tools/router/mcp/context'
 
 const LIST_MCP_RESOURCES_INPUT_SCHEMA = z
@@ -131,8 +128,7 @@ export function __resetMcpResourceCacheForTests() {
 
 export const listMcpResourcesTool = defineMcpTool<ListResourcesInput>({
     name: 'list_mcp_resources',
-    description:
-        'Lists resources provided by MCP servers. Prefer resources over web search when possible.',
+    description: 'Lists resources provided by MCP servers. Prefer resources over web search when possible.',
     inputSchema: LIST_MCP_RESOURCES_INPUT_SCHEMA,
     supportsParallelToolCalls: true,
     isMutating: false,
@@ -156,9 +152,7 @@ export const listMcpResourcesTool = defineMcpTool<ListResourcesInput>({
                     listResourcesCacheKey(connection.name, cursor),
                     LIST_CACHE_TTL_MS,
                     async () => {
-                        const result = await connection.client.listResources(
-                            cursor ? { cursor } : undefined,
-                        )
+                        const result = await connection.client.listResources(cursor ? { cursor } : undefined)
                         return {
                             server: connection.name,
                             resources: result.resources,
@@ -251,9 +245,7 @@ export const listMcpResourceTemplatesTool = defineMcpTool<ListResourceTemplatesI
                     listResourceTemplatesCacheKey(connection.name, cursor),
                     LIST_CACHE_TTL_MS,
                     async () => {
-                        const result = await connection.client.listResourceTemplates(
-                            cursor ? { cursor } : undefined,
-                        )
+                        const result = await connection.client.listResourceTemplates(cursor ? { cursor } : undefined)
                         return {
                             server: connection.name,
                             resourceTemplates: result.resourceTemplates,
@@ -321,8 +313,7 @@ export const listMcpResourceTemplatesTool = defineMcpTool<ListResourceTemplatesI
 
 export const readMcpResourceTool = defineMcpTool<ReadResourceInput>({
     name: 'read_mcp_resource',
-    description:
-        'Read a specific resource from an MCP server given the server name and resource URI.',
+    description: 'Read a specific resource from an MCP server given the server name and resource URI.',
     inputSchema: READ_MCP_RESOURCE_INPUT_SCHEMA,
     supportsParallelToolCalls: true,
     isMutating: false,

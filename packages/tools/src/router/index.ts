@@ -7,19 +7,12 @@
  * 4. 生成工具描述（用于 Prompt）
  */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types'
-import type { Tool, ToolRegistry, MCPServerConfig, ToolDescription, JSONSchema } from './types'
+import type { Tool, ToolRegistry, MCPServerConfig, ToolDescription } from './types'
 import { NativeToolRegistry } from './native'
 import { McpToolRegistry } from './mcp'
 import type { McpOAuthSettings } from './mcp/oauth'
 
-export type {
-    Tool,
-    ToolRegistry,
-    MCPServerConfig,
-    ToolDescription,
-    NativeTool,
-    McpTool,
-} from './types'
+export type { Tool, ToolRegistry, MCPServerConfig, ToolDescription, NativeTool, McpTool } from './types'
 export { NativeToolRegistry, McpToolRegistry }
 export type { McpOAuthSettings } from './mcp/oauth'
 
@@ -206,8 +199,7 @@ export class ToolRouter {
             name: tool.name,
             description: tool.description,
             source: tool.source,
-            serverName:
-                tool.source === 'mcp' ? (tool as import('./types').McpTool).serverName : undefined,
+            serverName: tool.source === 'mcp' ? (tool as import('./types').McpTool).serverName : undefined,
             inputSchema: tool.inputSchema,
         }))
     }

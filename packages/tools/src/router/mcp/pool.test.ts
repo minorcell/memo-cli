@@ -118,9 +118,7 @@ describe('mcp client pool', () => {
         createRuntimeMcpOAuthProviderMock.mockResolvedValue(authProvider)
         connectMock.mockResolvedValue(undefined)
         listToolsMock.mockResolvedValue({
-            tools: [
-                { name: 'search', description: 'Search docs', inputSchema: { type: 'object' } },
-            ],
+            tools: [{ name: 'search', description: 'Search docs', inputSchema: { type: 'object' } }],
         })
         process.env.MCP_TOKEN = 'token-123'
 
@@ -184,9 +182,7 @@ describe('mcp client pool', () => {
 
         const pool = new McpClientPool()
 
-        await expect(pool.connect('remote', httpConfig())).rejects.toThrow(
-            'Run "memo mcp login remote".',
-        )
+        await expect(pool.connect('remote', httpConfig())).rejects.toThrow('Run "memo mcp login remote".')
     })
 
     test('includes login hint for 403 streamable HTTP failures', async () => {
@@ -195,9 +191,7 @@ describe('mcp client pool', () => {
 
         const pool = new McpClientPool()
 
-        await expect(pool.connect('remote', httpConfig())).rejects.toThrow(
-            'Run "memo mcp login remote".',
-        )
+        await expect(pool.connect('remote', httpConfig())).rejects.toThrow('Run "memo mcp login remote".')
     })
 
     test('does not include login hint for non-auth failures', async () => {

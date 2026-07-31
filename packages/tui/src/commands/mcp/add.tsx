@@ -24,9 +24,7 @@ export const options = zod.object({
         ),
 })
 
-export const args = zod
-    .array(zod.string())
-    .describe(argument({ name: 'name', description: 'Server name' }))
+export const args = zod.array(zod.string()).describe(argument({ name: 'name', description: 'Server name' }))
 
 export default function McpAdd({
     options: opts,
@@ -71,7 +69,7 @@ export default function McpAdd({
             }
 
             const loaded = await loadMemoConfig()
-            const servers = { ...(loaded.config.mcp_servers ?? {}) }
+            const servers = { ...loaded.config.mcp_servers }
             if (servers[name]) {
                 console.error(`MCP server "${name}" already exists.`)
                 process.exit(1)
@@ -82,9 +80,7 @@ export default function McpAdd({
                 entry = {
                     type: 'streamable_http',
                     url: opts.url,
-                    ...(opts.bearerTokenEnvVar
-                        ? { bearer_token_env_var: opts.bearerTokenEnvVar }
-                        : {}),
+                    ...(opts.bearerTokenEnvVar ? { bearer_token_env_var: opts.bearerTokenEnvVar } : {}),
                 }
             } else {
                 const envMap: Record<string, string> = {}

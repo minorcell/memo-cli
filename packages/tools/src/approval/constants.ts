@@ -55,14 +55,7 @@ export const RISK_LEVEL_ORDER: Record<RiskLevel, number> = {
 
 /** Heuristic keywords for unknown tool names. */
 export const EXECUTE_RISK_KEYWORDS = ['exec', 'run', 'shell', 'command', 'stdin'] as const
-export const WRITE_RISK_KEYWORDS = [
-    'write',
-    'patch',
-    'create',
-    'delete',
-    'modify',
-    'update',
-] as const
+export const WRITE_RISK_KEYWORDS = ['write', 'patch', 'create', 'delete', 'modify', 'update'] as const
 export const READ_RISK_KEYWORDS = ['read', 'get', 'fetch', 'search', 'list', 'find'] as const
 
 /** Risk levels that still require approval in auto mode. */

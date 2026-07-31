@@ -245,10 +245,6 @@ describe('filesystem tools', () => {
 
         const result = await readTextFileTool.execute({ path: linkedPath })
         assert.strictEqual(result.isError, true)
-        assert.ok(
-            textPayload(result).includes(
-                'Access denied - symlink target outside allowed directories',
-            ),
-        )
+        assert.ok(textPayload(result).includes('Access denied - symlink target outside allowed directories'))
     })
 })

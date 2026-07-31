@@ -1,11 +1,7 @@
 import { spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { resolve } from 'node:path'
-import {
-    guardDangerousCommand,
-    splitStdinLines,
-    trimPendingStdinBuffer,
-} from '@memo/tools/tools/command_guard'
+import { guardDangerousCommand, splitStdinLines, trimPendingStdinBuffer } from '@memo/tools/tools/command_guard'
 import { getRuntimeCwd } from '@memo/tools/runtime/context'
 
 const DEFAULT_EXEC_YIELD_TIME_MS = 10_000
@@ -256,9 +252,7 @@ class UnifiedExecManager {
         })
 
         const runtimeCwd = getRuntimeCwd()
-        const cwd = request.workdir?.trim()
-            ? resolve(runtimeCwd, request.workdir.trim())
-            : runtimeCwd
+        const cwd = request.workdir?.trim() ? resolve(runtimeCwd, request.workdir.trim()) : runtimeCwd
 
         const proc = spawn(shellInvocation.file, shellInvocation.args, {
             cwd,
@@ -305,10 +299,7 @@ class UnifiedExecManager {
                 ? Math.floor(request.execution_timeout_ms)
                 : null
         const yieldMs = clampYield(request.yield_time_ms, DEFAULT_EXEC_YIELD_TIME_MS)
-        const waitMs =
-            executionTimeoutMs !== null
-                ? Math.min(yieldMs, Math.max(0, executionTimeoutMs))
-                : yieldMs
+        const waitMs = executionTimeoutMs !== null ? Math.min(yieldMs, Math.max(0, executionTimeoutMs)) : yieldMs
         await waitForWindow(session, waitMs)
 
         if (executionTimeoutMs !== null && !session.exited) {
@@ -330,9 +321,7 @@ class UnifiedExecManager {
         }
 
         if (!session.exited && request.chars && request.chars.length > 0) {
-            const combinedInput = trimPendingStdinBuffer(
-                `${session.pendingStdinInput}${request.chars}`,
-            )
+            const combinedInput = trimPendingStdinBuffer(`${session.pendingStdinInput}${request.chars}`)
             const { completedLines, remainder } = splitStdinLines(combinedInput)
             for (const line of completedLines) {
                 if (!line.trim()) continue

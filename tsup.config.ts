@@ -2,14 +2,7 @@ import { defineConfig } from 'tsup'
 import { copyFileSync, cpSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-const WEBFETCH_EXTERNALS = [
-    '@mozilla/readability',
-    'ipaddr.js',
-    'jsdom',
-    'robots-parser',
-    'turndown',
-    'undici',
-]
+const WEBFETCH_EXTERNALS = ['@mozilla/readability', 'ipaddr.js', 'jsdom', 'robots-parser', 'turndown', 'undici']
 
 export default defineConfig({
     entry: {

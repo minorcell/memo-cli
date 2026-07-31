@@ -205,9 +205,7 @@ describe('exec_command tool', () => {
         })
 
         test('handles command not found errors', async () => {
-            vi.mocked(startExecSession).mockRejectedValue(
-                new Error('ENOENT: no such file or directory'),
-            )
+            vi.mocked(startExecSession).mockRejectedValue(new Error('ENOENT: no such file or directory'))
 
             const result = await execCommandTool.execute({ cmd: 'definitely-not-a-command' })
 
@@ -225,9 +223,7 @@ describe('exec_command tool', () => {
         })
 
         test('handles timeout errors', async () => {
-            vi.mocked(startExecSession).mockRejectedValue(
-                new Error('command timed out after 30000ms'),
-            )
+            vi.mocked(startExecSession).mockRejectedValue(new Error('command timed out after 30000ms'))
 
             const result = await execCommandTool.execute({ cmd: 'sleep 60', timeout_ms: 1000 })
 

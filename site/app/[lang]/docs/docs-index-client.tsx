@@ -50,16 +50,9 @@ export function DocsIndexClient({ pages, lang, messages }: DocsIndexClientProps)
 
     return (
         <main className="docs-container min-h-screen">
-            <DocsShell
-                pages={pages}
-                title={t('docs.title')}
-                description={t('docs.description')}
-                lang={lang}
-            >
+            <DocsShell pages={pages} title={t('docs.title')} description={t('docs.description')} lang={lang}>
                 <section className="mb-10">
-                    <h2 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">
-                        {t('docs.quickStart')}
-                    </h2>
+                    <h2 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">{t('docs.quickStart')}</h2>
                     <div className="grid gap-3 md:grid-cols-3">
                         {quickStartGuides.map((guide) => (
                             <Link
@@ -68,23 +61,17 @@ export function DocsIndexClient({ pages, lang, messages }: DocsIndexClientProps)
                                 className="group rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] px-4 py-3 transition-colors hover:bg-[var(--bg-elevated)]"
                             >
                                 <div className="flex items-center justify-between">
-                                    <p className="text-sm font-medium text-[var(--text-primary)]">
-                                        {guide.title}
-                                    </p>
+                                    <p className="text-sm font-medium text-[var(--text-primary)]">{guide.title}</p>
                                     <ArrowRight className="h-4 w-4 text-[var(--text-tertiary)] transition-transform group-hover:translate-x-0.5" />
                                 </div>
-                                <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                                    {guide.description}
-                                </p>
+                                <p className="mt-1 text-sm text-[var(--text-secondary)]">{guide.description}</p>
                             </Link>
                         ))}
                     </div>
                 </section>
 
                 <section className="mb-10">
-                    <h2 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">
-                        {t('docs.allGuides')}
-                    </h2>
+                    <h2 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">{t('docs.allGuides')}</h2>
                     <div className="grid gap-4 md:grid-cols-2">
                         {grouped.map((group) => (
                             <div
@@ -116,17 +103,10 @@ export function DocsIndexClient({ pages, lang, messages }: DocsIndexClientProps)
                 </section>
 
                 <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] p-5">
-                    <h3 className="text-base font-semibold text-[var(--text-primary)]">
-                        {t('docs.needHelp.title')}
-                    </h3>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                        {t('docs.needHelp.description')}
-                    </p>
+                    <h3 className="text-base font-semibold text-[var(--text-primary)]">{t('docs.needHelp.title')}</h3>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">{t('docs.needHelp.description')}</p>
                     <div className="mt-4 flex flex-wrap gap-3">
-                        <Link
-                            href={`${docsHref}/troubleshooting`}
-                            className="btn-secondary text-sm"
-                        >
+                        <Link href={`${docsHref}/troubleshooting`} className="btn-secondary text-sm">
                             {t('docs.needHelp.troubleshooting')}
                         </Link>
                         <a

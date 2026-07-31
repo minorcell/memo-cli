@@ -169,20 +169,13 @@ async function loadKeytar(): Promise<KeytarLike | null> {
     return cachedKeytarPromise
 }
 
-async function readFromFileStore(
-    url: string,
-    settings?: McpOAuthSettings,
-): Promise<McpOAuthCredential | undefined> {
+async function readFromFileStore(url: string, settings?: McpOAuthSettings): Promise<McpOAuthCredential | undefined> {
     const key = computeCredentialKey(url)
     const file = await readOAuthFile(settings)
     return file.credentials[key]?.credential
 }
 
-async function writeToFileStore(
-    url: string,
-    credential: McpOAuthCredential,
-    settings?: McpOAuthSettings,
-) {
+async function writeToFileStore(url: string, credential: McpOAuthCredential, settings?: McpOAuthSettings) {
     const key = computeCredentialKey(url)
     const file = await readOAuthFile(settings)
     file.credentials[key] = {
@@ -204,10 +197,7 @@ async function deleteFromFileStore(url: string, settings?: McpOAuthSettings): Pr
     return true
 }
 
-async function readFromKeyring(
-    keytar: KeytarLike,
-    url: string,
-): Promise<McpOAuthCredential | undefined> {
+async function readFromKeyring(keytar: KeytarLike, url: string): Promise<McpOAuthCredential | undefined> {
     const key = computeCredentialKey(url)
     const raw = await keytar.getPassword(KEYRING_SERVICE, key)
     if (!raw) return undefined
@@ -234,10 +224,8 @@ function shouldUseHeadersForRequest(serverUrl: string, requestUrl: URL): boolean
     return new URL(serverUrl).origin === requestUrl.origin
 }
 
-function resolveServerHeaders(
-    config: Extract<MCPServerConfig, { url: string }>,
-): Record<string, string> {
-    return { ...(config.http_headers ?? config.headers ?? {}) }
+function resolveServerHeaders(config: Extract<MCPServerConfig, { url: string }>): Record<string, string> {
+    return { ...(config.http_headers ?? config.headers) }
 }
 
 function resolveDiscoveryPaths(basePath: string): string[] {
@@ -272,9 +260,7 @@ function normalizeScopes(scopes: string[] | undefined): string | undefined {
 function parseCallbackPort(value: number | undefined): number | undefined {
     if (value === undefined) return undefined
     if (!Number.isInteger(value) || value <= 0 || value > 65535) {
-        throw new Error(
-            `Invalid MCP OAuth callback port "${value}". Use an integer between 1 and 65535.`,
-        )
+        throw new Error(`Invalid MCP OAuth callback port "${value}". Use an integer between 1 and 65535.`)
     }
     return value
 }
@@ -320,15 +306,10 @@ export async function openExternalUrl(url: string): Promise<void> {
     })
 }
 
-function createServerBoundFetch(
-    serverUrl: string,
-    defaultHeaders: Record<string, string>,
-): FetchLike {
+function createServerBoundFetch(serverUrl: string, defaultHeaders: Record<string, string>): FetchLike {
     return async (input, init) => {
         const requestUrl =
-            typeof input === 'string' || input instanceof URL
-                ? new URL(String(input), serverUrl)
-                : new URL(input.url)
+            typeof input === 'string' || input instanceof URL ? new URL(String(input), serverUrl) : new URL(input.url)
         const headers = new Headers(init?.headers ?? {})
         if (shouldUseHeadersForRequest(serverUrl, requestUrl)) {
             for (const [key, value] of Object.entries(defaultHeaders)) {
@@ -348,10 +329,7 @@ function createServerBoundFetch(
     }
 }
 
-async function supportsOAuthLoginWithHeaders(
-    url: string,
-    defaultHeaders: Record<string, string>,
-): Promise<boolean> {
+async function supportsOAuthLoginWithHeaders(url: string, defaultHeaders: Record<string, string>): Promise<boolean> {
     const baseUrl = new URL(url)
     const fetchFn = createServerBoundFetch(url, defaultHeaders)
     const paths = resolveDiscoveryPaths(baseUrl.pathname)
@@ -373,10 +351,7 @@ async function supportsOAuthLoginWithHeaders(
                 authorization_endpoint?: unknown
                 token_endpoint?: unknown
             }
-            if (
-                typeof parsed.authorization_endpoint === 'string' &&
-                typeof parsed.token_endpoint === 'string'
-            ) {
+            if (typeof parsed.authorization_endpoint === 'string' && typeof parsed.token_endpoint === 'string') {
                 return true
             }
         } catch {
@@ -502,9 +477,7 @@ export async function getMcpOAuthCredential(
     const keytar = await loadKeytar()
     if (mode === 'keyring') {
         if (!keytar) {
-            throw new Error(
-                'Keyring storage is not available. Set mcp_oauth_credentials_store_mode = "file".',
-            )
+            throw new Error('Keyring storage is not available. Set mcp_oauth_credentials_store_mode = "file".')
         }
         return {
             backend: 'keyring',
@@ -551,9 +524,7 @@ export async function setMcpOAuthCredential(
     const keytar = await loadKeytar()
     if (mode === 'keyring') {
         if (!keytar) {
-            throw new Error(
-                'Keyring storage is not available. Set mcp_oauth_credentials_store_mode = "file".',
-            )
+            throw new Error('Keyring storage is not available. Set mcp_oauth_credentials_store_mode = "file".')
         }
         await writeToKeyring(keytar, url, credential)
         return { backend: 'keyring' }
@@ -587,9 +558,7 @@ export async function deleteMcpOAuthCredential(
     const keytar = await loadKeytar()
     if (mode === 'keyring') {
         if (!keytar) {
-            throw new Error(
-                'Keyring storage is not available. Set mcp_oauth_credentials_store_mode = "file".',
-            )
+            throw new Error('Keyring storage is not available. Set mcp_oauth_credentials_store_mode = "file".')
         }
         const removed = await deleteFromKeyring(keytar, url)
         return { backend: 'keyring', removed }
@@ -610,10 +579,7 @@ export async function deleteMcpOAuthCredential(
     }
 }
 
-export async function getMcpAuthStatus(
-    config: MCPServerConfig,
-    settings?: McpOAuthSettings,
-): Promise<McpAuthStatus> {
+export async function getMcpAuthStatus(config: MCPServerConfig, settings?: McpOAuthSettings): Promise<McpAuthStatus> {
     if (!('url' in config)) {
         return 'unsupported'
     }
@@ -626,17 +592,11 @@ export async function getMcpAuthStatus(
         return 'oauth'
     }
 
-    const supportsOAuth = await supportsOAuthLoginWithHeaders(
-        config.url,
-        resolveServerHeaders(config),
-    )
+    const supportsOAuth = await supportsOAuthLoginWithHeaders(config.url, resolveServerHeaders(config))
     return supportsOAuth ? 'not_logged_in' : 'unsupported'
 }
 
-async function createCallbackServer(
-    callbackPort: number | undefined,
-    timeoutMs: number,
-): Promise<LoginCallbackHandle> {
+async function createCallbackServer(callbackPort: number | undefined, timeoutMs: number): Promise<LoginCallbackHandle> {
     const port = parseCallbackPort(callbackPort)
     const host = '127.0.0.1'
     let closed = false
@@ -663,9 +623,7 @@ async function createCallbackServer(
 
         if (code) {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-            res.end(
-                '<html><body><h1>Authentication complete.</h1><p>You can close this window.</p></body></html>',
-            )
+            res.end('<html><body><h1>Authentication complete.</h1><p>You can close this window.</p></body></html>')
             resolveCode?.(code)
             return
         }
@@ -760,10 +718,7 @@ export async function loginMcpServerOAuth(options: {
             try {
                 await openExternalUrl(url)
             } catch (error) {
-                options.onBrowserOpenFailure?.(
-                    new Error(getErrorMessage(error)),
-                    authorizationUrl.toString(),
-                )
+                options.onBrowserOpenFailure?.(new Error(getErrorMessage(error)), authorizationUrl.toString())
             }
         },
     )
@@ -822,8 +777,7 @@ export async function createRuntimeMcpOAuthProvider(options: {
         return null
     }
 
-    const callbackPort =
-        parseCallbackPort(options.settings?.callbackPort) ?? RUNTIME_CALLBACK_FALLBACK_PORT
+    const callbackPort = parseCallbackPort(options.settings?.callbackPort) ?? RUNTIME_CALLBACK_FALLBACK_PORT
     const redirectUrl = `http://127.0.0.1:${callbackPort}/callback`
 
     return new MemoOAuthClientProvider(

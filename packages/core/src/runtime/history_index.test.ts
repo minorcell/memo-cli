@@ -88,11 +88,7 @@ describe('HistoryIndex', () => {
         )
         await writeFile(
             join(sessionsDir, 'fallback-id.jsonl'),
-            logFor(
-                'fallback-id',
-                '/tmp/ws-a/123e4567-e89b-12d3-a456-426614174000',
-                '2026-02-15T10:00:00.000Z',
-            ),
+            logFor('fallback-id', '/tmp/ws-a/123e4567-e89b-12d3-a456-426614174000', '2026-02-15T10:00:00.000Z'),
             'utf8',
         )
 
@@ -133,11 +129,7 @@ describe('HistoryIndex', () => {
 
         const validPath = join(sessionsDir, 'valid.jsonl')
         const badPath = join(sessionsDir, 'bad.jsonl')
-        await writeFile(
-            validPath,
-            logFor('ok', '/tmp/ws-ok/project-ok', '2026-02-15T10:00:00.000Z'),
-            'utf8',
-        )
+        await writeFile(validPath, logFor('ok', '/tmp/ws-ok/project-ok', '2026-02-15T10:00:00.000Z'), 'utf8')
         await writeFile(badPath, '{"invalid":', 'utf8')
 
         const index = new HistoryIndex({ sessionsDir })

@@ -54,17 +54,13 @@ export async function loadSessionHistoryEntries(options: {
     const index = getHistoryIndex(options.sessionsDir)
     const summaries = await index.getAllSummaries()
     const normalizedCwd = normalizeCwd(options.cwd)
-    const normalizedActive = options.activeSessionFile
-        ? sessionFileId(options.activeSessionFile)
-        : null
+    const normalizedActive = options.activeSessionFile ? sessionFileId(options.activeSessionFile) : null
     const keyword = options.keyword?.trim().toLowerCase()
 
     const seen = new Set<string>()
     const entries: SessionHistoryEntry[] = []
 
-    const sorted = [...summaries].sort((left, right) =>
-        right.date.updatedAt.localeCompare(left.date.updatedAt),
-    )
+    const sorted = [...summaries].sort((left, right) => right.date.updatedAt.localeCompare(left.date.updatedAt))
 
     for (const summary of sorted) {
         if (entries.length >= limit) break

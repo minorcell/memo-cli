@@ -23,10 +23,7 @@ export type PasteBurstCharDecision =
     | { type: 'retain_first_char' }
     | { type: 'begin_buffer_from_pending' }
 
-export type PasteBurstFlushResult =
-    | { type: 'none' }
-    | { type: 'paste'; text: string }
-    | { type: 'typed'; text: string }
+export type PasteBurstFlushResult = { type: 'none' } | { type: 'paste'; text: string } | { type: 'typed'; text: string }
 
 export type PasteBurstRetroGrab = {
     start: number
@@ -49,8 +46,7 @@ export class PasteBurst {
     constructor(options: PasteBurstOptions = {}) {
         this.minChars = options.minChars ?? DEFAULT_MIN_CHARS
         this.charIntervalMs = options.charIntervalMs ?? DEFAULT_CHAR_INTERVAL_MS
-        this.enterSuppressWindowMs =
-            options.enterSuppressWindowMs ?? DEFAULT_ENTER_SUPPRESS_WINDOW_MS
+        this.enterSuppressWindowMs = options.enterSuppressWindowMs ?? DEFAULT_ENTER_SUPPRESS_WINDOW_MS
         this.activeIdleTimeoutMs = options.activeIdleTimeoutMs ?? DEFAULT_ACTIVE_IDLE_TIMEOUT_MS
     }
 
@@ -113,8 +109,7 @@ export class PasteBurst {
 
     flushIfDue(nowMs: number): PasteBurstFlushResult {
         const timeoutMs = this.isActiveInternal() ? this.activeIdleTimeoutMs : this.charIntervalMs
-        const timedOut =
-            this.lastPlainCharAtMs !== null && nowMs - this.lastPlainCharAtMs > timeoutMs
+        const timedOut = this.lastPlainCharAtMs !== null && nowMs - this.lastPlainCharAtMs > timeoutMs
 
         if (!timedOut) return { type: 'none' }
 
@@ -162,11 +157,7 @@ export class PasteBurst {
         this.extendWindow(nowMs)
     }
 
-    decideBeginBuffer(
-        nowMs: number,
-        before: string,
-        retroChars: number,
-    ): PasteBurstRetroGrab | null {
+    decideBeginBuffer(nowMs: number, before: string, retroChars: number): PasteBurstRetroGrab | null {
         const start = retroStartIndex(before, retroChars)
         const grabbed = before.slice(start)
         const looksPastey = /\s/u.test(grabbed) || Array.from(grabbed).length >= 16
@@ -221,10 +212,7 @@ export class PasteBurst {
     }
 
     private notePlainChar(nowMs: number): void {
-        if (
-            this.lastPlainCharAtMs !== null &&
-            nowMs - this.lastPlainCharAtMs <= this.charIntervalMs
-        ) {
+        if (this.lastPlainCharAtMs !== null && nowMs - this.lastPlainCharAtMs <= this.charIntervalMs) {
             this.consecutivePlainChars += 1
         } else {
             this.consecutivePlainChars = 1

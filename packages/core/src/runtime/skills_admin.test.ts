@@ -133,9 +133,7 @@ describe('skills_admin', () => {
             assert.ok(detail.content.includes('updated body'))
 
             await removeSkill(created.item.id, { workspaceCwds: [workspace] })
-            await expect(
-                getSkill(created.item.id, { workspaceCwds: [workspace] }),
-            ).rejects.toMatchObject({
+            await expect(getSkill(created.item.id, { workspaceCwds: [workspace] })).rejects.toMatchObject({
                 code: 'NOT_FOUND',
             })
         } finally {

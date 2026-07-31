@@ -20,10 +20,7 @@ export function getRuntimeCwd(defaultCwd = process.cwd()): string {
     return normalizeCwd(getRuntimeContext().cwd) ?? defaultCwd
 }
 
-export async function runWithRuntimeContext<T>(
-    context: RuntimeContext,
-    fn: () => Promise<T> | T,
-): Promise<T> {
+export async function runWithRuntimeContext<T>(context: RuntimeContext, fn: () => Promise<T> | T): Promise<T> {
     const normalized: RuntimeContext = {
         cwd: normalizeCwd(context.cwd),
     }

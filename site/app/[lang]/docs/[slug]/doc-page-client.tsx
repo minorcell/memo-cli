@@ -68,9 +68,7 @@ export function DocPageClient({ page, pages, neighbors, lang }: DocPageClientPro
                             </h1>
                         </header>
 
-                        {page.introContent && (
-                            <div className="doc-intro mb-8">{page.introContent}</div>
-                        )}
+                        {page.introContent && <div className="doc-intro mb-8">{page.introContent}</div>}
 
                         <div className="doc-sections">
                             {page.sections.map((section) => (

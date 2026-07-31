@@ -12,9 +12,7 @@ export const options = zod.object({
         .describe(option({ description: 'Output as JSON', alias: 'j' })),
 })
 
-export const args = zod
-    .array(zod.string())
-    .describe(argument({ name: 'name', description: 'Server name' }))
+export const args = zod.array(zod.string()).describe(argument({ name: 'name', description: 'Server name' }))
 
 export default function McpGet({
     options: opts,

@@ -116,8 +116,7 @@ const MemoHeroComposition = () => {
                         gap: 12,
                         padding: '0 20px',
                         borderBottom: '1px solid rgba(255,255,255,0.08)',
-                        background:
-                            'linear-gradient(180deg, rgba(17, 21, 33, 1) 0%, rgba(11, 14, 23, 1) 100%)',
+                        background: 'linear-gradient(180deg, rgba(17, 21, 33, 1) 0%, rgba(11, 14, 23, 1) 100%)',
                     }}
                 >
                     <div
@@ -162,16 +161,14 @@ const MemoHeroComposition = () => {
                         position: 'relative',
                         height: COMPOSITION_HEIGHT - 58,
                         padding: '18px 22px',
-                        fontFamily:
-                            '"JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace',
+                        fontFamily: '"JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace',
                         fontSize: 13,
                         lineHeight: 1.24,
                         color: '#e5e7eb',
                         whiteSpace: 'pre',
                         letterSpacing: 0.2,
                         overflow: 'hidden',
-                        background:
-                            'linear-gradient(180deg, rgba(13, 17, 23, 1) 0%, rgba(10, 14, 20, 1) 100%)',
+                        background: 'linear-gradient(180deg, rgba(13, 17, 23, 1) 0%, rgba(10, 14, 20, 1) 100%)',
                     }}
                 >
                     <div>
@@ -181,9 +178,7 @@ const MemoHeroComposition = () => {
                         <span style={{ color: '#f97316' }}>(dev)</span>
                         <span style={{ color: '#c9d13a' }}> ✗</span>
                         <span style={{ color: '#f3f4f6' }}> {commandText}</span>
-                        {showCommandCursor ? (
-                            <span style={{ opacity: cursorOpacity, color: '#818cf8' }}>▊</span>
-                        ) : null}
+                        {showCommandCursor ? <span style={{ opacity: cursorOpacity, color: '#818cf8' }}>▊</span> : null}
                     </div>
 
                     <div style={{ marginTop: 6, opacity: welcomeBlockOpacity }}>
@@ -192,18 +187,14 @@ const MemoHeroComposition = () => {
                                 maxWidth: 470,
                                 border: '1px solid #a6abf2',
                                 borderRadius: 8,
-                                background:
-                                    'linear-gradient(135deg, rgba(22, 24, 35, 0.78), rgba(14, 17, 28, 0.72))',
+                                background: 'linear-gradient(135deg, rgba(22, 24, 35, 0.78), rgba(14, 17, 28, 0.72))',
                                 padding: '10px 14px 12px',
                                 whiteSpace: 'normal',
                             }}
                         >
-                            <div style={{ color: '#f3f4f6', fontWeight: 700 }}>
-                                Welcome to Memo Code!
-                            </div>
+                            <div style={{ color: '#f3f4f6', fontWeight: 700 }}>Welcome to Memo Code!</div>
                             <div style={{ color: '#a1a1aa' }}>
-                                Send <span style={{ color: '#facc15' }}>/help</span> for help
-                                information.
+                                Send <span style={{ color: '#facc15' }}>/help</span> for help information.
                             </div>
                             <div style={{ height: 8 }} />
                             {welcomeMeta.map((item) => (
@@ -218,9 +209,7 @@ const MemoHeroComposition = () => {
                                         {item.label}:
                                     </span>
                                     <span style={{ color: '#22d3ee' }}>{item.value}</span>
-                                    {item.suffix ? (
-                                        <span style={{ color: '#a1a1aa' }}>{item.suffix}</span>
-                                    ) : null}
+                                    {item.suffix ? <span style={{ color: '#a1a1aa' }}>{item.suffix}</span> : null}
                                 </div>
                             ))}
                         </div>
@@ -234,9 +223,7 @@ const MemoHeroComposition = () => {
                         }}
                     >
                         › {questionText}
-                        {showQuestionCursor && (
-                            <span style={{ opacity: cursorOpacity, color: '#818cf8' }}>▊</span>
-                        )}
+                        {showQuestionCursor && <span style={{ opacity: cursorOpacity, color: '#818cf8' }}>▊</span>}
                     </div>
 
                     <div style={{ marginTop: 6 }}>
@@ -260,9 +247,7 @@ const MemoHeroComposition = () => {
                                         {item.args ? (
                                             <>
                                                 <span style={{ color: '#9ca3af' }}> (</span>
-                                                <span style={{ color: '#22d3ee' }}>
-                                                    {item.args}
-                                                </span>
+                                                <span style={{ color: '#22d3ee' }}>{item.args}</span>
                                                 <span style={{ color: '#9ca3af' }}>)</span>
                                             </>
                                         ) : null}
@@ -280,11 +265,7 @@ const MemoHeroComposition = () => {
                                 <div
                                     key={`${line}-${index}`}
                                     style={{
-                                        color: isHeading
-                                            ? '#f3f4f6'
-                                            : isBullet
-                                              ? '#cbd5e1'
-                                              : '#f3f4f6',
+                                        color: isHeading ? '#f3f4f6' : isBullet ? '#cbd5e1' : '#f3f4f6',
                                         fontWeight: isHeading ? 600 : 400,
                                     }}
                                 >

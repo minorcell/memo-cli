@@ -100,10 +100,7 @@ describe('parseTextToolCall', () => {
     })
 
     test('parses fenced json tool call', () => {
-        const parsed = parseTextToolCall(
-            '```json\n{"tool":"exec_command","input":{"cmd":"ls"}}\n```',
-            tools,
-        )
+        const parsed = parseTextToolCall('```json\n{"tool":"exec_command","input":{"cmd":"ls"}}\n```', tools)
         expect(parsed).toEqual({
             tool: 'exec_command',
             input: { cmd: 'ls' },
@@ -143,9 +140,9 @@ describe('session title helpers', () => {
         expect(fallbackSessionTitleFromPrompt('这是一个非常非常长的中文标题用于测试截断行为')).toBe(
             '这是一个非常非常长的中文标题用于测试截断...',
         )
-        expect(
-            fallbackSessionTitleFromPrompt('build a rest api using express and sqlite quickly'),
-        ).toBe('build a rest api using express and sqlite')
+        expect(fallbackSessionTitleFromPrompt('build a rest api using express and sqlite quickly')).toBe(
+            'build a rest api using express and sqlite',
+        )
     })
 })
 
@@ -201,9 +198,7 @@ describe('tool result helpers', () => {
             errorType: 'approval_denied',
             rejected: true,
         })
-        expect(rejectionFilled[1]?.observation).toContain(
-            'Skipped tool execution after previous rejection',
-        )
+        expect(rejectionFilled[1]?.observation).toContain('Skipped tool execution after previous rejection')
     })
 })
 

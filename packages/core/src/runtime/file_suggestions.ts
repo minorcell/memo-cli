@@ -92,10 +92,7 @@ type NormalizedOptions = {
 function normalizeOptions(req: FileSuggestionRequest): NormalizedOptions {
     return {
         maxDepth: typeof req.maxDepth === 'number' ? Math.max(1, req.maxDepth) : DEFAULT_MAX_DEPTH,
-        maxEntries:
-            typeof req.maxEntries === 'number'
-                ? Math.max(100, req.maxEntries)
-                : DEFAULT_MAX_ENTRIES,
+        maxEntries: typeof req.maxEntries === 'number' ? Math.max(100, req.maxEntries) : DEFAULT_MAX_ENTRIES,
         limit: typeof req.limit === 'number' ? Math.max(1, req.limit) : DEFAULT_LIMIT,
         respectGitIgnore: req.respectGitIgnore ?? true,
         ignoreGlobs: req.ignoreGlobs?.length ? req.ignoreGlobs : [],

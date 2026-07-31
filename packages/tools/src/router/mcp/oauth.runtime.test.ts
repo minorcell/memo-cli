@@ -118,9 +118,7 @@ describe('oauth runtime helpers', () => {
     test('openExternalUrl rejects when spawn reports error', async () => {
         spawnMock.mockReturnValue(spawnChild({ error: new Error('spawn failed') }))
 
-        await expect(openExternalUrl('https://example.com/oauth/authorize')).rejects.toThrow(
-            'spawn failed',
-        )
+        await expect(openExternalUrl('https://example.com/oauth/authorize')).rejects.toThrow('spawn failed')
     })
 
     test('createRuntimeMcpOAuthProvider returns null when no stored token exists', async () => {
@@ -261,9 +259,7 @@ describe('oauth login flow', () => {
                 setTimeout(() => {
                     void fetch(`${provider.redirectUrl}?code=oauth-code`)
                 }, 0)
-                await provider.redirectToAuthorization(
-                    new URL('https://auth.example.com/authorize?client_id=memo'),
-                )
+                await provider.redirectToAuthorization(new URL('https://auth.example.com/authorize?client_id=memo'))
                 return 'REDIRECT'
             })
             authMock.mockImplementationOnce(async (provider: any, options: any) => {
@@ -285,9 +281,7 @@ describe('oauth login flow', () => {
             })
 
             assert.strictEqual(result.backend, 'file')
-            expect(onAuthorizationUrl).toHaveBeenCalledWith(
-                'https://auth.example.com/authorize?client_id=memo',
-            )
+            expect(onAuthorizationUrl).toHaveBeenCalledWith('https://auth.example.com/authorize?client_id=memo')
             expect(onBrowserOpenFailure).toHaveBeenCalledWith(
                 expect.any(Error),
                 'https://auth.example.com/authorize?client_id=memo',

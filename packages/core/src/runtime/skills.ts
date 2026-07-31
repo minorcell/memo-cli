@@ -224,10 +224,7 @@ function dedupePaths(paths: string[]): string[] {
 async function defaultSkillRoots(options: LoadSkillsOptions): Promise<string[]> {
     const cwd = options.cwd ?? process.cwd()
     const homeDir = options.homeDir ?? homedir()
-    const memoHome = expandHome(
-        options.memoHome ?? process.env.MEMO_HOME ?? join(homeDir, '.memo'),
-        homeDir,
-    )
+    const memoHome = expandHome(options.memoHome ?? process.env.MEMO_HOME ?? join(homeDir, '.memo'), homeDir)
 
     const projectRoot = await resolveProjectRoot(cwd)
     const roots: string[] = await projectDotSkillRoots(projectRoot)

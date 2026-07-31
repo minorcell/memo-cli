@@ -16,8 +16,7 @@ type SearchFilesInput = z.infer<typeof SEARCH_FILES_INPUT_SCHEMA>
 
 export const searchFilesTool = defineMcpTool<SearchFilesInput>({
     name: 'search_files',
-    description:
-        'Recursively search files and directories by glob pattern within allowed directories.',
+    description: 'Recursively search files and directories by glob pattern within allowed directories.',
     inputSchema: SEARCH_FILES_INPUT_SCHEMA,
     supportsParallelToolCalls: true,
     isMutating: false,
@@ -25,14 +24,9 @@ export const searchFilesTool = defineMcpTool<SearchFilesInput>({
         try {
             const allowedDirectories = await resolveAllowedDirectories()
             const validPath = await validatePath(input.path, allowedDirectories)
-            const results = await searchFilesWithValidation(
-                validPath,
-                input.pattern,
-                allowedDirectories,
-                {
-                    excludePatterns: input.excludePatterns,
-                },
-            )
+            const results = await searchFilesWithValidation(validPath, input.pattern, allowedDirectories, {
+                excludePatterns: input.excludePatterns,
+            })
             return textResult(results.length > 0 ? results.join('\n') : 'No matches found')
         } catch (err) {
             return textResult(`search_files failed: ${(err as Error).message}`, true)

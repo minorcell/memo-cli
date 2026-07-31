@@ -90,20 +90,11 @@ describe('buildSessionPath', () => {
             {},
         )
         process.chdir(prev)
-        assert.ok(
-            sessionsDir.startsWith('/tmp/.memo/sessions'),
-            'should stay under sessions base dir',
-        )
+        assert.ok(sessionsDir.startsWith('/tmp/.memo/sessions'), 'should stay under sessions base dir')
         const projectDirName = sessionsDir.split('/').at(-1) ?? ''
         assert.ok(projectDirName.startsWith('-'), 'encoded project directory should start with "-"')
-        assert.ok(
-            projectDirName.includes(longSegment),
-            'sessions dir should include cwd path segments',
-        )
-        assert.ok(
-            !sessionsDir.includes(`/${longSegment}/`),
-            'cwd segments should be flattened into one directory name',
-        )
+        assert.ok(projectDirName.includes(longSegment), 'sessions dir should include cwd path segments')
+        assert.ok(!sessionsDir.includes(`/${longSegment}/`), 'cwd segments should be flattened into one directory name')
     })
 })
 
@@ -129,9 +120,7 @@ describe('mcp config serialization', () => {
                     context_window: 128000,
                 },
             },
-            providers: [
-                { name: 'deepseek', env_api_key: 'DEEPSEEK_API_KEY', model: 'deepseek-chat' },
-            ],
+            providers: [{ name: 'deepseek', env_api_key: 'DEEPSEEK_API_KEY', model: 'deepseek-chat' }],
             mcp_servers: {
                 remote: {
                     type: 'streamable_http',
@@ -202,9 +191,7 @@ url = "https://example.com/mcp"
         await writeMemoConfig(configPath, {
             current_provider: 'deepseek',
             auto_compact_threshold_percent: 70,
-            providers: [
-                { name: 'deepseek', env_api_key: 'DEEPSEEK_API_KEY', model: 'deepseek-chat' },
-            ],
+            providers: [{ name: 'deepseek', env_api_key: 'DEEPSEEK_API_KEY', model: 'deepseek-chat' }],
             mcp_servers: {},
         })
 

@@ -28,10 +28,7 @@ describe('workspace runtime helpers', () => {
     })
 
     test('normalizeWorkspaceName prefers trimmed explicit name', () => {
-        assert.strictEqual(
-            normalizeWorkspaceName('  Team Workspace  ', '/tmp/demo'),
-            'Team Workspace',
-        )
+        assert.strictEqual(normalizeWorkspaceName('  Team Workspace  ', '/tmp/demo'), 'Team Workspace')
         assert.strictEqual(normalizeWorkspaceName('   ', '/tmp/demo'), 'demo')
     })
 

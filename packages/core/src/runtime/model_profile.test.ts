@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import {
-    buildChatCompletionRequest,
-    resolveModelProfile,
-    type ModelProfile,
-} from '@memo/core/runtime/model_profile'
+import { buildChatCompletionRequest, resolveModelProfile, type ModelProfile } from '@memo/core/runtime/model_profile'
 import type { ToolDefinition } from '@memo/core/types'
 
 function sampleProfile(overrides: Partial<ModelProfile> = {}): ModelProfile {

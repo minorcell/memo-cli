@@ -44,8 +44,7 @@ function normalizePath(path: string): string {
 
 function resolveMemoHome(options: Pick<LoadSystemPromptOptions, 'homeDir' | 'memoHome'>): string {
     const homeDir = options.homeDir ?? os.homedir()
-    const configured =
-        options.memoHome?.trim() || process.env.MEMO_HOME?.trim() || join(homeDir, '.memo')
+    const configured = options.memoHome?.trim() || process.env.MEMO_HOME?.trim() || join(homeDir, '.memo')
     if (configured === '~') {
         return resolve(homeDir)
     }
@@ -55,10 +54,7 @@ function resolveMemoHome(options: Pick<LoadSystemPromptOptions, 'homeDir' | 'mem
     return resolve(configured)
 }
 
-function filterActiveSkills(
-    skills: Awaited<ReturnType<typeof loadSkills>>,
-    activeSkillPaths: string[] | undefined,
-) {
+function filterActiveSkills(skills: Awaited<ReturnType<typeof loadSkills>>, activeSkillPaths: string[] | undefined) {
     if (!Array.isArray(activeSkillPaths)) {
         return skills
     }
@@ -66,9 +62,7 @@ function filterActiveSkills(
     return skills.filter((skill) => active.has(normalizePath(skill.path)))
 }
 
-async function readProjectAgentsMd(
-    projectRoot: string,
-): Promise<{ path: string; content: string } | null> {
+async function readProjectAgentsMd(projectRoot: string): Promise<{ path: string; content: string } | null> {
     const agentsPath = join(projectRoot, 'AGENTS.md')
     try {
         const content = await readFile(agentsPath, 'utf-8')
@@ -81,10 +75,7 @@ async function readProjectAgentsMd(
     }
 }
 
-function appendProjectAgentsPrompt(
-    basePrompt: string,
-    agents: { path: string; content: string },
-): string {
+function appendProjectAgentsPrompt(basePrompt: string, agents: { path: string; content: string }): string {
     return `${basePrompt}
 
 ## Project AGENTS.md (Startup Root)

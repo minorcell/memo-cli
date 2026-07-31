@@ -1,12 +1,5 @@
 import type { ContextUsagePhase, TokenUsage, TurnStatus } from '@memo/core'
-import type {
-    StepView,
-    SystemMessage,
-    SystemMessageTone,
-    ToolAction,
-    ToolStatus,
-    TurnView,
-} from '../../shared/types'
+import type { StepView, SystemMessage, SystemMessageTone, ToolAction, ToolStatus, TurnView } from '../../shared/types'
 import { TOOL_STATUS } from '../../shared/types'
 
 export type ChatTimelineState = {
@@ -122,10 +115,7 @@ function nextSystemMessage(action: {
     }
 }
 
-export function chatTimelineReducer(
-    state: ChatTimelineState,
-    action: ChatTimelineAction,
-): ChatTimelineState {
+export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimelineAction): ChatTimelineState {
     switch (action.type) {
         case 'append_system_message': {
             const sequence = state.sequence + 1

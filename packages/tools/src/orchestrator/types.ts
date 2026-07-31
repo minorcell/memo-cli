@@ -1,10 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types'
-import type {
-    ApprovalDecision,
-    ApprovalManager,
-    ApprovalManagerConfig,
-    ApprovalRequest,
-} from '@memo/tools/approval'
+import type { ApprovalDecision, ApprovalManager, ApprovalManagerConfig, ApprovalRequest } from '@memo/tools/approval'
 
 export type ToolValidateResult = { ok: true; data: unknown } | { ok: false; error: string }
 
@@ -57,10 +52,7 @@ export type ToolExecutionResult = {
 
 export type ToolApprovalHooks = {
     onApprovalRequest?: (request: ApprovalRequest) => Promise<void> | void
-    onApprovalResponse?: (payload: {
-        fingerprint: string
-        decision: ApprovalDecision
-    }) => Promise<void> | void
+    onApprovalResponse?: (payload: { fingerprint: string; decision: ApprovalDecision }) => Promise<void> | void
     requestApproval?: (request: ApprovalRequest) => Promise<ApprovalDecision>
 }
 
@@ -74,10 +66,7 @@ export type ToolExecutionOptions = ToolApprovalHooks & {
 export interface ToolOrchestrator {
     readonly approvalManager: ApprovalManager
     executeAction(action: ToolAction, options?: ToolApprovalHooks): Promise<ToolActionResult>
-    executeActions(
-        actions: ToolAction[],
-        options?: ToolExecutionOptions,
-    ): Promise<ToolExecutionResult>
+    executeActions(actions: ToolAction[], options?: ToolExecutionOptions): Promise<ToolExecutionResult>
     clearOnceApprovals(): void
     dispose(): void
 }

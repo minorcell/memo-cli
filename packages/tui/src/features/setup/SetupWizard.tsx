@@ -48,11 +48,7 @@ const STEPS: SetupStep[] = [
     },
 ]
 
-export const SetupWizard = memo(function SetupWizard({
-    configPath,
-    onComplete,
-    onExit,
-}: SetupWizardProps) {
+export const SetupWizard = memo(function SetupWizard({ configPath, onComplete, onExit }: SetupWizardProps) {
     const [stepIndex, setStepIndex] = useState(0)
     const [values, setValues] = useState<Partial<SetupValues>>({})
     const [busy, setBusy] = useState(false)

@@ -1,5 +1,5 @@
 packages:
-  - packages/*
+    - packages/*
 allowBuilds:
-  esbuild: true
-  msw: true
+    esbuild: true
+    msw: true

@@ -1,9 +1,4 @@
-import {
-    loadMemoConfig,
-    writeMemoConfig,
-    type MCPServerConfig,
-    type MemoConfig,
-} from '@memo/core/config/config'
+import { loadMemoConfig, writeMemoConfig, type MCPServerConfig, type MemoConfig } from '@memo/core/config/config'
 import {
     getMcpAuthStatus,
     loginMcpServerOAuth,
@@ -40,20 +35,15 @@ function parseMcpServerConfig(input: unknown): MCPServerConfig {
             type: 'streamable_http',
             url: config.url.trim(),
             bearer_token_env_var:
-                typeof config.bearer_token_env_var === 'string' &&
-                config.bearer_token_env_var.trim()
+                typeof config.bearer_token_env_var === 'string' && config.bearer_token_env_var.trim()
                     ? config.bearer_token_env_var.trim()
                     : undefined,
             headers:
-                config.headers &&
-                typeof config.headers === 'object' &&
-                !Array.isArray(config.headers)
+                config.headers && typeof config.headers === 'object' && !Array.isArray(config.headers)
                     ? (config.headers as Record<string, string>)
                     : undefined,
             http_headers:
-                config.http_headers &&
-                typeof config.http_headers === 'object' &&
-                !Array.isArray(config.http_headers)
+                config.http_headers && typeof config.http_headers === 'object' && !Array.isArray(config.http_headers)
                     ? (config.http_headers as Record<string, string>)
                     : undefined,
         }
@@ -74,9 +64,7 @@ function parseMcpServerConfig(input: unknown): MCPServerConfig {
                     ? (config.env as Record<string, string>)
                     : undefined,
             stderr:
-                config.stderr === 'inherit' ||
-                config.stderr === 'pipe' ||
-                config.stderr === 'ignore'
+                config.stderr === 'inherit' || config.stderr === 'pipe' || config.stderr === 'ignore'
                     ? config.stderr
                     : undefined,
         }
@@ -153,10 +141,7 @@ export async function getMcpServer(name: string): Promise<McpServerRecord> {
     return found
 }
 
-export async function createMcpServer(
-    name: string,
-    configInput: unknown,
-): Promise<{ created: true }> {
+export async function createMcpServer(name: string, configInput: unknown): Promise<{ created: true }> {
     const target = ensureName(name)
     const nextConfig = parseMcpServerConfig(configInput)
     const loaded = await loadNormalizedConfig()
@@ -176,10 +161,7 @@ export async function createMcpServer(
     return { created: true }
 }
 
-export async function updateMcpServer(
-    name: string,
-    configInput: unknown,
-): Promise<{ updated: true }> {
+export async function updateMcpServer(name: string, configInput: unknown): Promise<{ updated: true }> {
     const target = ensureName(name)
     const nextConfig = parseMcpServerConfig(configInput)
     const loaded = await loadNormalizedConfig()
@@ -220,10 +202,7 @@ export async function removeMcpServer(name: string): Promise<{ deleted: true }> 
     return { deleted: true }
 }
 
-export async function loginMcpServer(
-    name: string,
-    scopes: string[] | undefined,
-): Promise<{ loggedIn: true }> {
+export async function loginMcpServer(name: string, scopes: string[] | undefined): Promise<{ loggedIn: true }> {
     const target = ensureName(name)
     const loaded = await loadNormalizedConfig()
     const config = loaded.config.mcp_servers?.[target]
@@ -254,10 +233,7 @@ export async function logoutMcpServer(name: string): Promise<{ loggedOut: true }
         throw new McpAdminError('NOT_FOUND', 'MCP server not found')
     }
     if (!('url' in config)) {
-        throw new McpAdminError(
-            'BAD_REQUEST',
-            'OAuth logout is only supported for HTTP MCP servers',
-        )
+        throw new McpAdminError('BAD_REQUEST', 'OAuth logout is only supported for HTTP MCP servers')
     }
     await logoutMcpServerOAuth({
         config,

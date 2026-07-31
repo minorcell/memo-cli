@@ -21,14 +21,7 @@ type DocContentProps = {
     lang?: string
 }
 
-export function DocContent({
-    title,
-    introContent,
-    sections,
-    previous,
-    next,
-    lang = 'en',
-}: DocContentProps) {
+export function DocContent({ title, introContent, sections, previous, next, lang = 'en' }: DocContentProps) {
     const t = useT()
 
     return (
@@ -43,11 +36,7 @@ export function DocContent({
 
             <div className="doc-sections">
                 {sections.map((section) => (
-                    <section
-                        key={section.id}
-                        id={section.id}
-                        className="doc-section scroll-mt-24 mb-8"
-                    >
+                    <section key={section.id} id={section.id} className="doc-section scroll-mt-24 mb-8">
                         <h2 className="group flex items-center gap-2 text-xl font-semibold text-[var(--text-primary)] mb-4">
                             <a href={`#${section.id}`} className="hover:underline">
                                 {section.title}
@@ -61,9 +50,7 @@ export function DocContent({
                             </a>
                         </h2>
                         {section.content ? (
-                            <div className="doc-section-content prose prose-invert max-w-none">
-                                {section.content}
-                            </div>
+                            <div className="doc-section-content prose prose-invert max-w-none">{section.content}</div>
                         ) : null}
                     </section>
                 ))}
@@ -72,13 +59,8 @@ export function DocContent({
             {(previous || next) && (
                 <nav className="mt-12 flex items-center justify-between border-t border-[var(--border-default)] pt-6">
                     {previous ? (
-                        <Link
-                            href={`/${lang}/docs/${previous.slug}`}
-                            className="group flex flex-col items-start"
-                        >
-                            <span className="text-xs text-[var(--text-tertiary)] mb-1">
-                                {t('docs.previous')}
-                            </span>
+                        <Link href={`/${lang}/docs/${previous.slug}`} className="group flex flex-col items-start">
+                            <span className="text-xs text-[var(--text-tertiary)] mb-1">{t('docs.previous')}</span>
                             <span className="flex items-center gap-1 text-sm font-medium text-[var(--text-primary)] group-hover:underline">
                                 <ChevronRight className="h-4 w-4 rotate-180" />
                                 {previous.title}
@@ -88,13 +70,8 @@ export function DocContent({
                         <div />
                     )}
                     {next ? (
-                        <Link
-                            href={`/${lang}/docs/${next.slug}`}
-                            className="group flex flex-col items-end"
-                        >
-                            <span className="text-xs text-[var(--text-tertiary)] mb-1">
-                                {t('docs.next')}
-                            </span>
+                        <Link href={`/${lang}/docs/${next.slug}`} className="group flex flex-col items-end">
+                            <span className="text-xs text-[var(--text-tertiary)] mb-1">{t('docs.next')}</span>
                             <span className="flex items-center gap-1 text-sm font-medium text-[var(--text-primary)] group-hover:underline">
                                 {next.title}
                                 <ChevronRight className="h-4 w-4" />

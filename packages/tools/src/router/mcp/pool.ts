@@ -15,9 +15,7 @@ function mergeProcessEnv(env?: Record<string, string>): Record<string, string> |
         ...process.env,
         ...env,
     }
-    const entries = Object.entries(merged).filter(
-        (entry): entry is [string, string] => typeof entry[1] === 'string',
-    )
+    const entries = Object.entries(merged).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
     return Object.fromEntries(entries)
 }
 
@@ -42,7 +40,7 @@ function buildRequestInit(headers?: Record<string, string>): RequestInit | undef
 
 function resolveHttpHeaders(config: Extract<MCPServerConfig, { url: string }>) {
     const headers = {
-        ...(config.http_headers ?? config.headers ?? {}),
+        ...(config.http_headers ?? config.headers),
     }
     if (config.bearer_token_env_var) {
         const token = process.env[config.bearer_token_env_var]
@@ -104,8 +102,7 @@ async function connectWithConfig(
         command: config.command,
         args: config.args,
         env: mergeProcessEnv(config.env),
-        stderr:
-            config.stderr ?? (process.stdout.isTTY && process.stdin.isTTY ? 'ignore' : undefined),
+        stderr: config.stderr ?? (process.stdout.isTTY && process.stdin.isTTY ? 'ignore' : undefined),
     }
     const transport = new StdioClientTransport(stdioOptions as any)
     const client = createMcpClient()
@@ -158,11 +155,7 @@ export class McpClientPool {
 
         const pending = (async () => {
             // Establish new connection
-            const { client, transport } = await connectWithConfig(
-                name,
-                effectiveConfig,
-                this.oauthSettings,
-            )
+            const { client, transport } = await connectWithConfig(name, effectiveConfig, this.oauthSettings)
 
             try {
                 // Get tool list

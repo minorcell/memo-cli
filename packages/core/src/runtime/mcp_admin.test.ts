@@ -159,9 +159,7 @@ describe('mcp_admin', () => {
         })
         await expect(removeMcpServer('missing')).rejects.toMatchObject({ code: 'NOT_FOUND' })
 
-        await expect(createMcpServer('   ', { command: 'node' })).rejects.toBeInstanceOf(
-            McpAdminError,
-        )
+        await expect(createMcpServer('   ', { command: 'node' })).rejects.toBeInstanceOf(McpAdminError)
     })
 
     test('login/logout enforce server type and forward oauth settings', async () => {
@@ -210,14 +208,7 @@ describe('mcp_admin', () => {
             local: { command: 'node' },
         }
 
-        const result = await setActiveMcpServers([
-            'remote',
-            'remote',
-            'unknown',
-            ' local ',
-            '',
-            '   ',
-        ])
+        const result = await setActiveMcpServers(['remote', 'remote', 'unknown', ' local ', '', '   '])
 
         assert.deepStrictEqual(result.active, ['remote', 'local'])
         assert.deepStrictEqual(state.config.active_mcp_servers, ['remote', 'local'])

@@ -16,11 +16,7 @@ import type {
 const MAX_TOOL_INPUT_STRING_CHARS = 100_000
 
 function escapeXmlAttr(value: string) {
-    return value
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
+    return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 function estimateCallToolResultChars(result: CallToolResult) {
@@ -67,9 +63,7 @@ function flattenCallToolResult(result: CallToolResult): string {
     return texts.join('\n')
 }
 
-type ParseToolInputResult =
-    | { ok: true; data: Record<string, unknown> }
-    | { ok: false; error: string }
+type ParseToolInputResult = { ok: true; data: Record<string, unknown> } | { ok: false; error: string }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -132,10 +126,7 @@ class ToolOrchestratorImpl implements ToolOrchestrator {
         this.approvalManager = createApprovalManager(config.approval)
     }
 
-    async executeAction(
-        action: ToolAction,
-        options?: ToolApprovalHooks,
-    ): Promise<ToolActionResult> {
+    async executeAction(action: ToolAction, options?: ToolApprovalHooks): Promise<ToolActionResult> {
         const startedAt = Date.now()
         const actionId = action.id ?? `${action.name}:${startedAt}`
         const check = this.approvalManager.check(action.name, action.input)
@@ -151,9 +142,7 @@ class ToolOrchestratorImpl implements ToolOrchestrator {
 
             await options?.onApprovalRequest?.(request)
 
-            const decision = options?.requestApproval
-                ? await options.requestApproval(request)
-                : 'deny'
+            const decision = options?.requestApproval ? await options.requestApproval(request) : 'deny'
             this.approvalManager.recordDecision(check.fingerprint, decision)
 
             await options?.onApprovalResponse?.({
@@ -226,27 +215,17 @@ class ToolOrchestratorImpl implements ToolOrchestrator {
         }
     }
 
-    async executeActions(
-        actions: ToolAction[],
-        options: ToolExecutionOptions = {},
-    ): Promise<ToolExecutionResult> {
+    async executeActions(actions: ToolAction[], options: ToolExecutionOptions = {}): Promise<ToolExecutionResult> {
         const executionMode = options.executionMode ?? 'sequential'
-        const failurePolicy =
-            options.failurePolicy ??
-            (options.stopOnRejection === false ? 'collect_all' : 'fail_fast')
+        const failurePolicy = options.failurePolicy ?? (options.stopOnRejection === false ? 'collect_all' : 'fail_fast')
 
         let results: ToolActionResult[] = []
 
         if (executionMode === 'parallel') {
-            const parallelResults = await Promise.all(
-                actions.map((action) => this.executeAction(action, options)),
-            )
+            const parallelResults = await Promise.all(actions.map((action) => this.executeAction(action, options)))
             if (failurePolicy === 'fail_fast') {
                 const firstRejected = parallelResults.findIndex((result) => result.rejected)
-                results =
-                    firstRejected >= 0
-                        ? parallelResults.slice(0, firstRejected + 1)
-                        : parallelResults
+                results = firstRejected >= 0 ? parallelResults.slice(0, firstRejected + 1) : parallelResults
             } else {
                 results = parallelResults
             }
@@ -261,9 +240,7 @@ class ToolOrchestratorImpl implements ToolOrchestrator {
         }
 
         const hasRejection = results.some((result) => result.rejected)
-        const combinedObservation = results
-            .map((result) => `[${result.tool}]: ${result.observation}`)
-            .join('\n\n')
+        const combinedObservation = results.map((result) => `[${result.tool}]: ${result.observation}`).join('\n\n')
 
         return {
             results,

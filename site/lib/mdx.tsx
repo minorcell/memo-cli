@@ -12,10 +12,7 @@ const baseMdxComponents: MdxComponentMap = {
     ToolSystemArchitectureDiagram,
 }
 
-export async function renderMdx(
-    source: string,
-    overrides: MdxComponentMap = {},
-): Promise<ReactNode> {
+export async function renderMdx(source: string, overrides: MdxComponentMap = {}): Promise<ReactNode> {
     const { content } = await compileMDX({
         source,
         options: {

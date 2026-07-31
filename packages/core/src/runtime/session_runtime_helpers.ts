@@ -20,10 +20,8 @@ export const TOOL_ACTION_SUCCESS_STATUS: ToolActionStatus = 'success'
 export const TOOL_DISABLED_ERROR_MESSAGE =
     'Tool usage is disabled in the current permission mode. Switch to /tools once or /tools full to enable tools.'
 export const SESSION_TITLE_MAX_CHARS = 60
-export const TOOL_SKIPPED_AFTER_REJECTION_MESSAGE =
-    'Skipped tool execution after previous rejection.'
-export const TOOL_SKIPPED_DISABLED_MESSAGE =
-    'Tool execution skipped: tools are disabled in current permission mode.'
+export const TOOL_SKIPPED_AFTER_REJECTION_MESSAGE = 'Skipped tool execution after previous rejection.'
+export const TOOL_SKIPPED_DISABLED_MESSAGE = 'Tool execution skipped: tools are disabled in current permission mode.'
 
 export type ResolvedToolPermission = {
     mode: ToolPermissionMode | 'auto'
@@ -95,9 +93,7 @@ export function normalizeLLMResponse(raw: LLMResponse): {
     usage?: Partial<TokenUsage>
 } {
     const textBlocks = raw.content.filter((block): block is TextBlock => block.type === 'text')
-    const toolBlocks = raw.content.filter(
-        (block): block is ToolUseBlock => block.type === 'tool_use',
-    )
+    const toolBlocks = raw.content.filter((block): block is ToolUseBlock => block.type === 'tool_use')
 
     return {
         textContent: textBlocks.map((b) => b.text).join('\n'),
@@ -167,9 +163,7 @@ function stableStringifyWithSeen(value: unknown, seen: WeakSet<object>, depth: n
         seen.delete(value)
         return result
     }
-    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
-        a.localeCompare(b),
-    )
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))
     const result = `{${entries
         .map(([k, v]) => `${JSON.stringify(k)}:${stableStringifyWithSeen(v, seen, depth + 1)}`)
         .join(',')}}`
@@ -190,10 +184,7 @@ export function buildAssistantToolCalls(
     }))
 }
 
-export function parseTextToolCall(
-    text: string,
-    tools: ToolRegistry,
-): { tool: string; input: unknown } | null {
+export function parseTextToolCall(text: string, tools: ToolRegistry): { tool: string; input: unknown } | null {
     const trimmed = text.trim()
     if (!trimmed) return null
 

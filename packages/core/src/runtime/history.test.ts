@@ -134,17 +134,15 @@ describe('JsonlHistorySink', () => {
     test('close flushes pending writes and rejects future appends', async () => {
         const sink = new JsonlHistorySink(filePath)
         const first = sink.append(createHistoryEvent({ sessionId: 's-close', type: 'turn_start' }))
-        const second = sink.append(
-            createHistoryEvent({ sessionId: 's-close', type: 'assistant', content: 'done' }),
-        )
+        const second = sink.append(createHistoryEvent({ sessionId: 's-close', type: 'assistant', content: 'done' }))
         await sink.close()
         await Promise.all([first, second])
 
         const lines = (await readFile(filePath, 'utf8')).trim().split('\n').filter(Boolean)
         expect(lines).toHaveLength(2)
-        await expect(
-            sink.append(createHistoryEvent({ sessionId: 's-close', type: 'final' })),
-        ).rejects.toThrow('History sink is closed')
+        await expect(sink.append(createHistoryEvent({ sessionId: 's-close', type: 'final' }))).rejects.toThrow(
+            'History sink is closed',
+        )
     })
 
     test('handles special characters in content', async () => {

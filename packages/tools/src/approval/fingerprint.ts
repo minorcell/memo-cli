@@ -13,9 +13,7 @@ export function stableStringify(value: unknown): string {
         return '[' + value.map((v) => stableStringify(v)).join(',') + ']'
     }
 
-    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
-        a.localeCompare(b),
-    )
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))
     return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(',')}}`
 }
 
@@ -27,11 +25,7 @@ export function generateFingerprint(toolName: string, params: unknown): Approval
 }
 
 /** Generate partial parameter fingerprint (for fuzzy matching) */
-export function generatePartialFingerprint(
-    toolName: string,
-    params: unknown,
-    keys: string[],
-): ApprovalKey {
+export function generatePartialFingerprint(toolName: string, params: unknown, keys: string[]): ApprovalKey {
     if (typeof params !== 'object' || params === null) {
         return generateFingerprint(toolName, params)
     }

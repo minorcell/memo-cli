@@ -37,11 +37,7 @@ describe('compact_prompt', () => {
         assert.ok(prompt.includes('[0] ASSISTANT (tool_calls: exec_command)'))
         assert.ok(prompt.includes('[1] TOOL (exec_command)'))
         assert.ok(prompt.includes(`${'x'.repeat(4_000)}...`))
-        assert.ok(
-            prompt.includes(
-                'Return only the summary body in plain text. Do not add markdown fences.',
-            ),
-        )
+        assert.ok(prompt.includes('Return only the summary body in plain text. Do not add markdown fences.'))
     })
 
     test('buildCompactionUserPrompt renders empty transcript fallback', () => {

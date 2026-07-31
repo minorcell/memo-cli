@@ -22,15 +22,10 @@ export class McpToolRegistry {
         this.shouldLog = !(process.stdout.isTTY && process.stdin.isTTY)
     }
 
-    private buildTool(
-        serverName: string,
-        config: MCPServerConfig,
-        descriptor: CachedMcpToolDescriptor,
-    ): McpTool {
+    private buildTool(serverName: string, config: MCPServerConfig, descriptor: CachedMcpToolDescriptor): McpTool {
         return {
             name: `${serverName}_${descriptor.originalName}`,
-            description:
-                descriptor.description || `Tool from ${serverName}: ${descriptor.originalName}`,
+            description: descriptor.description || `Tool from ${serverName}: ${descriptor.originalName}`,
             source: 'mcp',
             serverName,
             originalName: descriptor.originalName,
@@ -90,14 +85,10 @@ export class McpToolRegistry {
                 const connection = await this.pool.connect(serverName, config)
                 const descriptors = this.connectionToDescriptors(serverName, connection)
                 await this.cacheStore.setServerTools(serverName, config, descriptors)
-                const tools = descriptors.map((descriptor) =>
-                    this.buildTool(serverName, config, descriptor),
-                )
+                const tools = descriptors.map((descriptor) => this.buildTool(serverName, config, descriptor))
                 this.replaceServerTools(serverName, tools)
                 if (this.shouldLog && mode === 'background') {
-                    console.log(
-                        `[MCP] Refreshed '${serverName}' tools in background (${tools.length})`,
-                    )
+                    console.log(`[MCP] Refreshed '${serverName}' tools in background (${tools.length})`)
                 }
             } catch (err) {
                 if (this.shouldLog) {
@@ -152,9 +143,7 @@ export class McpToolRegistry {
         for (const [serverName, config] of entries) {
             const cached = await this.cacheStore.getServerTools(serverName, config)
             if (cached) {
-                const tools = cached.tools.map((descriptor) =>
-                    this.buildTool(serverName, config, descriptor),
-                )
+                const tools = cached.tools.map((descriptor) => this.buildTool(serverName, config, descriptor))
                 this.replaceServerTools(serverName, tools)
                 if (this.shouldLog) {
                     console.log(

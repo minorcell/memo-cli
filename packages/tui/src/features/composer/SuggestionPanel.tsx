@@ -19,11 +19,7 @@ type SuggestionPanelProps = {
 const ACTIVE_BG = '#3a3a3a'
 const INACTIVE_BG = '#262626'
 
-export const SuggestionPanel = memo(function SuggestionPanel({
-    items,
-    activeIndex,
-    loading,
-}: SuggestionPanelProps) {
+export const SuggestionPanel = memo(function SuggestionPanel({ items, activeIndex, loading }: SuggestionPanelProps) {
     if (loading) {
         return (
             <Box paddingX={1} {...({ backgroundColor: INACTIVE_BG } as any)}>

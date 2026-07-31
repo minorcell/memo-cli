@@ -35,9 +35,7 @@
             "@memo/tools/*": ["packages/tools/src/*"],
             "@memo-code/tui": ["packages/tui/src/index.ts"],
             "@memo-code/tui/*": ["packages/tui/src/*"],
-            "@modelcontextprotocol/sdk/types": [
-                "./node_modules/@modelcontextprotocol/sdk/dist/esm/types.d.ts"
-            ]
+            "@modelcontextprotocol/sdk/types": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/types.d.ts"]
         }
     }
 }

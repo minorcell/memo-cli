@@ -186,10 +186,7 @@ function checkPatchBoundariesStrict(lines: string[]) {
     }
 }
 
-function checkPatchBoundariesLenient(
-    originalLines: string[],
-    originalParseError: ApplyPatchParseError,
-): string[] {
+function checkPatchBoundariesLenient(originalLines: string[], originalParseError: ApplyPatchParseError): string[] {
     if (originalLines.length < 4) {
         throw originalParseError
     }
@@ -281,9 +278,7 @@ function parseOneHunk(
         let parsedLines = 1
 
         let movePath: string | null = null
-        const maybeMove = remaining[0]?.startsWith(MOVE_TO_MARKER)
-            ? remaining[0].slice(MOVE_TO_MARKER.length)
-            : null
+        const maybeMove = remaining[0]?.startsWith(MOVE_TO_MARKER) ? remaining[0].slice(MOVE_TO_MARKER.length) : null
         if (typeof maybeMove === 'string') {
             movePath = parsePathFromHeader(maybeMove, lineNumber + 1)
             remaining = remaining.slice(1)
@@ -302,11 +297,7 @@ function parseOneHunk(
                 break
             }
 
-            const parsedChunk = parseUpdateFileChunk(
-                remaining,
-                lineNumber + parsedLines,
-                chunks.length === 0,
-            )
+            const parsedChunk = parseUpdateFileChunk(remaining, lineNumber + parsedLines, chunks.length === 0)
             chunks.push(parsedChunk.chunk)
             remaining = remaining.slice(parsedChunk.parsedLines)
             parsedLines += parsedChunk.parsedLines
@@ -353,10 +344,7 @@ function parseUpdateFileChunk(
         changeContext = lines[0].slice(CHANGE_CONTEXT_MARKER.length)
         startIndex = 1
     } else if (!allowMissingContext) {
-        invalidHunk(
-            `Expected update hunk to start with a @@ context marker, got: '${lines[0]}'`,
-            lineNumber,
-        )
+        invalidHunk(`Expected update hunk to start with a @@ context marker, got: '${lines[0]}'`, lineNumber)
     }
 
     if (startIndex >= lines.length) {
@@ -427,18 +415,10 @@ function normalizeUnicodeForMatch(text: string): string {
         .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, '-')
         .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
         .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
-        .replace(
-            /[\u00A0\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000]/g,
-            ' ',
-        )
+        .replace(/[\u00A0\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000]/g, ' ')
 }
 
-function seekSequence(
-    lines: string[],
-    pattern: string[],
-    start: number,
-    eof: boolean,
-): number | null {
+function seekSequence(lines: string[], pattern: string[], start: number, eof: boolean): number | null {
     if (pattern.length === 0) {
         return start
     }
@@ -446,8 +426,7 @@ function seekSequence(
         return null
     }
 
-    const searchStart =
-        eof && lines.length >= pattern.length ? lines.length - pattern.length : start
+    const searchStart = eof && lines.length >= pattern.length ? lines.length - pattern.length : start
     const max = lines.length - pattern.length
 
     for (let i = searchStart; i <= max; i += 1) {
@@ -497,22 +476,13 @@ function seekSequence(
     return null
 }
 
-function computeReplacements(
-    originalLines: string[],
-    displayPath: string,
-    chunks: UpdateFileChunk[],
-): Replacement[] {
+function computeReplacements(originalLines: string[], displayPath: string, chunks: UpdateFileChunk[]): Replacement[] {
     const replacements: Replacement[] = []
     let lineIndex = 0
 
     for (const chunk of chunks) {
         if (typeof chunk.changeContext === 'string') {
-            const contextIndex = seekSequence(
-                originalLines,
-                [chunk.changeContext],
-                lineIndex,
-                false,
-            )
+            const contextIndex = seekSequence(originalLines, [chunk.changeContext], lineIndex, false)
             if (contextIndex === null) {
                 throw new Error(`Failed to find context '${chunk.changeContext}' in ${displayPath}`)
             }
@@ -545,9 +515,7 @@ function computeReplacements(
         }
 
         if (found === null) {
-            throw new Error(
-                `Failed to find expected lines in ${displayPath}:\n${chunk.oldLines.join('\n')}`,
-            )
+            throw new Error(`Failed to find expected lines in ${displayPath}:\n${chunk.oldLines.join('\n')}`)
         }
 
         replacements.push({
@@ -571,11 +539,7 @@ function applyReplacements(lines: string[], replacements: Replacement[]): string
     return output
 }
 
-function deriveNewContentsFromChunks(
-    originalContents: string,
-    displayPath: string,
-    chunks: UpdateFileChunk[],
-): string {
+function deriveNewContentsFromChunks(originalContents: string, displayPath: string, chunks: UpdateFileChunk[]): string {
     const originalLines = originalContents.split('\n')
     if (originalLines.length > 0 && originalLines[originalLines.length - 1] === '') {
         originalLines.pop()
@@ -669,9 +633,7 @@ async function planChanges(hunks: Hunk[], cwd: string): Promise<PlannedChange[]>
         }
 
         const newContent = deriveNewContentsFromChunks(originalContents, hunk.path, hunk.chunks)
-        const targetPath = hunk.movePath
-            ? await ensureWritable(resolvePatchPath(cwd, hunk.movePath))
-            : sourcePath
+        const targetPath = hunk.movePath ? await ensureWritable(resolvePatchPath(cwd, hunk.movePath)) : sourcePath
 
         changes.push({
             type: 'update',

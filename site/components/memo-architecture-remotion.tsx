@@ -199,14 +199,7 @@ export function MemoArchitectureDiagram() {
                     style={{ position: 'absolute', left: 0, top: 0, zIndex: 1 }}
                 >
                     <defs>
-                        <marker
-                            id="memo-arch-arrow"
-                            markerWidth="8"
-                            markerHeight="8"
-                            refX="7"
-                            refY="4"
-                            orient="auto"
-                        >
+                        <marker id="memo-arch-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
                             <path d="M0,0 L8,4 L0,8 Z" fill={COLORS.line} />
                         </marker>
                     </defs>
@@ -334,10 +327,7 @@ export function MemoArchitectureDiagram() {
                         }}
                     >
                         <MiniCard title="Web Server API Gateway" sub="REST + WebSocket RPC" />
-                        <MiniCard
-                            title="Session Stream / Router"
-                            sub="web requests -> core runtime"
-                        />
+                        <MiniCard title="Session Stream / Router" sub="web requests -> core runtime" />
                     </div>
                 </Layer>
 
@@ -363,18 +353,9 @@ export function MemoArchitectureDiagram() {
                                 gap: 12,
                             }}
                         >
-                            <MiniCard
-                                title="Session State Machine"
-                                sub="turn lifecycle + history"
-                            />
-                            <MiniCard
-                                title="Prompt & Context Builder"
-                                sub="skills + memory + agents"
-                            />
-                            <MiniCard
-                                title="Workspace Runtime"
-                                sub="project/session orchestration"
-                            />
+                            <MiniCard title="Session State Machine" sub="turn lifecycle + history" />
+                            <MiniCard title="Prompt & Context Builder" sub="skills + memory + agents" />
+                            <MiniCard title="Workspace Runtime" sub="project/session orchestration" />
                         </div>
                         <MiniCard
                             title="Core is Memo's heart: orchestrates tools and ALL LLM calls"
@@ -410,19 +391,12 @@ export function MemoArchitectureDiagram() {
                                 gap: 10,
                             }}
                         >
-                            <MiniCard
-                                title="Built-in Tools"
-                                sub="exec/read/list/grep/webfetch/apply_patch"
-                            />
+                            <MiniCard title="Built-in Tools" sub="exec/read/list/grep/webfetch/apply_patch" />
                             <MiniCard title="MCP Tools" sub="stdio + streamable_http adapters" />
                             <MiniCard title="Tool Router" sub="dispatch and result shaping" />
                             <MiniCard title="Approval Guard" sub="once / session / deny" />
                             <MiniCard title="Sandbox Policy" sub="permission and writable roots" />
-                            <MiniCard
-                                title="Parallel Dispatch"
-                                sub="concurrent tool calls"
-                                highlight
-                            />
+                            <MiniCard title="Parallel Dispatch" sub="concurrent tool calls" highlight />
                         </div>
                         <div
                             style={{
@@ -533,14 +507,12 @@ export function MemoArchitectureDiagram() {
                         height: 844,
                         borderRadius: 8,
                         border: `1px solid ${COLORS.borderStrong}`,
-                        background:
-                            'linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04))',
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04))',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         zIndex: 2,
-                        boxShadow:
-                            'inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 26px rgba(0,0,0,0.35)',
+                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 26px rgba(0,0,0,0.35)',
                     }}
                 >
                     <div
@@ -567,14 +539,12 @@ export function MemoArchitectureDiagram() {
                         height: 844,
                         borderRadius: 8,
                         border: `1px solid ${COLORS.borderStrong}`,
-                        background:
-                            'linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04))',
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04))',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         zIndex: 2,
-                        boxShadow:
-                            'inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 26px rgba(0,0,0,0.35)',
+                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 26px rgba(0,0,0,0.35)',
                     }}
                 >
                     <div

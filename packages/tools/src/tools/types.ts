@@ -22,7 +22,7 @@ export function defineMcpTool<Input>(tool: {
 }): McpTool {
     const { inputSchema, execute, ...rest } = tool
     const jsonSchema = (inputSchema as any).toJSONSchema?.()
-    const { $schema, ...inputSchemaJson } =
+    const { $schema: _$schema, ...inputSchemaJson } =
         (jsonSchema as Record<string, unknown> & { $schema?: string }) ?? {}
 
     return {
