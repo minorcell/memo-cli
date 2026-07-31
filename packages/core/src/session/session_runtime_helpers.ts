@@ -1,16 +1,13 @@
+import type { LanguageModelUsage, ToolCallPart } from 'ai'
 import type {
     AgentSessionOptions,
-    AssistantToolCall,
     ChatMessage,
     HistoryEvent,
     HistorySink,
-    LLMResponse,
+    LLMResult,
     SessionMode,
-    TextBlock,
-    TokenUsage,
     ToolPermissionMode,
     ToolRegistry,
-    ToolUseBlock,
 } from '@memo/core/types'
 import type { ToolActionResult, ToolActionStatus } from '@memo/tools/orchestrator'
 
@@ -71,42 +68,62 @@ export function resolveToolPermission(options: AgentSessionOptions): ResolvedToo
     }
 }
 
-export function emptyUsage(): TokenUsage {
-    return { prompt: 0, completion: 0, total: 0 }
+export function emptyUsage(): LanguageModelUsage {
+    return {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+        outputTokenDetails: { reasoningTokens: undefined },
+    }
 }
 
-export function accumulateUsage(target: TokenUsage, delta?: Partial<TokenUsage>) {
+export function accumulateUsage(target: LanguageModelUsage, delta?: Partial<LanguageModelUsage>) {
     if (!delta) return
-    const promptDelta = delta.prompt ?? 0
-    const completionDelta = delta.completion ?? 0
-    const totalDelta = delta.total ?? promptDelta + completionDelta
-    target.prompt += promptDelta
-    target.completion += completionDelta
-    target.total += totalDelta
+    const inputDelta = delta.inputTokens ?? 0
+    const outputDelta = delta.outputTokens ?? 0
+    const totalDelta = delta.totalTokens ?? inputDelta + outputDelta
+    target.inputTokens = (target.inputTokens ?? 0) + inputDelta
+    target.outputTokens = (target.outputTokens ?? 0) + outputDelta
+    target.totalTokens = (target.totalTokens ?? 0) + totalDelta
 }
 
-export function normalizeLLMResponse(raw: LLMResponse): {
+export function parseToolArguments(
+    raw: string,
+): { ok: true; data: unknown } | { ok: false; raw: string; error: string } {
+    try {
+        return { ok: true, data: JSON.parse(raw) }
+    } catch (err) {
+        return { ok: false, raw, error: (err as Error).message }
+    }
+}
+
+/** Extract session-level fields from an AI SDK GenerateTextResult. */
+export function normalizeLLMResponse(raw: LLMResult): {
     textContent: string
     toolUseBlocks: Array<{ id: string; name: string; input: unknown }>
     reasoningContent?: string
-    stopReason?: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop_sequence'
-    usage?: Partial<TokenUsage>
+    usage?: Partial<LanguageModelUsage>
 } {
-    const textBlocks = raw.content.filter((block): block is TextBlock => block.type === 'text')
-    const toolBlocks = raw.content.filter((block): block is ToolUseBlock => block.type === 'tool_use')
-
+    let textContent = raw.text
+    const toolUseBlocks: Array<{ id: string; name: string; input: unknown }> = []
+    for (const call of raw.toolCalls) {
+        if (typeof call.input === 'string') {
+            const parsed = parseToolArguments(call.input)
+            if (parsed.ok) {
+                toolUseBlocks.push({ id: call.toolCallId, name: call.toolName, input: parsed.data })
+            } else {
+                textContent = `${textContent}\n[tool_use parse error] ${parsed.error}; raw: ${parsed.raw}`.trim()
+            }
+        } else {
+            toolUseBlocks.push({ id: call.toolCallId, name: call.toolName, input: call.input })
+        }
+    }
     return {
-        textContent: textBlocks.map((b) => b.text).join('\n'),
-        toolUseBlocks: toolBlocks.map((b) => ({
-            id: b.id,
-            name: b.name,
-            input: b.input,
-        })),
+        textContent,
+        toolUseBlocks,
         reasoningContent:
-            typeof raw.reasoning_content === 'string' && raw.reasoning_content.trim().length > 0
-                ? raw.reasoning_content
-                : undefined,
-        stopReason: raw.stop_reason,
+            typeof raw.reasoning === 'string' && raw.reasoning.trim().length > 0 ? raw.reasoning : undefined,
         usage: raw.usage,
     }
 }
@@ -173,14 +190,12 @@ function stableStringifyWithSeen(value: unknown, seen: WeakSet<object>, depth: n
 
 export function buildAssistantToolCalls(
     toolUseBlocks: Array<{ id: string; name: string; input: unknown }>,
-): AssistantToolCall[] {
+): ToolCallPart[] {
     return toolUseBlocks.map((block) => ({
-        id: block.id,
-        type: 'function',
-        function: {
-            name: block.name,
-            arguments: stableStringify(block.input),
-        },
+        type: 'tool-call',
+        toolCallId: block.id,
+        toolName: block.name,
+        input: block.input,
     }))
 }
 
@@ -248,9 +263,14 @@ export function fallbackSessionTitleFromPrompt(input: string): string {
 export function toToolHistoryMessage(result: ToolActionResult): ChatMessage {
     return {
         role: 'tool',
-        content: result.observation,
-        tool_call_id: result.actionId,
-        name: result.tool,
+        content: [
+            {
+                type: 'tool-result',
+                toolCallId: result.actionId,
+                toolName: result.tool,
+                output: { type: 'text', value: result.observation },
+            },
+        ],
     }
 }
 

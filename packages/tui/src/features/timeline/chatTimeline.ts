@@ -1,4 +1,4 @@
-import type { ContextUsagePhase, TokenUsage, TurnStatus } from '@memo/core'
+import type { ContextUsagePhase, LanguageModelUsage, TurnStatus } from '@memo/core'
 import type { StepView, SystemMessage, SystemMessageTone, ToolAction, ToolStatus, TurnView } from '../../shared/types'
 import { TOOL_STATUS } from '../../shared/types'
 
@@ -42,8 +42,8 @@ export type ChatTimelineAction =
           finalText: string
           status: TurnStatus
           errorMessage?: string
-          turnUsage: TokenUsage
-          tokenUsage?: TokenUsage
+          turnUsage: LanguageModelUsage
+          tokenUsage?: LanguageModelUsage
       }
     | { type: 'replace_history'; turns: TurnView[]; maxSequence: number }
     | { type: 'clear_current_timeline' }
@@ -248,7 +248,7 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
             const updated = upsertTurn(state, action.turn, (turnView) => {
                 const startedAt = turnView.startedAt ?? Date.now()
                 const durationMs = Math.max(0, Date.now() - startedAt)
-                const promptTokens = action.tokenUsage?.prompt ?? turnView.contextPromptTokens
+                const promptTokens = action.tokenUsage?.inputTokens ?? turnView.contextPromptTokens
                 return {
                     ...turnView,
                     finalText: action.finalText,

@@ -1,13 +1,13 @@
 /** @file Session/Turn runtime core: handles ReAct loop, tool scheduling, and event logging. */
 import { randomUUID } from 'node:crypto'
-import { createHistoryEvent } from '@memo/core/runtime/history'
+import { createHistoryEvent } from '@memo/core/history/history'
 import { buildThinking } from '@memo/core/utils/utils'
 import {
     buildCompactionUserPrompt,
     CONTEXT_COMPACTION_SYSTEM_PROMPT,
     CONTEXT_SUMMARY_PREFIX,
     isContextSummaryMessage,
-} from '@memo/core/runtime/compact_prompt'
+} from '@memo/core/session/compact_prompt'
 import type {
     ChatMessage,
     AgentSession,
@@ -22,12 +22,12 @@ import type {
     SessionMode,
     ToolPermissionMode,
     TokenCounter,
-    TokenUsage,
     ToolRegistry,
     TurnResult,
     TurnStatus,
 } from '@memo/core/types'
-import { buildHookRunners, runHook, snapshotHistory, type HookRunnerMap } from '@memo/core/runtime/hooks'
+import type { LanguageModelUsage } from 'ai'
+import { buildHookRunners, runHook, snapshotHistory, type HookRunnerMap } from '@memo/core/session/hooks'
 import {
     createToolOrchestrator,
     type ToolApprovalHooks,
@@ -53,7 +53,7 @@ import {
     resolveToolPermission,
     stableStringify,
     toToolHistoryMessage,
-} from '@memo/core/runtime/session_runtime_helpers'
+} from '@memo/core/session/session_runtime_helpers'
 import type { ApprovalRequest, ApprovalDecision } from '@memo/tools/approval'
 
 const DEFAULT_AUTO_COMPACT_THRESHOLD_PERCENT = 80
@@ -70,7 +70,7 @@ export class AgentSessionImpl implements AgentSession {
     private turnIndex = 0
     private tokenCounter: TokenCounter
     private sinks: HistorySink[]
-    private sessionUsage: TokenUsage = emptyUsage()
+    private sessionUsage: LanguageModelUsage = emptyUsage()
     private startedAt = Date.now()
     private hooks: HookRunnerMap
     private closed = false
@@ -248,7 +248,7 @@ export class AgentSessionImpl implements AgentSession {
                 (message): message is ChatMessage & { role: 'user' } =>
                     message.role === 'user' && !isContextSummaryMessage(message),
             )
-            .map((message) => message.content)
+            .map((message) => (typeof message.content === 'string' ? message.content : ''))
         const retainedUserMessages = this.selectCompactionUserMessages(userMessages).map(
             (content) => ({ role: 'user', content }) as ChatMessage,
         )
@@ -553,8 +553,7 @@ export class AgentSessionImpl implements AgentSession {
 
                     let assistantText = ''
                     let toolUseBlocks: Array<{ id: string; name: string; input: unknown }> = []
-                    let usageFromLLM: Partial<TokenUsage> | undefined
-                    let stopReason: string | undefined
+                    let usageFromLLM: Partial<LanguageModelUsage> | undefined
                     let reasoningContent: string | undefined
                     let receivedAssistantChunk = false
                     try {
@@ -571,7 +570,6 @@ export class AgentSessionImpl implements AgentSession {
                         const normalized = normalizeLLMResponse(llmResult)
                         assistantText = normalized.textContent
                         toolUseBlocks = normalized.toolUseBlocks
-                        stopReason = normalized.stopReason
                         usageFromLLM = normalized.usage
                         reasoningContent = normalized.reasoningContent
                         if (assistantText.trim().length > 0) {
@@ -648,9 +646,13 @@ export class AgentSessionImpl implements AgentSession {
                             }
                             assistantHistoryMessage = {
                                 role: 'assistant',
-                                content: assistantText,
-                                reasoning_content: reasoningContent,
-                                tool_calls: buildAssistantToolCalls(toolUseBlocks),
+                                content: [
+                                    ...(assistantText ? [{ type: 'text' as const, text: assistantText }] : []),
+                                    ...(reasoningContent
+                                        ? [{ type: 'reasoning' as const, text: reasoningContent }]
+                                        : []),
+                                    ...buildAssistantToolCalls(toolUseBlocks),
+                                ],
                             }
                         } else {
                             parsed = {}
@@ -659,8 +661,10 @@ export class AgentSessionImpl implements AgentSession {
                         parsed = { final: assistantText }
                         assistantHistoryMessage = {
                             role: 'assistant',
-                            content: assistantText,
-                            reasoning_content: reasoningContent,
+                            content: [
+                                ...(assistantText ? [{ type: 'text' as const, text: assistantText }] : []),
+                                ...(reasoningContent ? [{ type: 'reasoning' as const, text: reasoningContent }] : []),
+                            ],
                         }
                     } else {
                         // 没有内容，视为空响应
@@ -668,13 +672,14 @@ export class AgentSessionImpl implements AgentSession {
                     }
 
                     // 使用 LLM 返回的 usage 作为用量记录。本地 tokenizer 仅用于预估（压缩触发、上下文超限检查），不作为用量上报的 fallback。
-                    const stepUsage: TokenUsage = usageFromLLM
+                    const stepUsage: LanguageModelUsage = usageFromLLM
                         ? {
-                              prompt: usageFromLLM.prompt ?? 0,
-                              completion: usageFromLLM.completion ?? 0,
-                              total: usageFromLLM.total ?? 0,
+                              ...emptyUsage(),
+                              inputTokens: usageFromLLM.inputTokens ?? 0,
+                              outputTokens: usageFromLLM.outputTokens ?? 0,
+                              totalTokens: usageFromLLM.totalTokens ?? 0,
                           }
-                        : { prompt: 0, completion: 0, total: 0 }
+                        : emptyUsage()
                     accumulateUsage(turnUsage, stepUsage)
                     accumulateUsage(this.sessionUsage, stepUsage)
 
@@ -742,9 +747,14 @@ export class AgentSessionImpl implements AgentSession {
                         for (const block of toolUseBlocks) {
                             this.history.push({
                                 role: 'tool',
-                                content: TOOL_SKIPPED_DISABLED_MESSAGE,
-                                tool_call_id: block.id,
-                                name: block.name,
+                                content: [
+                                    {
+                                        type: 'tool-result',
+                                        toolCallId: block.id,
+                                        toolName: block.name,
+                                        output: { type: 'text', value: TOOL_SKIPPED_DISABLED_MESSAGE },
+                                    },
+                                ],
                             })
                         }
                         status = 'error'
@@ -1004,9 +1014,14 @@ export class AgentSessionImpl implements AgentSession {
 
                         this.history.push({
                             role: 'tool',
-                            content: observation,
-                            tool_call_id: result.actionId,
-                            name: parsed.action.tool,
+                            content: [
+                                {
+                                    type: 'tool-result',
+                                    toolCallId: result.actionId,
+                                    toolName: parsed.action.tool,
+                                    output: { type: 'text', value: observation },
+                                },
+                            ],
                         })
                         const lastStep = steps[steps.length - 1]
                         if (lastStep) {
@@ -1037,11 +1052,11 @@ export class AgentSessionImpl implements AgentSession {
                         continue
                     }
 
-                    // 检查是否是最终回复（end_turn 或有 final 字段）
-                    if (stopReason === 'end_turn' || parsed.final) {
+                    // 检查是否是最终回复（无工具调用或有 final 字段）
+                    if (toolUseBlocks.length === 0 || parsed.final) {
                         this.resetActionRepetition()
                         const shouldFallbackFromPreviousText =
-                            stopReason === 'end_turn' &&
+                            toolUseBlocks.length === 0 &&
                             !parsed.final &&
                             assistantText.trim().length === 0 &&
                             Boolean(lastNonEmptyAssistantText) &&

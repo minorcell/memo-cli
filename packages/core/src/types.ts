@@ -1,8 +1,24 @@
 /** @file Common type declarations shared between Core and Runtime (reused by UI/Tools). */
+import type { FinishReason, LanguageModelUsage, ModelMessage, ToolCallPart } from 'ai'
 import type { ApprovalRequest, ApprovalDecision } from '@memo/tools/approval'
 import type { ToolActionStatus } from '@memo/tools/orchestrator'
 export type { ApprovalDecision, ApprovalRequest } from '@memo/tools/approval'
 export type { ToolActionStatus } from '@memo/tools/orchestrator'
+export type { FinishReason, LanguageModelUsage } from 'ai'
+
+/** AI SDK generation result subset returned by CallLLM (all fields are AI SDK types). */
+export type LLMResult = {
+    /** Full generated text. */
+    text: string
+    /** Reasoning output (DeepSeek thinking trace). */
+    reasoning?: string
+    /** Tool calls made during generation. */
+    toolCalls: ToolCallPart[]
+    /** Token usage. */
+    usage: LanguageModelUsage
+    /** Finish reason. */
+    finishReason: FinishReason
+}
 
 /**
  * Basic type declarations for Agent layer, covering conversation messages,
@@ -11,50 +27,8 @@ export type { ToolActionStatus } from '@memo/tools/orchestrator'
  */
 export type Role = 'system' | 'user' | 'assistant' | 'tool'
 
-/** Structured tool calls from Assistant (OpenAI tool_calls compatible format). */
-export type AssistantToolCall = {
-    id: string
-    type: 'function'
-    function: {
-        name: string
-        arguments: string
-    }
-}
-
-/** Model-side messages: compatible with plain text and structured tool calls/results. */
-export type ChatMessage =
-    | {
-          /** System message. */
-          role: 'system'
-          /** Message content. */
-          content: string
-      }
-    | {
-          /** User message. */
-          role: 'user'
-          /** Message content. */
-          content: string
-      }
-    | {
-          /** Assistant text or structured tool calls. */
-          role: 'assistant'
-          /** Assistant text; can be empty string for pure tool calls. */
-          content: string
-          /** Optional DeepSeek thinking trace required for subsequent tool-call rounds. */
-          reasoning_content?: string
-          /** Structured tool calls list (if any). */
-          tool_calls?: AssistantToolCall[]
-      }
-    | {
-          /** Tool result message (corresponds to a tool_call). */
-          role: 'tool'
-          /** Tool output text. */
-          content: string
-          /** Corresponds to assistant.tool_calls[*].id. */
-          tool_call_id: string
-          /** Optional tool name for debugging. */
-          name?: string
-      }
+/** Model-side messages: AI SDK ModelMessage (plain text or structured parts). */
+export type ChatMessage = ModelMessage
 
 /** Single-step debug record for replay and observability. */
 export type AgentStepTrace = {
@@ -66,18 +40,8 @@ export type AgentStepTrace = {
     parsed: ParsedAssistant
     /** Tool observation for this step (if any). */
     observation?: string
-    /** Token statistics for this step. */
-    tokenUsage: TokenUsage
-}
-
-/** Token usage statistics: prompt/completion/total. */
-export type TokenUsage = {
-    /** Input prompt tokens. */
-    prompt: number
-    /** Model generation tokens. */
-    completion: number
-    /** Total tokens (prompt+completion if model doesn't return it). */
-    total: number
+    /** Token statistics for this step (AI SDK LanguageModelUsage). */
+    tokenUsage: LanguageModelUsage
 }
 
 export type CompactReason = 'auto' | 'manual'
@@ -106,7 +70,7 @@ export type TokenCounter = {
     dispose: () => void
 }
 
-/** Tool Use Block - tool call request */
+/** Tool Use Block - tool call request (internal agent-loop structure). */
 export type ToolUseBlock = {
     type: 'tool_use'
     /** Unique ID for the tool call */
@@ -115,28 +79,6 @@ export type ToolUseBlock = {
     name: string
     /** Tool input parameters */
     input: unknown
-}
-
-/** Text Block - text content */
-export type TextBlock = {
-    type: 'text'
-    /** Text content */
-    text: string
-}
-
-/** Content Block - can be text or tool call */
-export type ContentBlock = TextBlock | ToolUseBlock
-
-/** LLM response (unified structured content blocks). */
-export type LLMResponse = {
-    /** Structured content blocks (text + tool calls). */
-    content: ContentBlock[]
-    /** Optional DeepSeek thinking trace for protocol-compatible follow-up requests. */
-    reasoning_content?: string
-    /** Stop reason. */
-    stop_reason: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop_sequence'
-    /** Token usage returned by model (optional). */
-    usage?: Partial<TokenUsage>
 }
 
 /** Representation of parsed LLM output as action/final structure. */
@@ -170,7 +112,7 @@ export type CallLLM = (
     messages: ChatMessage[],
     onChunk?: (chunk: string) => void,
     options?: CallLLMOptions,
-) => Promise<LLMResponse>
+) => Promise<LLMResult>
 
 /**
  * Dependency injection collection required by runAgent.
@@ -252,7 +194,7 @@ export type TurnResult = {
     /** 错误信息（若有）。 */
     errorMessage?: string
     /** 本轮 token 统计。 */
-    tokenUsage: TokenUsage
+    tokenUsage: LanguageModelUsage
 }
 
 export type TurnStartHookPayload = {
@@ -293,8 +235,8 @@ export type FinalHookPayload = {
     finalText: string
     status: TurnStatus
     errorMessage?: string
-    tokenUsage?: TokenUsage
-    turnUsage: TokenUsage
+    tokenUsage?: LanguageModelUsage
+    turnUsage: LanguageModelUsage
     steps: AgentStepTrace[]
 }
 

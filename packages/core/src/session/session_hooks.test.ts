@@ -2,9 +2,10 @@
 import assert from 'node:assert'
 import { describe, test } from 'vitest'
 import { createAgentSession, createTokenCounter } from '@memo/core'
-import type { ChatMessage, HistoryEvent, LLMResponse, TokenCounter } from '@memo/core'
+import type { ChatMessage, HistoryEvent, LLMResult, TokenCounter } from '@memo/core'
 import type { Tool } from '@memo/tools/router'
-import { CONTEXT_COMPACTION_SYSTEM_PROMPT, CONTEXT_SUMMARY_PREFIX } from '@memo/core/runtime/compact_prompt'
+import { CONTEXT_COMPACTION_SYSTEM_PROMPT, CONTEXT_SUMMARY_PREFIX } from '@memo/core/session/compact_prompt'
+import { emptyUsage } from '@memo/core/session/session_runtime_helpers'
 
 const echoTool: Tool = {
     name: 'echo',
@@ -32,40 +33,35 @@ const readNoteTool: Tool = {
     },
 }
 
-function toolUseResponse(id: string, name: string, input: unknown, text?: string): LLMResponse {
+function toolUseResponse(id: string, name: string, input: unknown, text?: string): LLMResult {
     return {
-        content: [
-            ...(text ? [{ type: 'text' as const, text }] : []),
-            {
-                type: 'tool_use' as const,
-                id,
-                name,
-                input,
-            },
-        ],
-        stop_reason: 'tool_use',
+        text: text ?? '',
+        toolCalls: [{ type: 'tool-call', toolCallId: id, toolName: name, input }],
+        usage: emptyUsage(),
+        finishReason: 'tool-calls',
     }
 }
 
-function multiToolUseResponse(calls: Array<{ id: string; name: string; input: unknown }>, text?: string): LLMResponse {
+function multiToolUseResponse(calls: Array<{ id: string; name: string; input: unknown }>, text?: string): LLMResult {
     return {
-        content: [
-            ...(text ? [{ type: 'text' as const, text }] : []),
-            ...calls.map((call) => ({
-                type: 'tool_use' as const,
-                id: call.id,
-                name: call.name,
-                input: call.input,
-            })),
-        ],
-        stop_reason: 'tool_use',
+        text: text ?? '',
+        toolCalls: calls.map((call) => ({
+            type: 'tool-call',
+            toolCallId: call.id,
+            toolName: call.name,
+            input: call.input,
+        })),
+        usage: emptyUsage(),
+        finishReason: 'tool-calls',
     }
 }
 
-function endTurnResponse(text: string = 'done'): LLMResponse {
+function endTurnResponse(text: string = 'done'): LLMResult {
     return {
-        content: [{ type: 'text' as const, text }],
-        stop_reason: 'end_turn',
+        text,
+        toolCalls: [],
+        usage: emptyUsage(),
+        finishReason: 'stop',
     }
 }
 
@@ -78,6 +74,24 @@ function createLengthTokenCounter(): TokenCounter {
     }
 }
 
+/** Extract tool-call ids from an assistant message's parts (CoreMessage shape). */
+function assistantToolCallIds(message: ChatMessage): string[] {
+    if (message.role !== 'assistant' || !Array.isArray(message.content)) return []
+    return message.content.filter((part) => part.type === 'tool-call').map((part) => part.toolCallId)
+}
+
+/** Extract tool-result details from a tool message's parts (CoreMessage shape). */
+function toolMessageDetails(message: ChatMessage): { toolCallId: string; toolName: string; text: string } | null {
+    if (message.role !== 'tool') return null
+    const part = message.content[0]
+    if (!part || part.type !== 'tool-result') return null
+    return {
+        toolCallId: part.toolCallId,
+        toolName: part.toolName,
+        text: part.output.type === 'text' ? part.output.value : '',
+    }
+}
+
 function hasInvalidToolProtocol(messages: ChatMessage[]): boolean {
     let pendingToolCallIds = new Set<string>()
     for (const message of messages) {
@@ -85,15 +99,17 @@ function hasInvalidToolProtocol(messages: ChatMessage[]): boolean {
             if (message.role !== 'tool') {
                 return true
             }
-            if (!pendingToolCallIds.has(message.tool_call_id)) {
+            const details = toolMessageDetails(message)
+            if (!details || !pendingToolCallIds.has(details.toolCallId)) {
                 return true
             }
-            pendingToolCallIds.delete(message.tool_call_id)
+            pendingToolCallIds.delete(details.toolCallId)
             continue
         }
 
-        if (message.role === 'assistant' && message.tool_calls?.length) {
-            pendingToolCallIds = new Set(message.tool_calls.map((toolCall) => toolCall.id))
+        const toolCallIds = assistantToolCallIds(message)
+        if (toolCallIds.length) {
+            pendingToolCallIds = new Set(toolCallIds)
             continue
         }
 
@@ -106,7 +122,7 @@ function hasInvalidToolProtocol(messages: ChatMessage[]): boolean {
 
 describe('session hooks & middleware', () => {
     test('invokes hooks and middlewares in order', async () => {
-        const outputs: LLMResponse[] = [toolUseResponse('action-1', 'echo', { text: 'foo' }), endTurnResponse('done')]
+        const outputs: LLMResult[] = [toolUseResponse('action-1', 'echo', { text: 'foo' }), endTurnResponse('done')]
         const hookLog: string[] = []
         const session = await createAgentSession(
             {
@@ -168,7 +184,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('executes action from structured tool_use with accompanying text', async () => {
-        const outputs: LLMResponse[] = [
+        const outputs: LLMResult[] = [
             toolUseResponse('action-1', 'echo', { text: 'hi' }, '<think>demo</think>'),
             endTurnResponse('done'),
         ]
@@ -202,7 +218,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('reuses previous assistant text when end_turn arrives empty after tool call', async () => {
-        const outputs: LLMResponse[] = [
+        const outputs: LLMResult[] = [
             toolUseResponse('action-1', 'echo', { text: 'x' }, '这是最终答案'),
             endTurnResponse(''),
         ]
@@ -226,7 +242,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('warns after three identical tool calls', async () => {
-        const outputs: LLMResponse[] = [
+        const outputs: LLMResult[] = [
             toolUseResponse('loop-1', 'echo', { text: 'loop' }),
             toolUseResponse('loop-2', 'echo', { text: 'loop' }),
             toolUseResponse('loop-3', 'echo', { text: 'loop' }),
@@ -256,7 +272,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('bypasses approval in dangerous mode', async () => {
-        const outputs: LLMResponse[] = [toolUseResponse('action-1', 'echo', { text: 'safe' }), endTurnResponse('done')]
+        const outputs: LLMResult[] = [toolUseResponse('action-1', 'echo', { text: 'safe' }), endTurnResponse('done')]
         const session = await createAgentSession(
             {
                 tools: { echo: echoTool },
@@ -277,7 +293,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('uses risk-based approvals in once tool permission mode', async () => {
-        const outputs: LLMResponse[] = [
+        const outputs: LLMResult[] = [
             toolUseResponse('action-1', 'read_note', { topic: 'memo' }),
             endTurnResponse('done'),
         ]
@@ -306,10 +322,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('blocks tool calls when tool permission mode is none', async () => {
-        const outputs: LLMResponse[] = [
-            toolUseResponse('action-1', 'echo', { text: 'blocked' }),
-            endTurnResponse('done'),
-        ]
+        const outputs: LLMResult[] = [toolUseResponse('action-1', 'echo', { text: 'blocked' }), endTurnResponse('done')]
         const session = await createAgentSession(
             {
                 tools: { echo: echoTool },
@@ -325,13 +338,13 @@ describe('session hooks & middleware', () => {
             assert.strictEqual(result.status, 'error')
             assert.ok(result.finalText.includes('Tool usage is disabled'))
             assert.strictEqual(result.steps[0]?.observation, undefined)
-            const deniedToolMessage = session.history.find(
-                (message) => message.role === 'tool' && message.tool_call_id === 'action-1',
-            )
+            const deniedToolMessage = session.history
+                .map(toolMessageDetails)
+                .find((details) => details?.toolCallId === 'action-1')
             assert.ok(deniedToolMessage, 'tool message should be recorded for denied tool_call_id')
-            if (deniedToolMessage?.role === 'tool') {
+            if (deniedToolMessage) {
                 assert.ok(
-                    deniedToolMessage.content.includes('tools are disabled'),
+                    deniedToolMessage.text.includes('tools are disabled'),
                     'tool message should explain why execution was skipped',
                 )
             }
@@ -341,7 +354,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('rejects native tool input via validateInput before execute', async () => {
-        const outputs: LLMResponse[] = [toolUseResponse('action-1', 'read_text_file', {}), endTurnResponse('done')]
+        const outputs: LLMResult[] = [toolUseResponse('action-1', 'read_text_file', {}), endTurnResponse('done')]
         const session = await createAgentSession(
             {
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
@@ -362,23 +375,7 @@ describe('session hooks & middleware', () => {
 
     test('emits structured tool execution metadata in history events', async () => {
         const events: HistoryEvent[] = []
-        const outputs = [
-            {
-                content: [
-                    {
-                        type: 'tool_use' as const,
-                        id: 'action-1',
-                        name: 'echo',
-                        input: { text: 'x' },
-                    },
-                ],
-                stop_reason: 'tool_use' as const,
-            },
-            {
-                content: [{ type: 'text' as const, text: 'done' }],
-                stop_reason: 'end_turn' as const,
-            },
-        ]
+        const outputs = [toolUseResponse('action-1', 'echo', { text: 'x' }), endTurnResponse('done')]
         const session = await createAgentSession(
             {
                 tools: { echo: echoTool },
@@ -427,7 +424,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('records structured tool call/result messages without json fallback payloads', async () => {
-        const outputs: LLMResponse[] = [toolUseResponse('action-1', 'echo', { text: 'x' }), endTurnResponse('done')]
+        const outputs: LLMResult[] = [toolUseResponse('action-1', 'echo', { text: 'x' }), endTurnResponse('done')]
         const session = await createAgentSession(
             {
                 tools: { echo: echoTool },
@@ -442,30 +439,36 @@ describe('session hooks & middleware', () => {
             const result = await session.runTurn('meta')
             assert.strictEqual(result.finalText, 'done')
 
-            const assistantToolMessage = session.history.find(
-                (message) =>
-                    message.role === 'assistant' && message.tool_calls?.some((toolCall) => toolCall.id === 'action-1'),
+            const assistantToolMessage = session.history.find((message) =>
+                assistantToolCallIds(message).includes('action-1'),
             )
             assert.ok(assistantToolMessage, 'assistant tool_calls message should exist')
 
-            const toolResultMessage = session.history.find(
-                (message) => message.role === 'tool' && message.tool_call_id === 'action-1',
-            )
+            const toolResultMessage = session.history
+                .map(toolMessageDetails)
+                .find((details) => details?.toolCallId === 'action-1')
             assert.ok(toolResultMessage, 'tool result message should exist')
-            if (toolResultMessage?.role === 'tool') {
-                assert.strictEqual(toolResultMessage.content, 'echo:x')
-                assert.strictEqual(toolResultMessage.name, 'echo')
+            if (toolResultMessage) {
+                assert.strictEqual(toolResultMessage.text, 'echo:x')
+                assert.strictEqual(toolResultMessage.toolName, 'echo')
             }
 
             assert.ok(
                 !session.history.some(
-                    (message) => message.role === 'assistant' && message.content.startsWith('{"tool":'),
+                    (message) =>
+                        message.role === 'assistant' &&
+                        typeof message.content === 'string' &&
+                        typeof message.content === 'string' &&
+                        message.content.startsWith('{"tool":'),
                 ),
                 'assistant history should not contain plain-text tool json payloads',
             )
             assert.ok(
                 !session.history.some(
-                    (message) => message.role === 'user' && message.content.includes('"observation"'),
+                    (message) =>
+                        message.role === 'user' &&
+                        typeof message.content === 'string' &&
+                        message.content.includes('"observation"'),
                 ),
                 'history should not inject observation json through user messages',
             )
@@ -476,19 +479,7 @@ describe('session hooks & middleware', () => {
 
     test('emits structured rejection metadata in final event', async () => {
         const events: HistoryEvent[] = []
-        const outputs = [
-            {
-                content: [
-                    {
-                        type: 'tool_use' as const,
-                        id: 'reject-1',
-                        name: 'echo',
-                        input: { text: 'x' },
-                    },
-                ],
-                stop_reason: 'tool_use' as const,
-            },
-        ]
+        const outputs = [toolUseResponse('reject-1', 'echo', { text: 'x' })]
         const session = await createAgentSession(
             {
                 tools: { echo: echoTool },
@@ -508,9 +499,9 @@ describe('session hooks & middleware', () => {
         try {
             const result = await session.runTurn('meta')
             assert.strictEqual(result.status, 'cancelled')
-            const toolMessage = session.history.find(
-                (message) => message.role === 'tool' && message.tool_call_id === 'reject-1',
-            )
+            const toolMessage = session.history
+                .map(toolMessageDetails)
+                .find((details) => details?.toolCallId === 'reject-1')
             assert.ok(toolMessage, 'tool message should exist for rejected tool_call_id')
             const finalEvent = [...events].reverse().find((event) => event.type === 'final')
             assert.ok(finalEvent, 'final event should exist')
@@ -525,7 +516,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('records tool messages for all tool_call_ids on fail_fast rejection', async () => {
-        const outputs: LLMResponse[] = [
+        const outputs: LLMResult[] = [
             multiToolUseResponse([
                 { id: 'reject-1', name: 'echo', input: { text: 'a' } },
                 { id: 'reject-2', name: 'echo', input: { text: 'b' } },
@@ -546,17 +537,13 @@ describe('session hooks & middleware', () => {
             const result = await session.runTurn('meta')
             assert.strictEqual(result.status, 'cancelled')
 
-            const first = session.history.find(
-                (message) => message.role === 'tool' && message.tool_call_id === 'reject-1',
-            )
-            const second = session.history.find(
-                (message) => message.role === 'tool' && message.tool_call_id === 'reject-2',
-            )
+            const first = session.history.map(toolMessageDetails).find((details) => details?.toolCallId === 'reject-1')
+            const second = session.history.map(toolMessageDetails).find((details) => details?.toolCallId === 'reject-2')
             assert.ok(first, 'first tool_call_id should have a matching tool message')
             assert.ok(second, 'second tool_call_id should have a matching tool message')
-            if (second?.role === 'tool') {
+            if (second) {
                 assert.ok(
-                    second.content.includes('Skipped tool execution after previous rejection'),
+                    second.text.includes('Skipped tool execution after previous rejection'),
                     'missing tool execution should be represented as skipped observation',
                 )
             }
@@ -567,7 +554,7 @@ describe('session hooks & middleware', () => {
 
     test('fails with model_protocol_error when model emits plain-text tool json', async () => {
         const events: HistoryEvent[] = []
-        const outputs: LLMResponse[] = [endTurnResponse('{"tool":"echo","input":{"text":"x"}}')]
+        const outputs: LLMResult[] = [endTurnResponse('{"tool":"echo","input":{"text":"x"}}')]
         const session = await createAgentSession(
             {
                 tools: { echo: echoTool },
@@ -604,10 +591,12 @@ describe('session hooks & middleware', () => {
     })
 
     test('falls back to generic final error when model returns no actionable content', async () => {
-        const outputs: LLMResponse[] = [
+        const outputs: LLMResult[] = [
             {
-                content: [],
-                stop_reason: 'stop_sequence',
+                text: '',
+                toolCalls: [],
+                usage: emptyUsage(),
+                finishReason: 'stop',
             },
         ]
         const session = await createAgentSession(
@@ -633,7 +622,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('does not treat unknown tool json text as protocol violation', async () => {
-        const outputs: LLMResponse[] = [endTurnResponse('{"tool":"unknown","input":{}}')]
+        const outputs: LLMResult[] = [endTurnResponse('{"tool":"unknown","input":{}}')]
         const session = await createAgentSession(
             {
                 tools: { echo: echoTool },
@@ -654,7 +643,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('emits context usage hooks at turn start and each step', async () => {
-        const outputs: LLMResponse[] = [toolUseResponse('action-1', 'echo', { text: 'x' }), endTurnResponse('done')]
+        const outputs: LLMResult[] = [toolUseResponse('action-1', 'echo', { text: 'x' }), endTurnResponse('done')]
         const phases: string[] = []
 
         const session = await createAgentSession(
@@ -684,7 +673,7 @@ describe('session hooks & middleware', () => {
     })
 
     test('auto compaction is triggered at threshold and runs at most once per turn', async () => {
-        const outputs: LLMResponse[] = [
+        const outputs: LLMResult[] = [
             toolUseResponse('action-1', 'echo', { text: 'x' }),
             toolUseResponse('action-2', 'echo', { text: 'y' }),
             endTurnResponse('done'),
@@ -814,7 +803,10 @@ describe('session hooks & middleware', () => {
             assert.strictEqual(regularLLMCalls, 0)
             assert.strictEqual(
                 session.history.some(
-                    (message) => message.role === 'user' && message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
+                    (message) =>
+                        message.role === 'user' &&
+                        typeof message.content === 'string' &&
+                        message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
                 ),
                 false,
             )
@@ -858,12 +850,9 @@ describe('session hooks & middleware', () => {
 
     test('manual compaction rebuilds history with user-only context and summary', async () => {
         const assistantToolCall = {
-            id: 'call_function_l5suo7l5etii_1',
-            type: 'function' as const,
-            function: {
-                name: 'exec_command',
-                arguments: '{}',
-            },
+            toolCallId: 'call_function_l5suo7l5etii_1',
+            toolName: 'exec_command',
+            input: {},
         }
         let sawCompactionCall = false
 
@@ -893,12 +882,20 @@ describe('session hooks & middleware', () => {
         try {
             session.history.push(
                 { role: 'user', content: 'u1' },
-                { role: 'assistant', content: '', tool_calls: [assistantToolCall] },
+                {
+                    role: 'assistant',
+                    content: [{ type: 'tool-call', ...assistantToolCall }],
+                },
                 {
                     role: 'tool',
-                    content: 'tool-result',
-                    tool_call_id: assistantToolCall.id,
-                    name: 'exec_command',
+                    content: [
+                        {
+                            type: 'tool-result',
+                            toolCallId: assistantToolCall.toolCallId,
+                            toolName: assistantToolCall.toolName,
+                            output: { type: 'text', value: 'tool-result' },
+                        },
+                    ],
                 },
                 { role: 'assistant', content: 'a1' },
                 { role: 'user', content: 'u2' },
@@ -919,7 +916,10 @@ describe('session hooks & middleware', () => {
             assert.strictEqual(hasInvalidToolProtocol(session.history), false)
             assert.ok(
                 session.history.some(
-                    (message) => message.role === 'user' && message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
+                    (message) =>
+                        message.role === 'user' &&
+                        typeof message.content === 'string' &&
+                        message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
                 ),
                 'summary message should be preserved in compacted history',
             )
@@ -929,12 +929,7 @@ describe('session hooks & middleware', () => {
                 'compacted history should drop tool result messages',
             )
             assert.strictEqual(
-                session.history.some(
-                    (message) =>
-                        message.role === 'assistant' &&
-                        Array.isArray(message.tool_calls) &&
-                        message.tool_calls.length > 0,
-                ),
+                session.history.some((message) => assistantToolCallIds(message).length > 0),
                 false,
                 'compacted history should drop assistant tool-call messages',
             )
@@ -981,11 +976,13 @@ describe('session hooks & middleware', () => {
             const retainedUserMessage = session.history[1]
             assert.strictEqual(retainedUserMessage?.role, 'user')
             assert.strictEqual(retainedUserMessage?.content.length, 20_000)
-            assert.ok(retainedUserMessage?.content.startsWith('a'))
+            const retainedContent = retainedUserMessage?.content
+            assert.ok(typeof retainedContent === 'string' && retainedContent.startsWith('a'))
 
             const summaryMessage = session.history[2]
             assert.strictEqual(summaryMessage?.role, 'user')
-            assert.ok(summaryMessage?.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`))
+            const summaryContent = summaryMessage?.content
+            assert.ok(typeof summaryContent === 'string' && summaryContent.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`))
         } finally {
             await session.close()
         }
@@ -1021,7 +1018,8 @@ describe('session hooks & middleware', () => {
 
             const summaryMessage = session.history[session.history.length - 1]
             assert.strictEqual(summaryMessage?.role, 'user')
-            assert.ok(summaryMessage?.content.endsWith('summary\n\nnext'))
+            const summaryContent = summaryMessage?.content
+            assert.ok(typeof summaryContent === 'string' && summaryContent.endsWith('summary\n\nnext'))
         } finally {
             await session.close()
         }
@@ -1057,10 +1055,14 @@ describe('session hooks & middleware', () => {
             assert.strictEqual(result.status, 'success')
 
             const summaryMessages = session.history.filter(
-                (message) => message.role === 'user' && message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
+                (message) =>
+                    message.role === 'user' &&
+                    typeof message.content === 'string' &&
+                    message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
             )
             assert.strictEqual(summaryMessages.length, 1)
-            assert.ok(summaryMessages[0]?.content.endsWith('new summary'))
+            const lastSummary = summaryMessages[0]?.content
+            assert.ok(typeof lastSummary === 'string' && lastSummary.endsWith('new summary'))
             assert.strictEqual(
                 session.history.some((message) => message.content === oldSummary),
                 false,
@@ -1233,7 +1235,7 @@ describe('session hooks & middleware', () => {
         const events: HistoryEvent[] = []
         const generatedTitles: string[] = []
         const calls: Array<{ options: unknown }> = []
-        const outputs: LLMResponse[] = [endTurnResponse('done')]
+        const outputs: LLMResult[] = [endTurnResponse('done')]
 
         const session = await createAgentSession(
             {
@@ -1275,7 +1277,7 @@ describe('session hooks & middleware', () => {
 
     test('emits session title only once across multiple turns', async () => {
         const events: HistoryEvent[] = []
-        const outputs: LLMResponse[] = [endTurnResponse('done'), endTurnResponse('done-again')]
+        const outputs: LLMResult[] = [endTurnResponse('done'), endTurnResponse('done-again')]
 
         const session = await createAgentSession(
             {

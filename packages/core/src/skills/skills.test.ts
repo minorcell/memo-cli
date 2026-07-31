@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, test } from 'vitest'
-import { loadSkills } from '@memo/core/runtime/skills'
+import { loadSkills } from '@memo/core/skills/skills'
 
 async function makeTempDir(prefix: string) {
     const dir = join(tmpdir(), `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`)

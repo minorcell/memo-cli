@@ -96,13 +96,12 @@ export async function runHook<K extends HookName>(map: HookRunnerMap, name: K, p
 
 export function snapshotHistory(history: ChatMessage[]): ChatMessage[] {
     return history.map((msg) => {
-        if (msg.role === 'assistant' && msg.tool_calls?.length) {
+        if (msg.role === 'assistant' && Array.isArray(msg.content)) {
             return {
                 ...msg,
-                tool_calls: msg.tool_calls.map((toolCall) => ({
-                    ...toolCall,
-                    function: { ...toolCall.function },
-                })),
+                content: msg.content.map((part) =>
+                    part.type === 'tool-call' ? { ...part, input: structuredClone(part.input) } : part,
+                ),
             }
         }
         return { ...msg }

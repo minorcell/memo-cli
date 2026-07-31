@@ -110,9 +110,14 @@ describe('createTokenCounter', () => {
             const messages: ChatMessage[] = [
                 {
                     role: 'tool',
-                    content: 'Tool execution result',
-                    tool_call_id: 'call-123',
-                    name: 'test_tool',
+                    content: [
+                        {
+                            type: 'tool-result',
+                            toolCallId: 'call-123',
+                            toolName: 'test_tool',
+                            output: { type: 'text', value: 'Tool execution result' },
+                        },
+                    ],
                 },
             ]
             const count = counter.countMessages(messages)
@@ -147,13 +152,9 @@ describe('createTokenCounter', () => {
             const messagesWithToolCalls: ChatMessage[] = [
                 {
                     role: 'assistant',
-                    content: 'Let me check',
-                    tool_calls: [
-                        {
-                            id: 'call-1',
-                            type: 'function',
-                            function: { name: 'read_file', arguments: '{"path": "test.txt"}' },
-                        },
+                    content: [
+                        { type: 'text', text: 'Let me check' },
+                        { type: 'tool-call', toolCallId: 'call-1', toolName: 'read_file', input: { path: 'test.txt' } },
                     ],
                 },
             ]
@@ -164,31 +165,27 @@ describe('createTokenCounter', () => {
         })
 
         test('counts reasoning_content in assistant message', () => {
+            const toolCallParts = [
+                {
+                    type: 'tool-call' as const,
+                    toolCallId: 'call-1',
+                    toolName: 'read_file',
+                    input: { path: 'README.md' },
+                },
+            ]
             const messagesWithReasoning: ChatMessage[] = [
                 {
                     role: 'assistant',
-                    content: '',
-                    reasoning_content: 'I should inspect file A before using read_file.',
-                    tool_calls: [
-                        {
-                            id: 'call-1',
-                            type: 'function',
-                            function: { name: 'read_file', arguments: '{"path":"README.md"}' },
-                        },
+                    content: [
+                        { type: 'reasoning', text: 'I should inspect file A before using read_file.' },
+                        ...toolCallParts,
                     ],
                 },
             ]
             const messagesWithoutReasoning: ChatMessage[] = [
                 {
                     role: 'assistant',
-                    content: '',
-                    tool_calls: [
-                        {
-                            id: 'call-1',
-                            type: 'function',
-                            function: { name: 'read_file', arguments: '{"path":"README.md"}' },
-                        },
-                    ],
+                    content: toolCallParts,
                 },
             ]
             const withReasoning = counter.countMessages(messagesWithReasoning)
@@ -200,8 +197,14 @@ describe('createTokenCounter', () => {
             const messages: ChatMessage[] = [
                 {
                     role: 'tool',
-                    content: 'Result',
-                    tool_call_id: 'call-abc123',
+                    content: [
+                        {
+                            type: 'tool-result',
+                            toolCallId: 'call-abc123',
+                            toolName: '',
+                            output: { type: 'text', value: 'Result' },
+                        },
+                    ],
                 },
             ]
             const count = counter.countMessages(messages)
@@ -212,9 +215,14 @@ describe('createTokenCounter', () => {
             const messages: ChatMessage[] = [
                 {
                     role: 'tool',
-                    content: 'Result',
-                    tool_call_id: 'call-1',
-                    name: 'my_tool',
+                    content: [
+                        {
+                            type: 'tool-result',
+                            toolCallId: 'call-1',
+                            toolName: 'my_tool',
+                            output: { type: 'text', value: 'Result' },
+                        },
+                    ],
                 },
             ]
             const count = counter.countMessages(messages)

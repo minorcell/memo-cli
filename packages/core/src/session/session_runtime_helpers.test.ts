@@ -12,19 +12,19 @@ import {
     stableStringify,
     toToolHistoryMessage,
     truncateSessionTitle,
-} from '@memo/core/runtime/session_runtime_helpers'
+} from '@memo/core/session/session_runtime_helpers'
 
 describe('accumulateUsage', () => {
     test('uses explicit total when provided', () => {
         const usage = emptyUsage()
-        accumulateUsage(usage, { prompt: 2, completion: 3, total: 100 })
-        expect(usage).toEqual({ prompt: 2, completion: 3, total: 100 })
+        accumulateUsage(usage, { inputTokens: 2, outputTokens: 3, totalTokens: 100 })
+        expect(usage).toEqual({ ...emptyUsage(), inputTokens: 2, outputTokens: 3, totalTokens: 100 })
     })
 
-    test('falls back to prompt + completion when total is absent', () => {
+    test('falls back to input + output when total is absent', () => {
         const usage = emptyUsage()
-        accumulateUsage(usage, { prompt: 2, completion: 3 })
-        expect(usage).toEqual({ prompt: 2, completion: 3, total: 5 })
+        accumulateUsage(usage, { inputTokens: 2, outputTokens: 3 })
+        expect(usage).toEqual({ ...emptyUsage(), inputTokens: 2, outputTokens: 3, totalTokens: 5 })
     })
 })
 
@@ -158,9 +158,14 @@ describe('tool result helpers', () => {
         })
         expect(message).toEqual({
             role: 'tool',
-            content: 'content',
-            tool_call_id: 'call-1',
-            name: 'read_file',
+            content: [
+                {
+                    type: 'tool-result',
+                    toolCallId: 'call-1',
+                    toolName: 'read_file',
+                    output: { type: 'text', value: 'content' },
+                },
+            ],
         })
     })
 

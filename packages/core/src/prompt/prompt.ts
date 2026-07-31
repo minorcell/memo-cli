@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadSkills, renderSkillsSection } from '@memo/core/runtime/skills'
+import { loadSkills, renderSkillsSection } from '@memo/core/skills/skills'
 
 const TEMPLATE_PATTERN = /{{\s*([\w.-]+)\s*}}/g
 const SOUL_PLACEHOLDER_PATTERN = /{{\s*soul_section\s*}}/

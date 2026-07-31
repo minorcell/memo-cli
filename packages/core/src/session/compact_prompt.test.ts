@@ -5,7 +5,7 @@ import {
     buildCompactionUserPrompt,
     CONTEXT_SUMMARY_PREFIX,
     isContextSummaryMessage,
-} from '@memo/core/runtime/compact_prompt'
+} from '@memo/core/session/compact_prompt'
 
 describe('compact_prompt', () => {
     test('buildCompactionUserPrompt formats assistant tool calls and tool messages', () => {
@@ -13,23 +13,21 @@ describe('compact_prompt', () => {
         const messages: ChatMessage[] = [
             {
                 role: 'assistant',
-                content: 'planning',
-                tool_calls: [
-                    {
-                        id: 'call-1',
-                        type: 'function',
-                        function: {
-                            name: 'exec_command',
-                            arguments: '{}',
-                        },
-                    },
+                content: [
+                    { type: 'text', text: 'planning' },
+                    { type: 'tool-call', toolCallId: 'call-1', toolName: 'exec_command', input: {} },
                 ],
             },
             {
                 role: 'tool',
-                content: longToolOutput,
-                tool_call_id: 'call-1',
-                name: 'exec_command',
+                content: [
+                    {
+                        type: 'tool-result',
+                        toolCallId: 'call-1',
+                        toolName: 'exec_command',
+                        output: { type: 'text', value: longToolOutput },
+                    },
+                ],
             },
         ]
 
@@ -53,8 +51,14 @@ describe('compact_prompt', () => {
             },
             {
                 role: 'tool',
-                content: ' \r\nresult line\r\n ',
-                tool_call_id: 'call-2',
+                content: [
+                    {
+                        type: 'tool-result',
+                        toolCallId: 'call-2',
+                        toolName: '',
+                        output: { type: 'text', value: ' \r\nresult line\r\n ' },
+                    },
+                ],
             },
         ]
 

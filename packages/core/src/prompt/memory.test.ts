@@ -4,8 +4,15 @@ import { join } from 'node:path'
 import { tmpdir, userInfo } from 'node:os'
 import { describe, test, beforeAll, afterAll } from 'vitest'
 import { writeFile, rm, mkdir } from 'node:fs/promises'
-import { createAgentSession, createTokenCounter } from '@memo/core'
-import { loadSystemPrompt } from '@memo/core/runtime/prompt'
+import { createAgentSession, createTokenCounter, type ChatMessage } from '@memo/core'
+import { loadSystemPrompt } from '@memo/core/prompt/prompt'
+import { emptyUsage } from '@memo/core/session/session_runtime_helpers'
+
+/** System messages carry string content; parts arrays (assistant/tool) are not expected here. */
+function systemPromptOf(history: ChatMessage[]): string {
+    const content = history[0]?.content
+    return typeof content === 'string' ? content : ''
+}
 
 let tempHome: string
 let prevMemoHome: string | undefined
@@ -43,8 +50,10 @@ describe('runtime prompt injection', () => {
         const session = await createAgentSession(
             {
                 callLLM: async () => ({
-                    content: [{ type: 'text', text: 'ok' }],
-                    stop_reason: 'end_turn',
+                    text: 'ok',
+                    toolCalls: [],
+                    usage: emptyUsage(),
+                    finishReason: 'stop',
                 }),
                 historySinks: [],
                 tokenCounter: createTokenCounter('cl100k_base'),
@@ -52,7 +61,7 @@ describe('runtime prompt injection', () => {
             { mode: 'interactive' },
         )
         try {
-            const systemPrompt = session.history[0]?.content ?? ''
+            const systemPrompt = systemPromptOf(session.history)
             assert.ok(!systemPrompt.includes('Long-Term Memory'))
             assert.ok(!systemPrompt.includes('用户偏好：中文回答'))
         } finally {
@@ -64,8 +73,10 @@ describe('runtime prompt injection', () => {
         const session = await createAgentSession(
             {
                 callLLM: async () => ({
-                    content: [{ type: 'text', text: 'ok' }],
-                    stop_reason: 'end_turn',
+                    text: 'ok',
+                    toolCalls: [],
+                    usage: emptyUsage(),
+                    finishReason: 'stop',
                 }),
                 historySinks: [],
                 tokenCounter: createTokenCounter('cl100k_base'),
@@ -73,7 +84,7 @@ describe('runtime prompt injection', () => {
             { mode: 'interactive' },
         )
         try {
-            const systemPrompt = session.history[0]?.content ?? ''
+            const systemPrompt = systemPromptOf(session.history)
             assert.ok(systemPrompt.includes(process.cwd()), 'system prompt should include pwd')
             assert.ok(systemPrompt.includes(userInfo().username), 'system prompt should include username')
             assert.match(systemPrompt, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:/, 'system prompt should include ISO date')
@@ -92,8 +103,10 @@ describe('runtime prompt injection', () => {
         const session = await createAgentSession(
             {
                 callLLM: async () => ({
-                    content: [{ type: 'text', text: 'ok' }],
-                    stop_reason: 'end_turn',
+                    text: 'ok',
+                    toolCalls: [],
+                    usage: emptyUsage(),
+                    finishReason: 'stop',
                 }),
                 loadPrompt: () => loadSystemPrompt({ cwd: projectRoot }),
                 historySinks: [],
@@ -103,7 +116,7 @@ describe('runtime prompt injection', () => {
         )
 
         try {
-            const systemPrompt = session.history[0]?.content ?? ''
+            const systemPrompt = systemPromptOf(session.history)
             assert.ok(systemPrompt.includes('Project AGENTS.md (Startup Root)'))
             assert.ok(systemPrompt.includes(agentsPath))
             assert.ok(systemPrompt.includes(marker))
@@ -125,8 +138,10 @@ describe('runtime prompt injection', () => {
         const session = await createAgentSession(
             {
                 callLLM: async () => ({
-                    content: [{ type: 'text', text: 'ok' }],
-                    stop_reason: 'end_turn',
+                    text: 'ok',
+                    toolCalls: [],
+                    usage: emptyUsage(),
+                    finishReason: 'stop',
                 }),
                 loadPrompt: () => loadSystemPrompt({ cwd: projectRoot, memoHome: tempHome }),
                 historySinks: [],
@@ -136,7 +151,7 @@ describe('runtime prompt injection', () => {
         )
 
         try {
-            const systemPrompt = session.history[0]?.content ?? ''
+            const systemPrompt = systemPromptOf(session.history)
             assert.ok(systemPrompt.includes('## User Personality Context (SOUL.md)'))
             assert.ok(systemPrompt.includes(soulPath))
             assert.ok(systemPrompt.includes(soulMarker))
@@ -173,8 +188,10 @@ description: ${marker}
         const session = await createAgentSession(
             {
                 callLLM: async () => ({
-                    content: [{ type: 'text', text: 'ok' }],
-                    stop_reason: 'end_turn',
+                    text: 'ok',
+                    toolCalls: [],
+                    usage: emptyUsage(),
+                    finishReason: 'stop',
                 }),
                 loadPrompt: () =>
                     loadSystemPrompt({
@@ -190,7 +207,7 @@ description: ${marker}
         )
 
         try {
-            const systemPrompt = session.history[0]?.content ?? ''
+            const systemPrompt = systemPromptOf(session.history)
             assert.ok(systemPrompt.includes('## Skills'))
             assert.ok(systemPrompt.includes('### Available skills'))
             assert.ok(systemPrompt.includes(`- doc-writing: ${marker} (file: ${skillPath})`))
@@ -234,8 +251,10 @@ description: disabled marker
         const session = await createAgentSession(
             {
                 callLLM: async () => ({
-                    content: [{ type: 'text', text: 'ok' }],
-                    stop_reason: 'end_turn',
+                    text: 'ok',
+                    toolCalls: [],
+                    usage: emptyUsage(),
+                    finishReason: 'stop',
                 }),
                 loadPrompt: () =>
                     loadSystemPrompt({
@@ -252,7 +271,7 @@ description: disabled marker
         )
 
         try {
-            const systemPrompt = session.history[0]?.content ?? ''
+            const systemPrompt = systemPromptOf(session.history)
             assert.ok(systemPrompt.includes('enabled-skill'))
             assert.ok(!systemPrompt.includes('disabled-skill'))
         } finally {
@@ -280,8 +299,10 @@ name: broken-skill
         const session = await createAgentSession(
             {
                 callLLM: async () => ({
-                    content: [{ type: 'text', text: 'ok' }],
-                    stop_reason: 'end_turn',
+                    text: 'ok',
+                    toolCalls: [],
+                    usage: emptyUsage(),
+                    finishReason: 'stop',
                 }),
                 loadPrompt: () =>
                     loadSystemPrompt({
@@ -297,7 +318,7 @@ name: broken-skill
         )
 
         try {
-            const systemPrompt = session.history[0]?.content ?? ''
+            const systemPrompt = systemPromptOf(session.history)
             assert.ok(!systemPrompt.includes('## Skills'))
             assert.ok(!systemPrompt.includes('broken-skill'))
         } finally {

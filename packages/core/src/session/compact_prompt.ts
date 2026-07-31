@@ -25,20 +25,35 @@ function normalizeContent(content: string): string {
 
 function messageToTranscriptLine(message: ChatMessage, index: number): string {
     const role = message.role.toUpperCase()
-    if (message.role === 'assistant' && message.tool_calls?.length) {
-        const toolNames = message.tool_calls.map((toolCall) => toolCall.function.name).join(', ')
-        return `[${index}] ${role} (tool_calls: ${toolNames})\n${normalizeContent(message.content)}`
+    if (message.role === 'assistant') {
+        const parts = Array.isArray(message.content) ? message.content : []
+        const toolCalls = parts.filter((part) => part.type === 'tool-call')
+        const text =
+            typeof message.content === 'string'
+                ? message.content
+                : parts
+                      .filter((part) => part.type === 'text')
+                      .map((part) => part.text)
+                      .join('')
+        if (toolCalls.length) {
+            const toolNames = toolCalls.map((part) => part.toolName).join(', ')
+            return `[${index}] ${role} (tool_calls: ${toolNames})\n${normalizeContent(text)}`
+        }
+        return `[${index}] ${role}\n${normalizeContent(text)}`
     }
     if (message.role === 'tool') {
-        const toolName = message.name ? ` (${message.name})` : ''
-        return `[${index}] ${role}${toolName}\n${normalizeContent(message.content)}`
+        const part = Array.isArray(message.content) ? message.content[0] : undefined
+        const toolName = part?.type === 'tool-result' ? part.toolName : ''
+        const text = part?.type === 'tool-result' && part.output.type === 'text' ? part.output.value : ''
+        return `[${index}] ${role}${toolName ? ` (${toolName})` : ''}\n${normalizeContent(text)}`
     }
-    return `[${index}] ${role}\n${normalizeContent(message.content)}`
+    const content = typeof message.content === 'string' ? message.content : ''
+    return `[${index}] ${role}\n${normalizeContent(content)}`
 }
 
 export function isContextSummaryMessage(message: ChatMessage): boolean {
     if (message.role !== 'user') return false
-    return message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`)
+    return typeof message.content === 'string' && message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`)
 }
 
 export function buildCompactionUserPrompt(messages: ChatMessage[]): string {

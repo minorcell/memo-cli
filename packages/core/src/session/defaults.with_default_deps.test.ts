@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import type { AgentSessionDeps, AgentSessionOptions, ChatMessage, ToolRegistry } from '@memo/core/types'
+import type {
+    AgentSessionDeps,
+    AgentSessionOptions,
+    ChatMessage,
+    LLMResult,
+    ToolDefinition,
+    ToolRegistry,
+} from '@memo/core/types'
 import type { MCPServerConfig } from '@memo/core/config/config'
+import type { AIProviderFactory } from '@memo/core/llm/ai_provider'
+import { emptyUsage } from '@memo/core/session/session_runtime_helpers'
 import type { Tool } from '@memo/tools/router'
 
 const state = vi.hoisted(() => ({
@@ -43,30 +52,32 @@ const state = vi.hoisted(() => ({
             execute: async () => ({ content: [{ type: 'text', text: 'ok' }] }),
         } as Tool,
     } as ToolRegistry,
-    buildRequestCalls: [] as unknown[],
     loadMcpServersCalls: [] as unknown[],
     registerNativeToolsCalls: [] as unknown[],
     registerNativeToolCalls: [] as unknown[],
-    openaiCtorCalls: [] as unknown[],
-    openaiCreateCalls: [] as unknown[],
     historySinkPaths: [] as string[],
     routerDisposed: 0,
     createTokenCounterCalls: [] as Array<string | undefined>,
     promptText: 'SYSTEM_PROMPT',
-    openaiResponse: {
-        choices: [
-            {
-                message: {
-                    content: 'ok',
-                },
-            },
-        ],
+    streamCalls: [] as unknown[],
+    factoryLookups: [] as unknown[],
+    factory: {
+        kind: 'openai-compatible',
+        build: vi.fn(),
+        buildProviderOptions: vi.fn(() => undefined),
+    } as unknown as AIProviderFactory,
+    llmResponse: {
+        text: 'ok',
+        toolCalls: [],
         usage: {
-            prompt_tokens: 11,
-            completion_tokens: 7,
-            total_tokens: 18,
+            inputTokens: 11,
+            outputTokens: 7,
+            totalTokens: 18,
+            inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+            outputTokenDetails: { reasoningTokens: undefined },
         },
-    } as Record<string, unknown>,
+        finishReason: 'stop',
+    } as LLMResult,
 }))
 
 vi.mock('@memo/tools', () => ({
@@ -80,7 +91,7 @@ vi.mock('@memo/core/config/config', () => ({
     buildSessionPath: vi.fn(() => state.sessionPath),
 }))
 
-vi.mock('@memo/core/runtime/history', () => ({
+vi.mock('@memo/core/history/history', () => ({
     JsonlHistorySink: class JsonlHistorySink {
         constructor(path: string) {
             state.historySinkPaths.push(path)
@@ -88,15 +99,25 @@ vi.mock('@memo/core/runtime/history', () => ({
     },
 }))
 
-vi.mock('@memo/core/runtime/model_profile', () => ({
+vi.mock('@memo/core/llm/model_profile', () => ({
     resolveModelProfile: vi.fn(() => ({ profile: { supportsParallelToolCalls: true } })),
-    buildChatCompletionRequest: vi.fn((request: unknown) => {
-        state.buildRequestCalls.push(request)
-        return request
+}))
+
+vi.mock('@memo/core/llm/ai_stream', () => ({
+    streamCallLLM: vi.fn(async (params: unknown) => {
+        state.streamCalls.push(params)
+        return state.llmResponse
     }),
 }))
 
-vi.mock('@memo/core/runtime/prompt', () => ({
+vi.mock('@memo/core/llm/ai_provider', () => ({
+    getProviderFactory: vi.fn((provider: unknown) => {
+        state.factoryLookups.push(provider)
+        return state.factory
+    }),
+}))
+
+vi.mock('@memo/core/prompt/prompt', () => ({
     loadSystemPrompt: vi.fn(async () => state.promptText),
 }))
 
@@ -145,50 +166,24 @@ vi.mock('@memo/tools/router', () => ({
     },
 }))
 
-vi.mock('openai', () => ({
-    default: class OpenAI {
-        chat = {
-            completions: {
-                create: async (request: unknown, options: unknown) => {
-                    state.openaiCreateCalls.push({ request, options })
-                    return state.openaiResponse
-                },
-            },
-        }
-
-        constructor(config: unknown) {
-            state.openaiCtorCalls.push(config)
-        }
-    },
-}))
-
 describe('withDefaultDeps (default path)', () => {
     beforeEach(() => {
-        state.buildRequestCalls = []
         state.loadMcpServersCalls = []
         state.registerNativeToolsCalls = []
         state.registerNativeToolCalls = []
-        state.openaiCtorCalls = []
-        state.openaiCreateCalls = []
         state.historySinkPaths = []
         state.routerDisposed = 0
         state.createTokenCounterCalls = []
         state.toolDescriptions = '## Tools\n- mock_tool'
         state.promptText = 'SYSTEM_PROMPT'
-        state.openaiResponse = {
-            choices: [
-                {
-                    message: {
-                        content: 'ok',
-                    },
-                },
-            ],
-            usage: {
-                prompt_tokens: 11,
-                completion_tokens: 7,
-                total_tokens: 18,
-            },
-        }
+        state.streamCalls = []
+        state.factoryLookups = []
+        state.llmResponse = {
+            text: 'ok',
+            toolCalls: [],
+            usage: { ...emptyUsage(), inputTokens: 11, outputTokens: 7, totalTokens: 18 },
+            finishReason: 'stop',
+        } as LLMResult
         delete process.env.MOCK_API_KEY
         delete process.env.OPENAI_API_KEY
         delete process.env.DEEPSEEK_API_KEY
@@ -201,7 +196,7 @@ describe('withDefaultDeps (default path)', () => {
     })
 
     test('builds default deps with injected tool descriptions and default sinks', async () => {
-        const { withDefaultDeps } = await import('@memo/core/runtime/defaults')
+        const { withDefaultDeps } = await import('@memo/core/session/defaults')
 
         const resolved = await withDefaultDeps(
             {},
@@ -220,7 +215,7 @@ describe('withDefaultDeps (default path)', () => {
     })
 
     test('respects provided deps overrides (callLLM/historySinks/tokenCounter/loadPrompt/dispose)', async () => {
-        const { withDefaultDeps } = await import('@memo/core/runtime/defaults')
+        const { withDefaultDeps } = await import('@memo/core/session/defaults')
         const callLLM = vi.fn(async () => ({
             content: [{ type: 'text' as const, text: 'override' }],
             stop_reason: 'end_turn' as const,
@@ -258,7 +253,7 @@ describe('withDefaultDeps (default path)', () => {
     })
 
     test('throws when provider api key is missing', async () => {
-        const { withDefaultDeps } = await import('@memo/core/runtime/defaults')
+        const { withDefaultDeps } = await import('@memo/core/session/defaults')
         const resolved = await withDefaultDeps({}, {} as AgentSessionOptions, 'session-3')
 
         await expect(resolved.callLLM([{ role: 'user', content: 'hello' } as ChatMessage])).rejects.toThrow(
@@ -266,55 +261,48 @@ describe('withDefaultDeps (default path)', () => {
         )
     })
 
-    test('falls back to OPENAI_API_KEY when provider key is missing', async () => {
+    test('falls back to OPENAI_API_KEY and delegates to streamCallLLM', async () => {
         process.env.OPENAI_API_KEY = 'openai-fallback-key'
-        const { withDefaultDeps } = await import('@memo/core/runtime/defaults')
+        const { withDefaultDeps } = await import('@memo/core/session/defaults')
         const resolved = await withDefaultDeps({}, {} as AgentSessionOptions, 'session-3b')
+        const messages = [{ role: 'user', content: 'hello' } as ChatMessage]
 
-        await resolved.callLLM([{ role: 'user', content: 'hello' } as ChatMessage])
-        expect(state.openaiCtorCalls[0]).toEqual({
-            apiKey: 'openai-fallback-key',
-            baseURL: 'https://mock.local/v1',
+        const response = await resolved.callLLM(messages)
+
+        expect(response).toEqual(state.llmResponse)
+        expect(state.factoryLookups).toEqual([state.selectedProvider])
+        const call = state.streamCalls[0] as {
+            provider: typeof state.selectedProvider
+            apiKey: string
+            messages: unknown[]
+            toolDefinitions: unknown[]
+            factory: unknown
+        }
+        expect(call.apiKey).toBe('openai-fallback-key')
+        expect(call.provider).toEqual({
+            name: 'mock',
+            env_api_key: 'MOCK_API_KEY',
+            model: 'mock-model',
+            base_url: 'https://mock.local/v1',
         })
+        expect(call.messages).toEqual(messages)
+        expect(call.factory).toBe(state.factory)
     })
 
-    test('maps tool calls into tool_use blocks and keeps parse errors as text', async () => {
+    test('passes call options (tools/signal) and forwards structured LLM response', async () => {
         process.env.MOCK_API_KEY = 'test-key'
-        const { withDefaultDeps } = await import('@memo/core/runtime/defaults')
-        const callOptionsTools = [{ type: 'function', function: { name: 'override', parameters: {} } }]
+        const { withDefaultDeps } = await import('@memo/core/session/defaults')
+        const callOptionsTools: ToolDefinition[] = [
+            { name: 'override', description: 'override tool', input_schema: { type: 'object' } },
+        ]
         const signal = new AbortController().signal
 
-        state.openaiResponse = {
-            choices: [
-                {
-                    message: {
-                        content: 'assistant text',
-                        reasoning_content: '  reasoned  ',
-                        tool_calls: [
-                            {
-                                id: 'call-ok',
-                                type: 'function',
-                                function: { name: 'echo', arguments: '{"value":1}' },
-                            },
-                            {
-                                id: 'call-bad',
-                                type: 'function',
-                                function: { name: 'echo', arguments: '{bad-json' },
-                            },
-                            {
-                                id: 'call-skip',
-                                type: 'other',
-                                function: { name: 'ignored', arguments: '{}' },
-                            },
-                        ],
-                    },
-                },
-            ],
-            usage: {
-                prompt_tokens: 10,
-                completion_tokens: 5,
-                total_tokens: 15,
-            },
+        state.llmResponse = {
+            text: 'assistant text',
+            reasoning: 'reasoned',
+            toolCalls: [{ type: 'tool-call', toolCallId: 'call-ok', toolName: 'echo', input: { value: 1 } }],
+            usage: { ...emptyUsage(), inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+            finishReason: 'tool-calls',
         }
 
         const resolved = await withDefaultDeps({}, {} as AgentSessionOptions, 'session-4')
@@ -322,21 +310,26 @@ describe('withDefaultDeps (default path)', () => {
             [
                 {
                     role: 'assistant',
-                    content: '',
-                    reasoning_content: 'reasoning content',
-                    tool_calls: [
+                    content: [
+                        { type: 'reasoning' as const, text: 'reasoning content' },
                         {
-                            id: 'prev-call',
-                            type: 'function',
-                            function: { name: 'read_file', arguments: '{}' },
+                            type: 'tool-call',
+                            toolCallId: 'prev-call',
+                            toolName: 'read_file',
+                            input: {},
                         },
                     ],
                 },
                 {
                     role: 'tool',
-                    content: 'observation',
-                    tool_call_id: 'prev-call',
-                    name: 'read_file',
+                    content: [
+                        {
+                            type: 'tool-result',
+                            toolCallId: 'prev-call',
+                            toolName: 'read_file',
+                            output: { type: 'text', value: 'observation' },
+                        },
+                    ],
                 },
                 { role: 'user', content: 'continue' },
             ],
@@ -344,117 +337,66 @@ describe('withDefaultDeps (default path)', () => {
             { tools: callOptionsTools, signal },
         )
 
-        expect(response.stop_reason).toBe('tool_use')
-        expect(response.reasoning_content).toBe('reasoned')
-        expect(response.usage).toEqual({ prompt: 10, completion: 5, total: 15 })
-        expect(response.content[0]).toEqual({ type: 'text', text: 'assistant text' })
-        expect(response.content).toContainEqual({
-            type: 'tool_use',
-            id: 'call-ok',
-            name: 'echo',
-            input: { value: 1 },
-        })
+        expect(response).toEqual(state.llmResponse)
+
+        const call = state.streamCalls[0] as {
+            provider: typeof state.selectedProvider
+            apiKey: string
+            messages: Array<Record<string, unknown>>
+            toolDefinitions: unknown[]
+            profile: unknown
+            factory: unknown
+            signal: AbortSignal
+        }
+        expect(call.apiKey).toBe('test-key')
+        expect(call.toolDefinitions).toEqual(callOptionsTools)
+        expect(call.signal).toBe(signal)
+        expect(call.profile).toEqual({ supportsParallelToolCalls: true })
+        expect(call.factory).toBe(state.factory)
         expect(
-            response.content.some(
-                (item) =>
-                    item.type === 'text' &&
-                    item.text.startsWith('[tool_use parse error]') &&
-                    item.text.includes('{bad-json'),
+            (call.messages[0] as { content: Array<{ type: string }> }).content.some(
+                (part) => part.type === 'reasoning',
             ),
         ).toBe(true)
-
-        expect(state.openaiCtorCalls[0]).toEqual({
-            apiKey: 'test-key',
-            baseURL: 'https://mock.local/v1',
-        })
-
-        expect(state.buildRequestCalls).toHaveLength(1)
-        const request = state.buildRequestCalls[0] as {
-            toolDefinitions: unknown[]
-            messages: Array<Record<string, unknown>>
-        }
-        expect(request.toolDefinitions).toEqual(callOptionsTools)
-        expect(request.messages.some((msg) => msg.role === 'tool' && msg.tool_call_id === 'prev-call')).toBe(true)
         expect(
-            request.messages.some((msg) => msg.role === 'assistant' && msg.reasoning_content === 'reasoning content'),
+            (call.messages[0] as { content: Array<{ type: string }> }).content.some(
+                (part) => part.type === 'tool-call',
+            ),
         ).toBe(true)
-
-        expect(state.openaiCreateCalls).toHaveLength(1)
-        expect((state.openaiCreateCalls[0] as { options: { signal: AbortSignal } }).options.signal).toBe(signal)
+        expect(
+            (call.messages[1] as { content: Array<{ type: string }> }).content.some(
+                (part) => part.type === 'tool-result',
+            ),
+        ).toBe(true)
     })
 
-    test('returns end_turn when tool_calls has no usable function calls', async () => {
+    test('forwards plain text response with usage', async () => {
         process.env.MOCK_API_KEY = 'test-key'
-        const { withDefaultDeps } = await import('@memo/core/runtime/defaults')
+        const { withDefaultDeps } = await import('@memo/core/session/defaults')
 
-        state.openaiResponse = {
-            choices: [
-                {
-                    message: {
-                        content: '',
-                        tool_calls: [{ id: 'call-non-fn', type: 'other' }],
-                    },
-                },
-            ],
-            usage: {
-                prompt_tokens: 1,
-                completion_tokens: 0,
-                total_tokens: 1,
-            },
-        }
-
-        const resolved = await withDefaultDeps({}, {} as AgentSessionOptions, 'session-5')
-        const response = await resolved.callLLM([{ role: 'user', content: 'x' } as ChatMessage])
-        expect(response.stop_reason).toBe('end_turn')
-        expect(response.content).toEqual([])
-    })
-
-    test('returns plain text end_turn response with usage', async () => {
-        process.env.MOCK_API_KEY = 'test-key'
-        const { withDefaultDeps } = await import('@memo/core/runtime/defaults')
-
-        state.openaiResponse = {
-            choices: [
-                {
-                    message: {
-                        content: 'plain assistant answer',
-                        reasoning_content: '  concise reason  ',
-                    },
-                },
-            ],
-            usage: {
-                prompt_tokens: 3,
-                completion_tokens: 4,
-                total_tokens: 7,
-            },
+        state.llmResponse = {
+            text: 'plain assistant answer',
+            reasoning: 'concise reason',
+            toolCalls: [],
+            usage: { ...emptyUsage(), inputTokens: 3, outputTokens: 4, totalTokens: 7 },
+            finishReason: 'stop',
         }
 
         const resolved = await withDefaultDeps({}, {} as AgentSessionOptions, 'session-5b')
         const response = await resolved.callLLM([{ role: 'user', content: 'x' } as ChatMessage])
-        expect(response.stop_reason).toBe('end_turn')
-        expect(response.reasoning_content).toBe('concise reason')
-        expect(response.content).toEqual([{ type: 'text', text: 'plain assistant answer' }])
-        expect(response.usage).toEqual({ prompt: 3, completion: 4, total: 7 })
+        expect(response.finishReason).toBe('stop')
+        expect(response.reasoning).toBe('concise reason')
+        expect(response.text).toBe('plain assistant answer')
+        expect(response.usage.inputTokens).toBe(3)
+        expect(response.usage.outputTokens).toBe(4)
+        expect(response.usage.totalTokens).toBe(7)
     })
 
-    test('throws when provider returns non-string content without tool calls', async () => {
+    test('propagates streamCallLLM errors (e.g. empty content)', async () => {
         process.env.MOCK_API_KEY = 'test-key'
-        const { withDefaultDeps } = await import('@memo/core/runtime/defaults')
-
-        state.openaiResponse = {
-            choices: [
-                {
-                    message: {
-                        content: null,
-                    },
-                },
-            ],
-            usage: {
-                prompt_tokens: 1,
-                completion_tokens: 1,
-                total_tokens: 2,
-            },
-        }
+        const { withDefaultDeps } = await import('@memo/core/session/defaults')
+        const { streamCallLLM } = await import('@memo/core/llm/ai_stream')
+        vi.mocked(streamCallLLM).mockRejectedValueOnce(new Error('OpenAI-compatible API returned empty content'))
 
         const resolved = await withDefaultDeps({}, {} as AgentSessionOptions, 'session-6')
         await expect(resolved.callLLM([{ role: 'user', content: 'x' } as ChatMessage])).rejects.toThrow(

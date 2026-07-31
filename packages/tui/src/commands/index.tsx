@@ -192,7 +192,7 @@ function PlainMode({ opts, question: initialQuestion }: { opts: zod.infer<typeof
                 const turnResult = await session.runTurn(question)
                 console.log(`\n${turnResult.finalText}`)
                 console.log(
-                    `\n[tokens] prompt=${turnResult.tokenUsage.prompt} completion=${turnResult.tokenUsage.completion} total=${turnResult.tokenUsage.total}`,
+                    `\n[tokens] prompt=${turnResult.tokenUsage.inputTokens} completion=${turnResult.tokenUsage.outputTokens} total=${turnResult.tokenUsage.totalTokens}`,
                 )
                 console.log(`\nprovider=${provider.name} model=${provider.model}`)
             } catch (err) {

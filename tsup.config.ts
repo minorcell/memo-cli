@@ -29,7 +29,7 @@ export default defineConfig({
         options.jsx = 'automatic'
     },
     async onSuccess() {
-        copyFileSync(join('packages/core/src/runtime/prompt.md'), join('dist/prompt.md'))
+        copyFileSync(join('packages/core/src/prompt/prompt.md'), join('dist/prompt.md'))
         mkdirSync(join('dist/task-prompts'), { recursive: true })
         cpSync(join('packages/tui/src/task-prompts'), join('dist/task-prompts'), {
             recursive: true,

@@ -1,8 +1,7 @@
-import OpenAI from 'openai'
 import type { ModelProfileOverride, ProviderConfig } from '@memo/core/config/config'
-import type { ToolDefinition } from '@memo/core/types'
 
-export type ModelWireApi = 'chat_completions'
+/** Wire API kinds; the provider factory registry dispatches on these (future: responses / messages). */
+export type ModelWireApi = 'chat_completions' | 'responses' | 'messages'
 
 export type ModelProfile = {
     wireApi: ModelWireApi
@@ -92,38 +91,4 @@ export function resolveModelProfile(
             isFallback: !usedOverride,
         },
     }
-}
-
-function toChatCompletionTools(toolDefinitions: ToolDefinition[]) {
-    if (toolDefinitions.length === 0) return undefined
-
-    return toolDefinitions.map((tool) => ({
-        type: 'function' as const,
-        function: {
-            name: tool.name,
-            description: tool.description,
-            parameters: tool.input_schema,
-        },
-    }))
-}
-
-export function buildChatCompletionRequest(params: {
-    model: string
-    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
-    toolDefinitions: ToolDefinition[]
-    profile: ModelProfile
-}): OpenAI.Chat.Completions.ChatCompletionCreateParams {
-    const tools = toChatCompletionTools(params.toolDefinitions)
-    const request: OpenAI.Chat.Completions.ChatCompletionCreateParams = {
-        model: params.model,
-        messages: params.messages,
-        tools,
-        tool_choice: tools ? 'auto' : undefined,
-    }
-
-    if (tools && params.profile.supportsParallelToolCalls) {
-        ;(request as Record<string, unknown>).parallel_tool_calls = true
-    }
-
-    return request
 }

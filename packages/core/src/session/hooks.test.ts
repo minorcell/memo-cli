@@ -6,9 +6,9 @@ import type {
     ObservationHookPayload,
     FinalHookPayload,
     ChatMessage,
-    AssistantToolCall,
 } from '@memo/core/types'
-import { buildHookRunners, runHook, snapshotHistory } from '@memo/core/runtime/hooks'
+import { buildHookRunners, runHook, snapshotHistory } from '@memo/core/session/hooks'
+import { emptyUsage } from '@memo/core/session/session_runtime_helpers'
 
 describe('buildHookRunners', () => {
     test('creates empty hook map when no hooks provided', () => {
@@ -219,7 +219,7 @@ describe('runHook', () => {
             turn: 1,
             finalText: 'done',
             status: 'ok',
-            turnUsage: { prompt: 10, completion: 5, total: 15 },
+            turnUsage: { ...emptyUsage(), inputTokens: 10, outputTokens: 5, totalTokens: 15 },
             steps: [],
         }
 
@@ -295,62 +295,56 @@ describe('snapshotHistory', () => {
         expect(snapshot[0]).toEqual(history[0])
     })
 
-    test('deeply copies tool_calls function objects', () => {
-        const toolCall: AssistantToolCall = {
-            id: 'call-1',
-            type: 'function',
-            function: {
-                name: 'test_tool',
-                arguments: '{"arg": "value"}',
-            },
-        }
-        const history: ChatMessage[] = [{ role: 'assistant', content: '', tool_calls: [toolCall] }]
-        const snapshot = snapshotHistory(history)
-
-        expect(snapshot).not.toBe(history)
-        const histMsg0 = history[0] as { tool_calls: AssistantToolCall[] }
-        const snapMsg0 = snapshot[0] as { tool_calls: AssistantToolCall[] }
-        expect(snapMsg0.tool_calls).not.toBe(histMsg0.tool_calls)
-        expect(snapMsg0.tool_calls[0]).not.toBe(histMsg0.tool_calls[0])
-        expect(snapMsg0.tool_calls[0]?.function).not.toBe(histMsg0.tool_calls[0]?.function)
-        expect(snapMsg0.tool_calls[0]?.function).toEqual(histMsg0.tool_calls[0]?.function)
-    })
-
-    test('handles multiple tool_calls', () => {
+    test('deeply copies tool-call part inputs', () => {
         const history: ChatMessage[] = [
             {
                 role: 'assistant',
-                content: 'using tools',
-                tool_calls: [
-                    {
-                        id: 'call-1',
-                        type: 'function',
-                        function: { name: 'tool1', arguments: '{}' },
-                    },
-                    {
-                        id: 'call-2',
-                        type: 'function',
-                        function: { name: 'tool2', arguments: '{}' },
-                    },
+                content: [{ type: 'tool-call', toolCallId: 'call-1', toolName: 'test_tool', input: { arg: 'value' } }],
+            },
+        ]
+        const snapshot = snapshotHistory(history)
+
+        expect(snapshot).not.toBe(history)
+        const histMsg0 = history[0] as { content: Array<{ type: string; input: unknown }> }
+        const snapMsg0 = snapshot[0] as { content: Array<{ type: string; input: unknown }> }
+        expect(snapMsg0.content).not.toBe(histMsg0.content)
+        expect(snapMsg0.content[0]).not.toBe(histMsg0.content[0])
+        expect(snapMsg0.content[0]?.input).not.toBe(histMsg0.content[0]?.input)
+        expect(snapMsg0.content[0]?.input).toEqual(histMsg0.content[0]?.input)
+    })
+
+    test('handles multiple tool-call parts', () => {
+        const history: ChatMessage[] = [
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'text', text: 'using tools' },
+                    { type: 'tool-call', toolCallId: 'call-1', toolName: 'tool1', input: {} },
+                    { type: 'tool-call', toolCallId: 'call-2', toolName: 'tool2', input: {} },
                 ],
             },
         ]
         const snapshot = snapshotHistory(history)
 
-        const snapMsg0 = snapshot[0] as { tool_calls: AssistantToolCall[] }
-        expect(snapMsg0.tool_calls).toHaveLength(2)
-        const histMsg0 = history[0] as { tool_calls: AssistantToolCall[] }
-        expect(snapMsg0.tool_calls[0]).not.toBe(histMsg0.tool_calls[0])
-        expect(snapMsg0.tool_calls[1]).not.toBe(histMsg0.tool_calls[1])
+        const snapMsg0 = snapshot[0] as { content: Array<{ type: string }> }
+        expect(snapMsg0.content.filter((part) => part.type === 'tool-call')).toHaveLength(2)
+        const histMsg0 = history[0] as { content: Array<{ type: string }> }
+        expect(snapMsg0.content[1]).not.toBe(histMsg0.content[1])
+        expect(snapMsg0.content[2]).not.toBe(histMsg0.content[2])
     })
 
     test('creates deep copy of tool messages', () => {
         const history: ChatMessage[] = [
             {
                 role: 'tool',
-                content: 'tool result',
-                tool_call_id: 'call-1',
-                name: 'test_tool',
+                content: [
+                    {
+                        type: 'tool-result',
+                        toolCallId: 'call-1',
+                        toolName: 'test_tool',
+                        output: { type: 'text', value: 'tool result' },
+                    },
+                ],
             },
         ]
         const snapshot = snapshotHistory(history)
@@ -365,19 +359,21 @@ describe('snapshotHistory', () => {
             { role: 'user', content: 'hello' },
             {
                 role: 'assistant',
-                content: 'response',
-                tool_calls: [
-                    {
-                        id: 'call-1',
-                        type: 'function',
-                        function: { name: 'tool', arguments: '{}' },
-                    },
+                content: [
+                    { type: 'text', text: 'response' },
+                    { type: 'tool-call', toolCallId: 'call-1', toolName: 'tool', input: {} },
                 ],
             },
             {
                 role: 'tool',
-                content: 'result',
-                tool_call_id: 'call-1',
+                content: [
+                    {
+                        type: 'tool-result',
+                        toolCallId: 'call-1',
+                        toolName: 'tool',
+                        output: { type: 'text', value: 'result' },
+                    },
+                ],
             },
         ]
         const snapshot = snapshotHistory(history)
@@ -387,8 +383,8 @@ describe('snapshotHistory', () => {
         expect(snapshot[1]?.role).toBe('user')
         expect(snapshot[2]?.role).toBe('assistant')
         expect(snapshot[3]?.role).toBe('tool')
-        const histMsg2 = history[2] as { tool_calls: AssistantToolCall[] }
-        const snapMsg2 = snapshot[2] as { tool_calls: AssistantToolCall[] }
-        expect(snapMsg2.tool_calls[0]?.function).not.toBe(histMsg2.tool_calls[0]?.function)
+        const histMsg2 = history[2] as { content: Array<{ type: string; input: unknown }> }
+        const snapMsg2 = snapshot[2] as { content: Array<{ type: string; input: unknown }> }
+        expect(snapMsg2.content[1]?.input).not.toBe(histMsg2.content[1]?.input)
     })
 })

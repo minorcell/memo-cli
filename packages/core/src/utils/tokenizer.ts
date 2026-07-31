@@ -24,16 +24,33 @@ function safeEncodingFactory(model?: string): { model: string; factory: Encoding
 
 function messagePayloadForCounting(message: ChatMessage): string {
     if (message.role === 'assistant') {
-        const reasoning = message.reasoning_content ? `\n${message.reasoning_content}` : ''
-        if (message.tool_calls?.length) {
-            return `${message.content}${reasoning}\n${JSON.stringify(message.tool_calls)}`
+        const parts = Array.isArray(message.content) ? message.content : []
+        const text =
+            typeof message.content === 'string'
+                ? message.content
+                : parts
+                      .filter((part) => part.type === 'text')
+                      .map((part) => part.text)
+                      .join('')
+        const reasoning = parts
+            .filter((part) => part.type === 'reasoning')
+            .map((part) => part.text)
+            .join('\n')
+        const toolCalls = parts.filter((part) => part.type === 'tool-call')
+        const reasoningSuffix = reasoning ? `\n${reasoning}` : ''
+        if (toolCalls.length) {
+            return `${text}${reasoningSuffix}\n${JSON.stringify(toolCalls)}`
         }
-        return `${message.content}${reasoning}`
+        return `${text}${reasoningSuffix}`
     }
     if (message.role === 'tool') {
-        return `${message.content}\n${message.tool_call_id}\n${message.name ?? ''}`
+        const part = Array.isArray(message.content) ? message.content[0] : undefined
+        const text = part?.type === 'tool-result' && part.output.type === 'text' ? part.output.value : ''
+        const toolCallId = part?.type === 'tool-result' ? part.toolCallId : ''
+        const toolName = part?.type === 'tool-result' ? part.toolName : ''
+        return `${text}\n${toolCallId}\n${toolName}`
     }
-    return message.content
+    return typeof message.content === 'string' ? message.content : ''
 }
 
 /** Create a reusable token counter for prompt size estimation (compaction trigger, context overflow check). */

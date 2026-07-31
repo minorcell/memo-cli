@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, useInput, useStdout } from 'ink'
 import type { MCPServerConfig, ProviderConfig } from '@memo/core'
-import { resolveSlashCommand, SLASH_SPECS, type SlashContext } from '@memo/core/runtime/slash'
+import { resolveSlashCommand, SLASH_SPECS, type SlashContext } from '@memo/core/session/slash'
 import { getFileSuggestions } from './fileSuggestions'
 import { loadSessionHistoryEntries, type SessionHistoryEntry } from '../session/sessionHistory'
 import { SuggestionPanel, type SuggestionItem } from './SuggestionPanel'

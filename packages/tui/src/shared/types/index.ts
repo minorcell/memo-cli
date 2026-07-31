@@ -1,4 +1,4 @@
-import type { TokenUsage, TurnStatus } from '@memo/core'
+import type { LanguageModelUsage, TurnStatus } from '@memo/core'
 
 export const TOOL_STATUS = {
     PENDING: 'pending',
@@ -32,7 +32,7 @@ export type TurnView = {
     steps: StepView[]
     status?: TurnStatus
     errorMessage?: string
-    tokenUsage?: TokenUsage
+    tokenUsage?: LanguageModelUsage
     contextPromptTokens?: number
     finalText?: string
     startedAt?: number

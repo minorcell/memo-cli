@@ -177,9 +177,10 @@ function parseEventLine(line: string, index: number): SessionEventItem | null {
 
 function accumulateTokenUsage(target: TokenUsageSummary, source: Record<string, unknown> | undefined): void {
     if (!source) return
-    const prompt = asNumber(source.prompt)
-    const completion = asNumber(source.completion)
-    const total = asNumber(source.total)
+    // meta.tokens now uses AI SDK LanguageModelUsage shape; keep reading legacy prompt/completion fields too.
+    const prompt = asNumber(source.inputTokens) ?? asNumber(source.prompt)
+    const completion = asNumber(source.outputTokens) ?? asNumber(source.completion)
+    const total = asNumber(source.totalTokens) ?? asNumber(source.total)
 
     if (prompt !== null) target.prompt += Math.floor(prompt)
     if (completion !== null) target.completion += Math.floor(completion)

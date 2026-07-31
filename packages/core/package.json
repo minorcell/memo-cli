@@ -15,12 +15,14 @@
     "version": "0.1.0",
     "private": true,
     "scripts": {
-        "build": "tsup --config tsup.config.ts && node -e \"const { copyFileSync } = require('node:fs'); copyFileSync('src/runtime/prompt.md', 'dist/prompt.md');\"",
+        "build": "tsup --config tsup.config.ts && node -e \"const { copyFileSync } = require('node:fs'); copyFileSync('src/prompt/prompt.md', 'dist/prompt.md');\"",
         "test": "vitest run"
     },
     "dependencies": {
         "ignore": "^7.0.5",
-        "zod": "^4.3.6"
+        "zod": "^4.3.6",
+        "ai": "^6.0.0",
+        "@ai-sdk/openai-compatible": "^2.0.0"
     },
     "devDependencies": {
         "vitest": "^2.1.8"
