@@ -201,7 +201,9 @@ const StepCell = memo(function StepCell({
             {showText && step.assistantText ? (
                 <Box marginTop={thinkingPreview ? 1 : 0}>
                     <Text color="green">● </Text>
-                    <Text>{step.assistantText}</Text>
+                    <Box flexDirection="column" flexShrink={1}>
+                        <MarkdownRenderer content={step.assistantText} />
+                    </Box>
                 </Box>
             ) : null}
 
