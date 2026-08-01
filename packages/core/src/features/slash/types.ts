@@ -6,7 +6,6 @@ export const SLASH_COMMANDS = {
     EXIT: 'exit',
     NEW: 'new',
     RESUME: 'resume',
-    REVIEW: 'review',
     MODELS: 'models',
     TOOLS: 'tools',
     COMPACT: 'compact',
@@ -39,7 +38,6 @@ export type SlashCommandResult =
     | { kind: 'exit' }
     | { kind: 'new' }
     | { kind: 'message'; title: string; content: string }
-    | { kind: 'review_pr'; prNumber: number }
     | { kind: 'switch_model'; provider: ProviderConfig }
     | { kind: 'set_tool_permission'; mode: ToolPermissionMode }
     | { kind: 'compact' }

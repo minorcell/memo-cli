@@ -44,28 +44,6 @@ describe('slash registry', () => {
         assert.deepStrictEqual(resolveSlashCommand('/init', ctx), { kind: 'init_agents_md' })
     })
 
-    test('parses review command from number/hash/url and validates usage', () => {
-        const ctx = makeContext()
-        assert.deepStrictEqual(resolveSlashCommand('/review 123', ctx), {
-            kind: 'review_pr',
-            prNumber: 123,
-        })
-        assert.deepStrictEqual(resolveSlashCommand('/review #88', ctx), {
-            kind: 'review_pr',
-            prNumber: 88,
-        })
-        assert.deepStrictEqual(resolveSlashCommand('/review https://github.com/a/b/pull/77', ctx), {
-            kind: 'review_pr',
-            prNumber: 77,
-        })
-
-        const invalid = resolveSlashCommand('/review abc', ctx)
-        assert.strictEqual(invalid.kind, 'message')
-        if (invalid.kind === 'message') {
-            assert.ok(invalid.content.includes('Usage: /review'))
-        }
-    })
-
     test('handles models command for empty, switch, and not-found paths', () => {
         const noProviders = resolveSlashCommand('/models', makeContext({ providers: [] }))
         assert.strictEqual(noProviders.kind, 'message')

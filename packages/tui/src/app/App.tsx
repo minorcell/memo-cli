@@ -30,7 +30,6 @@ import { calculateContextPercent, inferParallelToolStatuses, inferToolStatus } f
 import { checkForUpdate, findLocalPackageInfoSync } from '../shared/lib/version'
 import type { SessionHistoryEntry } from '../features/session/sessionHistory'
 import { loadTaskPrompt } from '../shared/lib/taskPrompt'
-import { resolveReviewBackend } from '../features/review/backend'
 import {
     formatSlashCommand,
     PLAIN_EXIT_COMMAND,
@@ -612,57 +611,6 @@ export function App({
         }
     }, [appendSystemMessage, busy, session])
 
-    const runReviewPullRequestCommand = useCallback(
-        async (prNumber: number) => {
-            if (!session || busy) return
-
-            if (toolPermissionMode === TOOL_PERMISSION_MODES.NONE) {
-                appendSystemMessage(
-                    'Review',
-                    'Tool permission mode is "none". Set `/tools once` or `/tools full` before running `/review`.',
-                    'warning',
-                )
-                return
-            }
-
-            const reviewCommand = `${formatSlashCommand(SLASH_COMMANDS.REVIEW)} ${prNumber}`
-            try {
-                const backend = await resolveReviewBackend({
-                    cwd,
-                    mcpServers,
-                    activeMcpServerNames,
-                    availableToolNames: session.listToolNames?.() ?? [],
-                })
-
-                if (backend.kind === 'unavailable') {
-                    appendSystemMessage('Review', backend.reason, 'error')
-                    return
-                }
-
-                const prompt = await loadTaskPrompt('review_pull_request', {
-                    pr_number: String(prNumber),
-                    backend_strategy: backend.strategy,
-                    backend_details: backend.details,
-                    mcp_server_prefix: backend.kind === 'github_mcp' ? backend.mcpServerPrefix : 'github',
-                })
-
-                setInputHistory((prev) => [...prev, reviewCommand])
-                appendSystemMessage('Review', backend.details)
-                setBusy(true)
-                nextUserInputOverrideRef.current = reviewCommand
-                await session.runTurn(prompt)
-            } catch (err) {
-                setBusy(false)
-                appendSystemMessage(
-                    'Review',
-                    `Failed to run review task for PR #${prNumber}: ${(err as Error).message}`,
-                    'error',
-                )
-            }
-        },
-        [activeMcpServerNames, appendSystemMessage, busy, cwd, mcpServers, session, toolPermissionMode],
-    )
-
     const handleSubmit = useCallback(
         async (value: string) => {
             const trimmed = value.trim()
@@ -808,9 +756,6 @@ export function App({
                     void handleModelSelect(provider)
                 }}
                 onSetToolPermission={handleSetToolPermission}
-                onReviewPullRequest={(prNumber) => {
-                    void runReviewPullRequestCommand(prNumber)
-                }}
                 onSystemMessage={appendSystemMessage}
             />
 

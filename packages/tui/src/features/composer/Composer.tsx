@@ -63,7 +63,6 @@ type ComposerProps = {
     onModelSelect: (provider: ProviderConfig) => void
     onToggleThinking: () => void
     onSetToolPermission: (mode: ToolPermissionMode) => void
-    onReviewPullRequest: (prNumber: number) => void
     onSystemMessage: (title: string, content: string) => void
 }
 
@@ -315,7 +314,6 @@ export const Composer = memo(function Composer({
     onModelSelect,
     onSetToolPermission,
     onToggleThinking,
-    onReviewPullRequest,
     onSystemMessage,
 }: ComposerProps) {
     const { stdout } = useStdout()
@@ -804,9 +802,6 @@ export const Composer = memo(function Composer({
                             break
                         case 'compact':
                             onCompact()
-                            break
-                        case 'review_pr':
-                            onReviewPullRequest(result.prNumber)
                             break
                         case 'init_agents_md':
                             onSubmit(INIT_SLASH_COMMAND)
