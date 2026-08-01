@@ -57,7 +57,7 @@ describe('runtime prompt injection', () => {
                     toolResults: [],
                 }),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
             },
             { mode: 'interactive' },
         )
@@ -81,7 +81,7 @@ describe('runtime prompt injection', () => {
                     toolResults: [],
                 }),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
             },
             { mode: 'interactive' },
         )
@@ -113,7 +113,7 @@ describe('runtime prompt injection', () => {
                 }),
                 loadPrompt: () => loadSystemPrompt({ cwd: projectRoot }),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
             },
             { mode: 'interactive' },
         )
@@ -149,7 +149,7 @@ describe('runtime prompt injection', () => {
                 }),
                 loadPrompt: () => loadSystemPrompt({ cwd: projectRoot, memoHome: tempHome }),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
             },
             { mode: 'interactive' },
         )
@@ -206,7 +206,7 @@ description: ${marker}
                         memoHome: join(projectRoot, '.memo'),
                     }),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
             },
             { mode: 'interactive' },
         )
@@ -271,7 +271,7 @@ description: disabled marker
                         activeSkillPaths: [enabledPath],
                     }),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
             },
             { mode: 'interactive' },
         )
@@ -319,7 +319,7 @@ name: broken-skill
                         memoHome: join(projectRoot, '.memo'),
                     }),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
             },
             { mode: 'interactive' },
         )

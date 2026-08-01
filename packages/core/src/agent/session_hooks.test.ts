@@ -119,10 +119,8 @@ function endTurnResponse(text: string = 'done'): LLMResult {
 
 function createLengthTokenCounter(): TokenCounter {
     return {
-        model: 'test-length-counter',
         countText: (text: string) => text.length,
         countMessages: (messages) => messages.reduce((sum, message) => sum + message.content.length, 0),
-        dispose: () => {},
     }
 }
 
@@ -181,7 +179,7 @@ describe('session hooks & middleware', () => {
                 tools: { echo: echoTool },
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 // 自动批准所有工具调用
                 requestApproval: async () => 'once',
                 hooks: {
@@ -246,7 +244,7 @@ describe('session hooks & middleware', () => {
                 tools: { echo: echoTool },
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 // 自动批准所有工具调用
                 requestApproval: async () => 'once',
                 hooks: {
@@ -279,7 +277,7 @@ describe('session hooks & middleware', () => {
                 tools: { echo: echoTool },
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'once',
             },
             {},
@@ -305,7 +303,7 @@ describe('session hooks & middleware', () => {
                 tools: { echo: echoTool },
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 // 自动批准所有工具调用
                 requestApproval: async () => 'session',
             },
@@ -330,7 +328,7 @@ describe('session hooks & middleware', () => {
                 tools: { echo: echoTool },
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'deny',
             },
             { dangerous: true },
@@ -355,7 +353,7 @@ describe('session hooks & middleware', () => {
                 tools: { read_note: readNoteTool },
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => {
                     approvalAsked = true
                     return 'deny'
@@ -383,7 +381,7 @@ describe('session hooks & middleware', () => {
                 tools: { echo: echoTool },
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'once',
             },
             { toolPermissionMode: 'none' },
@@ -417,7 +415,7 @@ describe('session hooks & middleware', () => {
             {
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'once',
             },
             {},
@@ -445,7 +443,7 @@ describe('session hooks & middleware', () => {
                         },
                     },
                 ],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'once',
             },
             {},
@@ -488,7 +486,7 @@ describe('session hooks & middleware', () => {
                 tools: { echo: echoTool },
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'once',
             },
             {},
@@ -549,7 +547,7 @@ describe('session hooks & middleware', () => {
                         },
                     },
                 ],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'deny',
             },
             {},
@@ -585,7 +583,7 @@ describe('session hooks & middleware', () => {
                 tools: { echo: echoTool },
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'deny',
             },
             {},
@@ -624,7 +622,7 @@ describe('session hooks & middleware', () => {
                         },
                     },
                 ],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'once',
             },
             {},
@@ -662,7 +660,7 @@ describe('session hooks & middleware', () => {
             {
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'once',
             },
             {},
@@ -687,7 +685,7 @@ describe('session hooks & middleware', () => {
                 tools: { echo: echoTool },
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'once',
             },
             {},
@@ -710,7 +708,7 @@ describe('session hooks & middleware', () => {
                 tools: { echo: echoTool },
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
                 historySinks: [],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'once',
                 hooks: {
                     onContextUsage: ({ phase, step }) => {
@@ -998,7 +996,8 @@ describe('session hooks & middleware', () => {
     })
 
     test('manual compaction keeps recent user context within token budget', async () => {
-        const hugeUserMessage = 'a'.repeat(25_000)
+        // 90_000 ASCII chars ≈ 22_500 tokens (4 chars/token estimate), exceeding the 20_000 budget.
+        const hugeUserMessage = 'a'.repeat(90_000)
         const session = await createAgentSession(
             {
                 callLLM: async (messages, _onChunk, options) => {
@@ -1029,7 +1028,8 @@ describe('session hooks & middleware', () => {
 
             const retainedUserMessage = session.history[1]
             assert.strictEqual(retainedUserMessage?.role, 'user')
-            assert.strictEqual(retainedUserMessage?.content.length, 20_000)
+            // Truncated to the 20_000-token budget (× 4 chars/token).
+            assert.strictEqual(retainedUserMessage?.content.length, 80_000)
             const retainedContent = retainedUserMessage?.content
             assert.ok(typeof retainedContent === 'string' && retainedContent.startsWith('a'))
 
@@ -1302,7 +1302,7 @@ describe('session hooks & middleware', () => {
                         },
                     },
                 ],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
                 hooks: {
                     onTitleGenerated: ({ title }) => {
                         generatedTitles.push(title)
@@ -1341,7 +1341,7 @@ describe('session hooks & middleware', () => {
                         },
                     },
                 ],
-                tokenCounter: createTokenCounter('cl100k_base'),
+                tokenCounter: createTokenCounter(),
             },
             {},
         )

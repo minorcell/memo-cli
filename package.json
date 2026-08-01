@@ -52,7 +52,6 @@
         "vitest": "^2.1.8"
     },
     "dependencies": {
-        "@dqbd/tiktoken": "^1.0.22",
         "@inkjs/ui": "^2.0.0",
         "@modelcontextprotocol/sdk": "^1.24.3",
         "@mozilla/readability": "^0.6.0",

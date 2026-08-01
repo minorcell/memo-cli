@@ -1,3 +1,5 @@
+import type { LanguageModelUsage } from 'ai'
+
 export type TokenUsageSummary = LanguageModelUsage
 
 export type ToolUsageSummary = {

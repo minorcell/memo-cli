@@ -46,19 +46,7 @@ function toTurnView(turn: SessionTurnDetail, sequence: number, turnIndex: number
         })),
         status: normalizeTurnStatus(turn.status),
         errorMessage: turn.errorMessage,
-        tokenUsage: turn.tokenUsage
-            ? {
-                  inputTokens: turn.tokenUsage.prompt,
-                  outputTokens: turn.tokenUsage.completion,
-                  totalTokens: turn.tokenUsage.total,
-                  inputTokenDetails: {
-                      noCacheTokens: undefined,
-                      cacheReadTokens: undefined,
-                      cacheWriteTokens: undefined,
-                  },
-                  outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
-              }
-            : undefined,
+        tokenUsage: turn.tokenUsage,
         finalText: toAssistantText(turn),
         sequence,
     }

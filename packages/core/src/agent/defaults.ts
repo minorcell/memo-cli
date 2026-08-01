@@ -141,7 +141,7 @@ export async function withDefaultDeps(
             }),
         loadPrompt,
         historySinks: deps.historySinks ?? [defaultHistorySink],
-        tokenCounter: deps.tokenCounter ?? createTokenCounter(options.tokenizerModel),
+        tokenCounter: deps.tokenCounter ?? createTokenCounter(),
         historyFilePath: historyFilePath,
     }
 }

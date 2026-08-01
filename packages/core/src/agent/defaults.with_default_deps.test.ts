@@ -116,14 +116,12 @@ vi.mock('@memo/core/prompt/prompt', () => ({
 }))
 
 vi.mock('@memo/core/utils/tokenizer', () => ({
-    createTokenCounter: vi.fn((model?: string) => {
-        state.createTokenCounterCalls.push(model)
+    createTokenCounter: vi.fn(() => {
+        state.createTokenCounterCalls.push(undefined)
         return {
-            model: model ?? 'mock-tokenizer',
             countText: (text: string) => text.length,
             countMessages: (messages: Array<{ content: string }>) =>
                 messages.reduce((sum, message) => sum + message.content.length, 0),
-            dispose: vi.fn(),
         }
     }),
 }))
@@ -193,15 +191,11 @@ describe('withDefaultDeps (default path)', () => {
     test('builds default deps with injected tool descriptions and default sinks', async () => {
         const { withDefaultDeps } = await import('@memo/core/agent/defaults')
 
-        const resolved = await withDefaultDeps(
-            {},
-            { tokenizerModel: 'counter-model' } as AgentSessionOptions,
-            'session-1',
-        )
+        const resolved = await withDefaultDeps({}, {} as AgentSessionOptions, 'session-1')
 
         expect(state.loadMcpServersCalls).toHaveLength(1)
         expect(state.historySinkPaths).toEqual([state.sessionPath])
-        expect(state.createTokenCounterCalls).toEqual(['counter-model'])
+        expect(state.createTokenCounterCalls).toEqual([undefined])
         expect(resolved.historyFilePath).toBe(state.sessionPath)
 
         const prompt = await resolved.loadPrompt()
@@ -220,11 +214,9 @@ describe('withDefaultDeps (default path)', () => {
         }))
         const historySinks = [{ append: vi.fn() }]
         const tokenCounter = {
-            model: 'custom-counter',
             countText: (text: string) => text.length,
             countMessages: (messages: Array<{ content: string }>) =>
                 messages.reduce((sum, message) => sum + message.content.length, 0),
-            dispose: vi.fn(),
         }
         const dispose = vi.fn(async () => {})
 

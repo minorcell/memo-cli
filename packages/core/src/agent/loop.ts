@@ -270,7 +270,8 @@ export class AgentSessionImpl implements AgentSession {
             }
 
             if (remaining > 0) {
-                selected.push(message.slice(0, remaining))
+                // 4 chars ≈ 1 token (ASCII); CJK overshoots to ~3x the byte budget, which is acceptable for the compaction request.
+                selected.push(message.slice(0, remaining * 4))
             }
             break
         }
@@ -428,7 +429,6 @@ export class AgentSessionImpl implements AgentSession {
                     meta: {
                         mode: this.mode,
                         cwd: this.resolveSessionCwd(),
-                        tokenizer: this.tokenCounter.model,
                         warnPromptTokens: this.options.warnPromptTokens,
                         contextWindow,
                         autoCompactThresholdPercent,
@@ -1004,7 +1004,6 @@ export class AgentSessionImpl implements AgentSession {
                 }
             }
         }
-        this.tokenCounter.dispose()
         // 清理所有授权
         this.approvalManager.dispose()
         if (this.deps.dispose) {

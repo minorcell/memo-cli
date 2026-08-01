@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@dqbd/tiktoken':
-        specifier: ^1.0.22
-        version: 1.0.22
       '@inkjs/ui':
         specifier: ^2.0.0
         version: 2.0.0(ink@6.7.0(@types/react@19.2.14)(react@19.2.4))
@@ -271,9 +268,6 @@ packages:
   '@csstools/css-tokenizer@4.0.0':
     resolution: {integrity: sha512-QxULHAm7cNu72w97JUNCBFODFaXpbDg+dP8b/oWFAZ2MTRppA3U00Y2L1HqaS4J6yBqxwa/Y3nMBaxVKbB/NsA==}
     engines: {node: '>=20.19.0'}
-
-  '@dqbd/tiktoken@1.0.22':
-    resolution: {integrity: sha512-RYhO8xeHkMNX5Ixqf4M1Ve3siCYJY/dI0yLnlX4M4oIEDOvjMIQ+E+3OUpAaZcWTaMtQJzGcDAghYfllpx3i/w==}
 
   '@esbuild/aix-ppc64@0.21.5':
     resolution: {integrity: sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ==}
@@ -2869,8 +2863,6 @@ snapshots:
   '@csstools/css-syntax-patches-for-csstree@1.0.28': {}
 
   '@csstools/css-tokenizer@4.0.0': {}
-
-  '@dqbd/tiktoken@1.0.22': {}
 
   '@esbuild/aix-ppc64@0.21.5':
     optional: true

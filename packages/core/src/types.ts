@@ -61,16 +61,12 @@ export type CompactResult = {
     errorMessage?: string
 }
 
-/** Unified tokenizer counter interface compatible with different model encodings. */
+/** Unified token counter interface for prompt size estimation. */
 export type TokenCounter = {
-    /** Actual tokenizer/encoding name used. */
-    model: string
     /** Count tokens for plain text. */
     countText: (text: string) => number
     /** Count tokens for message arrays. */
     countMessages: (messages: ChatMessage[]) => number
-    /** Release underlying resources. */
-    dispose: () => void
 }
 
 /** Representation of parsed LLM output as action/final structure. */
@@ -139,8 +135,6 @@ export type AgentSessionOptions = {
     historyDir?: string
     /** Specify provider name to use. */
     providerName?: string
-    /** Tokenizer encoding name, default cl100k_base. */
-    tokenizerModel?: string
     /** Working directory used by prompt/tool runtime for this session. */
     cwd?: string
     /** Prompt warning threshold. */
