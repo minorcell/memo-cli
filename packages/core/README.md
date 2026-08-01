@@ -13,10 +13,16 @@ Core provides the central capabilities of **Memo Code**: the ReAct loop, session
 - `agent/` — the agent loop kernel (minimal, readable, replaceable)
     - `loop.ts`: ReAct loop (observe → think → act → record), session state, token usage, permissions, abort handling.
     - `messages.ts`: Message construction and LLM result normalization (AI SDK `ModelMessage`/`GenerateTextResult`).
+    - `sdk_tools.ts`: Adapter from the memo Tool registry to AI SDK tools — execute wrappers run approval (white-list → classifier → fingerprint), truncation, and deny handling inside `streamText`.
+    - `step_gate.ts`: Per-step concurrency gate (serializes mutating tools, skips pending tools after denial).
     - `session.ts`: `createAgentSession` factory.
     - `defaults.ts`: Composition root — default dependency completion (toolset, LLM, prompt, history sink, tokenizer).
     - `hooks.ts`: Hook/middleware runners and history snapshotting.
     - `compact_prompt.ts`: Context compaction prompt building.
+- `tools/` — tool registry, approval, and the 24 built-in tools (merged back from the former tools package)
+    - `router/`: ToolRouter (native + MCP registries); MCP clients via `@ai-sdk/mcp` (`router/mcp/pool.ts`), disk cache and OAuth credentials kept.
+    - `approval/`: Approval manager (risk classifier, fingerprints, once/session/deny caches).
+    - `tools/`: Built-in tool implementations (`defineMcpTool` zod adapter).
 - `features/` — user-facing capabilities built on the contracts (not part of the loop); one directory per module, exports via `index.ts`
     - `slash/`: Slash command specs and registry.
     - `file_suggestions/`: File suggestion helpers for the composer.
