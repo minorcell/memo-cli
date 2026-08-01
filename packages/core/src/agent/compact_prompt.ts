@@ -13,14 +13,16 @@ Include:
 Be concise, structured, and focused on helping the next LLM seamlessly continue the work.`
 
 export const CONTEXT_SUMMARY_PREFIX =
-    'Another language model started to solve this problem and produced a summary of its thinking process. Use this summary to continue the task without redoing completed work.'
+    'Another language model started to solve this problem and produced a summary of its thinking process. You also have access to the state of the tools that were used by that language model. Use this to build on the work that has already been done and avoid duplicating work. Here is the summary produced by the other language model, use the information in this summary to assist with your own analysis:'
 
 function normalizeContent(content: string): string {
     const compact = content.replace(/\r\n/g, '\n').trim()
     if (compact.length <= MAX_MESSAGE_CONTENT_CHARS) {
         return compact
     }
-    return `${compact.slice(0, MAX_MESSAGE_CONTENT_CHARS)}...`
+    // Keep the tail: tool output carries its result/error at the end, while the
+    // head is usually command echoes and noise.
+    return `...${compact.slice(-MAX_MESSAGE_CONTENT_CHARS)}`
 }
 
 function messageToTranscriptLine(message: ChatMessage, index: number): string {
@@ -54,6 +56,42 @@ function messageToTranscriptLine(message: ChatMessage, index: number): string {
 export function isContextSummaryMessage(message: ChatMessage): boolean {
     if (message.role !== 'user') return false
     return typeof message.content === 'string' && message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`)
+}
+
+/**
+ * Drop the oldest messages so the serialized transcript fits within
+ * budgetTokens, keeping the newest message unconditionally. Returns the
+ * selected messages in their original order (indices are preserved — gaps
+ * mark the dropped messages).
+ */
+export function selectCompactionMessages(
+    messages: ChatMessage[],
+    budgetTokens: number,
+    countTokens: (text: string) => number,
+): ChatMessage[] {
+    if (!messages.length) {
+        return []
+    }
+
+    const selected: ChatMessage[] = []
+    let used = 0
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const message = messages[i]
+        if (!message) {
+            continue
+        }
+        const tokens = countTokens(messageToTranscriptLine(message, i)) + 1 // +1 for the '\n\n' separator
+        if (selected.length > 0 && used + tokens > budgetTokens) {
+            break
+        }
+        selected.push(message)
+        used += tokens
+        if (used >= budgetTokens) {
+            break
+        }
+    }
+    selected.reverse()
+    return selected
 }
 
 export function buildCompactionUserPrompt(messages: ChatMessage[]): string {

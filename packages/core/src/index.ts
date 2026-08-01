@@ -17,6 +17,7 @@ export {
     type McpAuthStatus,
 } from './tools/router/mcp/oauth'
 export * from './skills/skills_admin'
+export { CONTEXT_SUMMARY_PREFIX, isContextSummaryMessage } from './agent/compact_prompt'
 export * from './agent/defaults'
 export * from './config/config'
 export * from './utils/utils'

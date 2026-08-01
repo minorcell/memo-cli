@@ -16,14 +16,14 @@ describe('createTokenCounter', () => {
             expect(counter.countText('')).toBe(0)
         })
 
-        test('estimates ~4 ASCII bytes per token', () => {
-            expect(counter.countText('hello')).toBe(2) // 5 bytes → ceil(5/4)
-            expect(counter.countText('Hello world')).toBe(3) // 11 bytes → ceil(11/4)
+        test('counts ASCII text with the cl100k encoding', () => {
+            expect(counter.countText('hello')).toBe(1)
+            expect(counter.countText('Hello world')).toBe(2)
         })
 
-        test('estimates CJK chars (~3 utf8 bytes each)', () => {
-            expect(counter.countText('你好')).toBe(2) // 6 bytes → ceil(6/4)
-            expect(counter.countText('中文测试')).toBe(3) // 12 bytes → ceil(12/4)
+        test('counts CJK chars (~1 token each in cl100k)', () => {
+            expect(counter.countText('你好')).toBe(2)
+            expect(counter.countText('中文测试')).toBe(3)
         })
 
         test('counts longer text more than short text', () => {
@@ -45,12 +45,12 @@ describe('createTokenCounter', () => {
             expect(counter.countMessages([])).toBe(0)
         })
 
-        test('sums JSON-serialized per-message byte estimates', () => {
+        test('counts encoded content plus fixed structural overhead per message', () => {
             const messages: ChatMessage[] = [
                 { role: 'system', content: 'You are a helpful assistant.' },
                 { role: 'user', content: 'Hello there!' },
             ]
-            const expected = messages.reduce((sum, message) => sum + counter.countText(JSON.stringify(message)), 0)
+            const expected = 6 + 3 + 3 + 3 // 'You are...' 6 tok + 'Hello there!' 3 tok + 2 × 3 structural
             expect(counter.countMessages(messages)).toBe(expected)
         })
 
@@ -64,7 +64,7 @@ describe('createTokenCounter', () => {
             expect(counter.countMessages(messages)).toBeGreaterThan(single)
         })
 
-        test('includes structured parts (tool-call/reasoning) via JSON serialization', () => {
+        test('includes structured parts (tool-call/reasoning)', () => {
             const withParts: ChatMessage[] = [
                 {
                     role: 'assistant',

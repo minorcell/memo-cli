@@ -89,4 +89,60 @@ describe('parseHistoryLogToSessionDetail', () => {
         const detail = parseHistoryLogToSessionDetail(log, '/tmp/demo/s2.jsonl')
         assert.strictEqual(detail.title, 'Build release plan')
     })
+
+    test('exposes the latest successful context_compact summary', () => {
+        const log = [
+            JSON.stringify({
+                ts: '2026-02-15T10:00:00.000Z',
+                sessionId: 's3',
+                type: 'session_start',
+                meta: { cwd: '/tmp/demo' },
+            }),
+            JSON.stringify({
+                ts: '2026-02-15T10:00:02.000Z',
+                sessionId: 's3',
+                type: 'context_compact',
+                content: '',
+                meta: { status: 'failed' },
+            }),
+            JSON.stringify({
+                ts: '2026-02-15T10:00:03.000Z',
+                sessionId: 's3',
+                type: 'context_compact',
+                content: 'first summary',
+                meta: { status: 'success', beforeTokens: 100, afterTokens: 20 },
+            }),
+            JSON.stringify({
+                ts: '2026-02-15T10:00:04.000Z',
+                sessionId: 's3',
+                type: 'context_compact',
+                content: 'latest summary',
+                meta: { status: 'success', beforeTokens: 80, afterTokens: 15 },
+            }),
+        ].join('\n')
+
+        const detail = parseHistoryLogToSessionDetail(log, '/tmp/demo/s3.jsonl')
+        assert.strictEqual(detail.compactionSummary, 'latest summary')
+    })
+
+    test('leaves compactionSummary undefined when only failed compactions exist', () => {
+        const log = [
+            JSON.stringify({
+                ts: '2026-02-15T10:00:00.000Z',
+                sessionId: 's4',
+                type: 'session_start',
+                meta: { cwd: '/tmp/demo' },
+            }),
+            JSON.stringify({
+                ts: '2026-02-15T10:00:02.000Z',
+                sessionId: 's4',
+                type: 'context_compact',
+                content: '',
+                meta: { status: 'failed' },
+            }),
+        ].join('\n')
+
+        const detail = parseHistoryLogToSessionDetail(log, '/tmp/demo/s4.jsonl')
+        assert.strictEqual(detail.compactionSummary, undefined)
+    })
 })

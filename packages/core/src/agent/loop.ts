@@ -5,6 +5,7 @@ import {
     CONTEXT_COMPACTION_SYSTEM_PROMPT,
     CONTEXT_SUMMARY_PREFIX,
     isContextSummaryMessage,
+    selectCompactionMessages,
 } from '@memo/core/agent/compact_prompt'
 import type {
     ChatMessage,
@@ -375,54 +376,76 @@ export class AgentSessionImpl implements AgentSession {
             return skipped
         }
 
-        try {
-            const response = await this.deps.callLLM(
-                [
-                    { role: 'system', content: CONTEXT_COMPACTION_SYSTEM_PROMPT },
-                    { role: 'user', content: buildCompactionUserPrompt(historyWithoutSystem) },
-                ],
-                undefined,
-                {},
-            )
-            const normalized = normalizeLLMResponse(response)
-            const summary = this.normalizeCompactionSummary(normalized.textContent)
-            if (!summary) {
-                throw new Error('Compaction model returned an empty summary.')
-            }
+        // Budget for the compaction request (system instruction + scaffold +
+        // transcript): capped at the trigger threshold, so the request itself
+        // always stays well below the window. Halved on retry.
+        let requestBudget = thresholdTokens
+        let lastError: Error | null = null
 
-            const compactedHistory = this.buildCompactedHistory(summary)
-            const afterTokens = this.tokenCounter.countMessages(compactedHistory)
-            this.history.splice(0, this.history.length, ...compactedHistory)
-
-            const reductionPercent =
-                beforeTokens > 0
-                    ? Math.max(0, Math.round(((beforeTokens - afterTokens) / beforeTokens) * 10_000) / 100)
-                    : 0
-
-            const result: CompactResult = {
-                reason,
-                status: 'success',
-                beforeTokens,
-                afterTokens,
-                thresholdTokens,
-                reductionPercent,
-                summary,
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+            if (attempt > 0) {
+                requestBudget = Math.max(1, Math.floor(requestBudget / 2))
             }
-            await this.emitContextCompacted(turn, step, result)
-            return result
-        } catch (err) {
-            const result: CompactResult = {
-                reason,
-                status: 'failed',
-                beforeTokens,
-                afterTokens: beforeTokens,
-                thresholdTokens,
-                reductionPercent: 0,
-                errorMessage: (err as Error).message,
+            try {
+                const transcriptMessages = selectCompactionMessages(historyWithoutSystem, requestBudget, (text) =>
+                    this.tokenCounter.countText(text),
+                )
+                // The compaction model sees the original system prompt alongside
+                // the compaction instructions, so the summary keeps the global
+                // constraints (agent role, AGENTS.md rules) in mind.
+                const compactionSystemPrompt = systemMessage
+                    ? `${typeof systemMessage.content === 'string' ? systemMessage.content : ''}\n\n${CONTEXT_COMPACTION_SYSTEM_PROMPT}`
+                    : CONTEXT_COMPACTION_SYSTEM_PROMPT
+                const response = await this.deps.callLLM(
+                    [
+                        { role: 'system', content: compactionSystemPrompt },
+                        { role: 'user', content: buildCompactionUserPrompt(transcriptMessages) },
+                    ],
+                    undefined,
+                    {},
+                )
+                const normalized = normalizeLLMResponse(response)
+                const summary = this.normalizeCompactionSummary(normalized.textContent)
+                if (!summary) {
+                    throw new Error('Compaction model returned an empty summary.')
+                }
+
+                const compactedHistory = this.buildCompactedHistory(summary)
+                const afterTokens = this.tokenCounter.countMessages(compactedHistory)
+                this.history.splice(0, this.history.length, ...compactedHistory)
+
+                const reductionPercent =
+                    beforeTokens > 0
+                        ? Math.max(0, Math.round(((beforeTokens - afterTokens) / beforeTokens) * 10_000) / 100)
+                        : 0
+
+                const result: CompactResult = {
+                    reason,
+                    status: 'success',
+                    beforeTokens,
+                    afterTokens,
+                    thresholdTokens,
+                    reductionPercent,
+                    summary,
+                }
+                await this.emitContextCompacted(turn, step, result)
+                return result
+            } catch (err) {
+                lastError = err as Error
             }
-            await this.emitContextCompacted(turn, step, result)
-            return result
         }
+
+        const result: CompactResult = {
+            reason,
+            status: 'failed',
+            beforeTokens,
+            afterTokens: beforeTokens,
+            thresholdTokens,
+            reductionPercent: 0,
+            errorMessage: lastError?.message,
+        }
+        await this.emitContextCompacted(turn, step, result)
+        return result
     }
 
     private buildToolApprovalHooks(turn: number, step: number): ToolApprovalHooks {
@@ -506,6 +529,9 @@ export class AgentSessionImpl implements AgentSession {
                         contextWindow,
                         autoCompactThresholdPercent,
                         toolPermissionMode: this.toolPermissionMode,
+                        providerName: this.options.providerName,
+                        modelName: this.options.modelName,
+                        thinking: this.thinkingOverride,
                     },
                 })
                 this.sessionStartEmitted = true
@@ -519,7 +545,7 @@ export class AgentSessionImpl implements AgentSession {
                 await this.emitEvent('turn_start', {
                     turn,
                     content: input,
-                    meta: { tokens: { prompt: promptTokens } },
+                    meta: { tokens: { prompt: promptTokens }, thinking: this.thinkingOverride },
                 })
                 await runHook(this.hooks, 'onTurnStart', {
                     sessionId: this.id,

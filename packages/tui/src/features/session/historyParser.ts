@@ -1,4 +1,5 @@
 import {
+    CONTEXT_SUMMARY_PREFIX,
     parseHistoryLogToSessionDetail,
     type ChatMessage,
     type SessionTurnDetail,
@@ -11,6 +12,7 @@ export type ParsedHistoryLog = {
     messages: ChatMessage[]
     turns: TurnView[]
     maxSequence: number
+    compactionSummary?: string
 }
 
 function toAssistantText(turn: SessionTurnDetail): string {
@@ -68,6 +70,13 @@ export function parseHistoryLog(raw: string): ParsedHistoryLog {
     const orderedTurns = [...detail.turns].sort((left, right) => left.turn - right.turn)
 
     const messages: ChatMessage[] = []
+    // Re-inject the latest compaction summary as the first user message, in the
+    // same shape the compaction engine produces, so restored sessions keep the
+    // context that was compacted away (and later compactions recognize it).
+    const summaryText = detail.compactionSummary?.trim()
+    if (summaryText) {
+        messages.push({ role: 'user', content: `${CONTEXT_SUMMARY_PREFIX}\n${summaryText}` })
+    }
     for (const turn of orderedTurns) {
         const input = (turn.input ?? '').trim()
         if (input) {
@@ -91,5 +100,6 @@ export function parseHistoryLog(raw: string): ParsedHistoryLog {
         messages,
         turns,
         maxSequence: sequence,
+        compactionSummary: detail.compactionSummary,
     }
 }

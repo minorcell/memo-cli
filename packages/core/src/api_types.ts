@@ -83,6 +83,8 @@ export type SessionDetail = SessionListItem & {
     summary: string
     turns: SessionTurnDetail[]
     events: SessionEventItem[]
+    /** Latest successful context_compact summary, for --prev restore injection. */
+    compactionSummary?: string
 }
 
 export type SessionListResponse = {

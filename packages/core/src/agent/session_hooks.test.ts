@@ -486,7 +486,13 @@ describe('session hooks & middleware', () => {
                 tokenCounter: createTokenCounter(),
                 requestApproval: async () => 'once',
             },
-            {},
+            {
+                providerName: 'mock',
+                modelName: 'mock-model',
+                contextWindow: 64_000,
+                toolPermissionMode: 'once',
+                thinking: true,
+            },
         )
         try {
             const result = await session.runTurn('meta')
@@ -495,6 +501,12 @@ describe('session hooks & middleware', () => {
             const sessionStart = events.find((event) => event.type === 'session_start')
             assert.ok(sessionStart, 'session_start should exist')
             assert.strictEqual(sessionStart?.meta?.cwd, process.cwd())
+            assert.strictEqual(sessionStart?.meta?.providerName, 'mock')
+            assert.strictEqual(sessionStart?.meta?.modelName, 'mock-model')
+            assert.strictEqual(sessionStart?.meta?.contextWindow, 64_000)
+            assert.strictEqual(sessionStart?.meta?.toolPermissionMode, 'once')
+            assert.strictEqual(sessionStart?.meta?.thinking, true)
+            assert.strictEqual(events.find((event) => event.type === 'turn_start')?.meta?.thinking, true)
             assert.strictEqual(sessionStart?.role, 'system')
             assert.ok(
                 typeof sessionStart?.content === 'string' && sessionStart.content.length > 0,
@@ -783,7 +795,7 @@ describe('session hooks & middleware', () => {
                 callLLM: async (messages, _onChunk, options) => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
-                        messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
+                        String(messages[0].content).includes(CONTEXT_COMPACTION_SYSTEM_PROMPT) &&
                         !options?.toolContext
                     if (isCompactionCall) {
                         autoCompactionCalls += 1
@@ -820,7 +832,7 @@ describe('session hooks & middleware', () => {
                 callLLM: async (messages, _onChunk, options) => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
-                        messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
+                        String(messages[0].content).includes(CONTEXT_COMPACTION_SYSTEM_PROMPT) &&
                         !options?.toolContext
                     if (isCompactionCall) {
                         compactionCalls += 1
@@ -867,7 +879,7 @@ describe('session hooks & middleware', () => {
                 callLLM: async (messages, _onChunk, options) => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
-                        messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
+                        String(messages[0].content).includes(CONTEXT_COMPACTION_SYSTEM_PROMPT) &&
                         !options?.toolContext
                     if (isCompactionCall) {
                         throw new Error('compaction failed')
@@ -905,6 +917,152 @@ describe('session hooks & middleware', () => {
                 ),
                 false,
             )
+        } finally {
+            await session.close()
+        }
+    })
+
+    test('compaction retries once with a halved budget after a failure', async () => {
+        const compactedUserPrompts: string[] = []
+        let compactionCalls = 0
+
+        const session = await createAgentSession(
+            {
+                callLLM: async (messages, _onChunk, options) => {
+                    const isCompactionCall =
+                        messages[0]?.role === 'system' &&
+                        String(messages[0].content).includes(CONTEXT_COMPACTION_SYSTEM_PROMPT) &&
+                        !options?.toolContext
+                    if (isCompactionCall) {
+                        compactionCalls += 1
+                        compactedUserPrompts.push(String(messages[1]?.content))
+                        if (compactionCalls === 1) {
+                            throw new Error('first attempt fails')
+                        }
+                        return endTurnResponse('checkpoint')
+                    }
+                    return endTurnResponse('done')
+                },
+                loadPrompt: async () => 'sys',
+                historySinks: [],
+                tokenCounter: createLengthTokenCounter(),
+                requestApproval: async () => 'once',
+            },
+            {
+                contextWindow: 10_000,
+                autoCompactThresholdPercent: 5,
+            },
+        )
+
+        try {
+            const result = await session.runTurn('trigger auto compaction '.repeat(25))
+            assert.strictEqual(result.status, 'ok')
+            assert.strictEqual(compactionCalls, 2, 'exactly one retry')
+            const retryPrompt = compactedUserPrompts[1] ?? ''
+            const firstPrompt = compactedUserPrompts[0] ?? ''
+            assert.ok(retryPrompt.length <= firstPrompt.length, 'retry prompt must not be larger')
+            assert.ok(
+                session.history.some(
+                    (message) =>
+                        message.role === 'user' &&
+                        typeof message.content === 'string' &&
+                        message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\ncheckpoint`),
+                ),
+            )
+        } finally {
+            await session.close()
+        }
+    })
+
+    test('compaction failure after retry keeps history intact', async () => {
+        const compactStatuses: string[] = []
+        let compactionCalls = 0
+
+        const session = await createAgentSession(
+            {
+                callLLM: async (messages, _onChunk, options) => {
+                    const isCompactionCall =
+                        messages[0]?.role === 'system' &&
+                        String(messages[0].content).includes(CONTEXT_COMPACTION_SYSTEM_PROMPT) &&
+                        !options?.toolContext
+                    if (isCompactionCall) {
+                        compactionCalls += 1
+                        throw new Error('always fails')
+                    }
+                    return endTurnResponse('unexpected')
+                },
+                loadPrompt: async () => 'sys',
+                historySinks: [],
+                tokenCounter: createLengthTokenCounter(),
+                hooks: {
+                    onContextCompacted: ({ status }) => {
+                        compactStatuses.push(status)
+                    },
+                },
+            },
+            {
+                contextWindow: 200,
+                autoCompactThresholdPercent: 50,
+            },
+        )
+
+        try {
+            const result = await session.runTurn('this input is intentionally long enough '.repeat(8))
+            assert.strictEqual(result.status, 'prompt_limit')
+            assert.strictEqual(compactionCalls, 2, 'original attempt plus one retry')
+            assert.strictEqual(compactStatuses.filter((status) => status === 'failed').length, 1)
+            assert.ok(
+                !session.history.some(
+                    (message) =>
+                        message.role === 'user' &&
+                        typeof message.content === 'string' &&
+                        message.content.startsWith(`${CONTEXT_SUMMARY_PREFIX}\n`),
+                ),
+            )
+        } finally {
+            await session.close()
+        }
+    })
+
+    test('compaction request honors the transcript budget and drops oldest messages', async () => {
+        let compactionUserPrompt = ''
+
+        const session = await createAgentSession(
+            {
+                callLLM: async (messages, _onChunk, options) => {
+                    const isCompactionCall =
+                        messages[0]?.role === 'system' &&
+                        String(messages[0].content).includes(CONTEXT_COMPACTION_SYSTEM_PROMPT) &&
+                        !options?.toolContext
+                    if (isCompactionCall) {
+                        compactionUserPrompt = String(messages[1]?.content)
+                        return endTurnResponse('checkpoint')
+                    }
+                    return endTurnResponse('done')
+                },
+                loadPrompt: async () => 'sys',
+                historySinks: [],
+                tokenCounter: createLengthTokenCounter(),
+                requestApproval: async () => 'once',
+            },
+            {
+                contextWindow: 1000,
+                autoCompactThresholdPercent: 5,
+            },
+        )
+
+        try {
+            // threshold = 5% of 1000 = 50 tokens (char-count counter).
+            // First turn leaves a long old user message; the second turn
+            // pushes history over the threshold and triggers compaction.
+            const first = await session.runTurn(`oldest-marker ${'x'.repeat(35)}`)
+            assert.strictEqual(first.status, 'ok')
+            const second = await session.runTurn('newest-marker tail')
+            assert.strictEqual(second.status, 'ok')
+            // Budget 50 keeps the newest message (plus the short assistant
+            // reply) and drops the oldest one.
+            assert.ok(compactionUserPrompt.includes('newest-marker tail'), 'newest message must be retained')
+            assert.ok(!compactionUserPrompt.includes('oldest-marker'), 'oldest messages must be dropped')
         } finally {
             await session.close()
         }
@@ -956,7 +1114,7 @@ describe('session hooks & middleware', () => {
                 callLLM: async (messages, _onChunk, options) => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
-                        messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
+                        String(messages[0].content).includes(CONTEXT_COMPACTION_SYSTEM_PROMPT) &&
                         !options?.toolContext
                     if (isCompactionCall) {
                         sawCompactionCall = true
@@ -1044,7 +1202,7 @@ describe('session hooks & middleware', () => {
                 callLLM: async (messages, _onChunk, options) => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
-                        messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
+                        String(messages[0].content).includes(CONTEXT_COMPACTION_SYSTEM_PROMPT) &&
                         !options?.toolContext
                     if (isCompactionCall) {
                         return endTurnResponse('summary-budget')
@@ -1089,7 +1247,7 @@ describe('session hooks & middleware', () => {
                 callLLM: async (messages, _onChunk, options) => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
-                        messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
+                        String(messages[0].content).includes(CONTEXT_COMPACTION_SYSTEM_PROMPT) &&
                         !options?.toolContext
                     if (isCompactionCall) {
                         return endTurnResponse('<think>internal</think>\n\nsummary\n\n\nnext')
@@ -1126,7 +1284,7 @@ describe('session hooks & middleware', () => {
                 callLLM: async (messages, _onChunk, options) => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
-                        messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
+                        String(messages[0].content).includes(CONTEXT_COMPACTION_SYSTEM_PROMPT) &&
                         !options?.toolContext
                     if (isCompactionCall) {
                         return endTurnResponse('new summary')

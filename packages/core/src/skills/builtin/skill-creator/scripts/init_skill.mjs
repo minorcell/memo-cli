@@ -291,14 +291,18 @@ async function main() {
         })
     } catch (error) {
         console.error(`[ERROR] ${error.message}`)
-        console.error('Usage: node init_skill.mjs <skill-name> --path <output-directory> [--resources scripts,references,assets] [--examples]')
+        console.error(
+            'Usage: node init_skill.mjs <skill-name> --path <output-directory> [--resources scripts,references,assets] [--examples]',
+        )
         process.exit(1)
     }
 
     const rawSkillName = parsed.positionals[0]
     if (!rawSkillName) {
         console.error('[ERROR] Skill name is required.')
-        console.error('Usage: node init_skill.mjs <skill-name> --path <output-directory> [--resources scripts,references,assets] [--examples]')
+        console.error(
+            'Usage: node init_skill.mjs <skill-name> --path <output-directory> [--resources scripts,references,assets] [--examples]',
+        )
         process.exit(1)
     }
 
@@ -326,7 +330,9 @@ async function main() {
     const path = parsed.values.path
     if (!path) {
         console.error('[ERROR] --path is required.')
-        console.error('Usage: node init_skill.mjs <skill-name> --path <output-directory> [--resources scripts,references,assets] [--examples]')
+        console.error(
+            'Usage: node init_skill.mjs <skill-name> --path <output-directory> [--resources scripts,references,assets] [--examples]',
+        )
         process.exit(1)
     }
 

@@ -28,6 +28,7 @@ type ParseResultState = {
     toolUsage: ToolUsageSummary
     turnsById: Map<number, MutableTurnDetail>
     summaryParts: string[]
+    compactionSummary?: string
     hasError: boolean
     hasCancelled: boolean
 }
@@ -408,6 +409,15 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
             }
         }
 
+        if (event.type === 'context_compact') {
+            // Only successful compactions carry content; events are time-ordered,
+            // so the last one wins (later summaries absorb earlier ones).
+            const content = safeString(event.content)
+            if (content) {
+                state.compactionSummary = content
+            }
+        }
+
         if (event.type === 'session_end' && isRecord(event.meta?.tokens)) {
             state.tokenUsage = defaultTokenUsage()
             accumulateTokenUsage(state.tokenUsage, event.meta.tokens)
@@ -465,5 +475,6 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
         summary: state.summaryParts.join('\n'),
         turns,
         events,
+        compactionSummary: state.compactionSummary,
     }
 }
