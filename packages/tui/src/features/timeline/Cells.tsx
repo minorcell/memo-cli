@@ -13,6 +13,7 @@ import { looksLikePathInput, safeStringify, toRelativeDisplayPath } from '../../
 import { previewText } from './contentPreview'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { summarizeToolResult } from './toolResultSummary'
+import { parsePlanUpdateObservation, planProgress } from '../plan/planState'
 
 const TOOL_PARAM_MAX_COLUMNS = 70
 const THINKING_PREFIX_COLUMNS = 11
@@ -24,8 +25,19 @@ function toolStatusPresentation(status?: ToolStatus): { glyph: string; verb: str
     return { glyph: '○', verb: 'Pending', color: 'gray' }
 }
 
-function toolActionText(tool: string, param: string | null, status?: ToolStatus): string {
+function toolActionText(tool: string, param: string | null, status?: ToolStatus, result?: ToolResultView): string {
     if (status === TOOL_STATUS.ERROR) return `Failed ${tool}${param ? ` · ${param}` : ''}`
+
+    if (tool === 'update_plan') {
+        if (status === TOOL_STATUS.EXECUTING) return 'Updating plan'
+        const update = result ? parsePlanUpdateObservation(result.observation) : null
+        if (update) {
+            const progress = planProgress(update)
+            return `Updated plan · ${progress.completed}/${progress.total} complete`
+        }
+        if (result?.observation.includes('reason="simple_task"')) return 'Skipped plan · task is simple'
+        return status === TOOL_STATUS.SUCCESS ? 'Updated plan' : 'Pending update_plan'
+    }
 
     const running = status === TOOL_STATUS.EXECUTING
     if (tool === 'read_text_file') return `${running ? 'Reading' : 'Read'} ${param ?? tool}`
@@ -95,13 +107,22 @@ const ToolRow = memo(function ToolRow({
     terminalWidth: number
 }) {
     const presentation = toolStatusPresentation(status)
-    const param = mainParam(
-        input,
-        cwd,
-        Math.min(TOOL_PARAM_MAX_COLUMNS, Math.max(1, terminalWidth - tool.length - presentation.verb.length - 8)),
-    )
-    const actionText = toolActionText(tool, param, status)
-    const resultLines = result ? summarizeToolResult(result, cwd, Math.max(1, terminalWidth - 6)) : []
+    const param =
+        tool === 'update_plan'
+            ? null
+            : mainParam(
+                  input,
+                  cwd,
+                  Math.min(
+                      TOOL_PARAM_MAX_COLUMNS,
+                      Math.max(1, terminalWidth - tool.length - presentation.verb.length - 8),
+                  ),
+              )
+    const actionText = toolActionText(tool, param, status, result)
+    const resultLines =
+        result && !(tool === 'update_plan' && status !== TOOL_STATUS.ERROR)
+            ? summarizeToolResult(result, cwd, Math.max(1, terminalWidth - 6))
+            : []
 
     return (
         <Box flexDirection="column">

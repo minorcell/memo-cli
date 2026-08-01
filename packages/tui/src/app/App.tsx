@@ -31,6 +31,8 @@ import { Footer } from '../shared/ui/Footer'
 import { ApprovalOverlay } from '../features/approval/ApprovalOverlay'
 import { McpActivationOverlay } from '../features/mcp/McpActivationOverlay'
 import { notifyApprovalRequested } from '../features/approval/approvalNotification'
+import { PlanPanel } from '../features/plan/PlanPanel'
+import { planStateReducer } from '../features/plan/planState'
 import { SetupWizard } from '../features/setup/SetupWizard'
 import { parseHistoryLog } from '../features/session/historyParser'
 import { chatTimelineReducer, createInitialTimelineState } from '../features/timeline/chatTimeline'
@@ -118,6 +120,7 @@ export function App({
 
     const [timeline, dispatchTimeline] = useReducer(chatTimelineReducer, undefined, createInitialTimelineState)
     const [runtime, dispatchRuntime] = useReducer(runtimeReducer, undefined, createInitialRuntimeState)
+    const [activePlan, dispatchPlan] = useReducer(planStateReducer, null)
 
     const [currentProvider, setCurrentProvider] = useState(providerName)
     const [currentModel, setCurrentModel] = useState(model)
@@ -195,6 +198,7 @@ export function App({
             turns: initialHistory.turns,
             maxSequence: initialHistory.maxSequence,
         })
+        dispatchPlan({ type: 'restore_history', turns: initialHistory.turns })
         setPendingHistoryMessages(initialHistory.messages)
         if (initialHistory.summary.trim()) {
             dispatchTimeline({
@@ -305,6 +309,12 @@ export function App({
                     })
                 },
                 onObservation: ({ turn, step, observation, resultStatus, parallelResultStatuses, results }) => {
+                    const toolResults = results.map((result) => ({
+                        toolCallId: result.toolCallId,
+                        tool: result.tool,
+                        observation: result.observation,
+                        status: inferToolStatus(result.status),
+                    }))
                     dispatchTimeline({
                         type: 'tool_observation',
                         turn,
@@ -312,13 +322,11 @@ export function App({
                         observation,
                         toolStatus: inferToolStatus(resultStatus),
                         parallelToolStatuses: inferParallelToolStatuses(parallelResultStatuses),
-                        toolResults: results.map((result) => ({
-                            toolCallId: result.toolCallId,
-                            tool: result.tool,
-                            observation: result.observation,
-                            status: inferToolStatus(result.status),
-                        })),
+                        toolResults,
                     })
+                    for (const result of toolResults) {
+                        dispatchPlan({ type: 'tool_result', result })
+                    }
                 },
                 onFinal: ({ turn, finalText, status, errorMessage, turnUsage, tokenUsage, thinking }) => {
                     dispatchTimeline({
@@ -443,6 +451,7 @@ export function App({
         if (guardActiveOperation('New Session')) return
         dispatchTimeline({ type: 'reset_all' })
         dispatchRuntime({ type: 'reset' })
+        dispatchPlan({ type: 'clear' })
         setPendingHistoryMessages(null)
         setCurrentContextTokens(0)
         currentTurnRef.current = null
@@ -479,6 +488,7 @@ export function App({
 
             dispatchTimeline({ type: 'reset_all' })
             dispatchRuntime({ type: 'reset' })
+            dispatchPlan({ type: 'clear' })
             setCurrentContextTokens(0)
             currentTurnRef.current = null
 
@@ -528,6 +538,7 @@ export function App({
             setToolPermissionMode(mode)
             dispatchTimeline({ type: 'reset_all' })
             dispatchRuntime({ type: 'reset' })
+            dispatchPlan({ type: 'clear' })
             setCurrentContextTokens(0)
             currentTurnRef.current = null
             setSessionOptionsState((prev) => ({
@@ -586,6 +597,7 @@ export function App({
                     turns: parsed.turns,
                     maxSequence: parsed.maxSequence,
                 })
+                dispatchPlan({ type: 'restore_history', turns: parsed.turns })
                 setPendingHistoryMessages(parsed.messages)
                 dispatchRuntime({ type: 'reset' })
                 setSession(null)
@@ -793,6 +805,8 @@ export function App({
                 turns={timeline.turns}
                 historicalTurns={timeline.historicalTurns}
             />
+
+            {activePlan ? <PlanPanel plan={activePlan} /> : null}
 
             <Composer
                 disabled={!session || operationStatus === 'awaiting_approval'}
