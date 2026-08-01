@@ -31,19 +31,15 @@ export class McpToolRegistry {
             inputSchema: (descriptor.inputSchema as any) ?? {},
             execute: async (input: unknown): Promise<MemoToolOutput> => {
                 const connection = await this.pool.connect(serverName, config)
-                const result = await connection.client.callTool({
-                    name: descriptor.originalName,
-                    arguments: input as Record<string, unknown>,
-                })
-                const callResult = result as unknown as {
-                    content?: Array<{ type?: string; text?: string }>
-                    isError?: boolean
+                const sdkTool = connection.tools[descriptor.originalName]
+                if (!sdkTool?.execute) {
+                    return { type: 'error-text', value: `MCP tool not found: ${descriptor.originalName}` }
                 }
-                const texts =
-                    callResult.content?.flatMap((item) => (item.type === 'text' ? [item.text ?? ''] : [])) ?? []
-                return result.isError
-                    ? { type: 'error-text', value: texts.join('\n') || `Tool ${descriptor.originalName} failed` }
-                    : { type: 'text', value: texts.join('\n') }
+                const output = await sdkTool.execute(input, {
+                    toolCallId: `${serverName}_${descriptor.originalName}_${Date.now()}`,
+                    messages: [],
+                })
+                return output as MemoToolOutput
             },
         }
     }
@@ -68,10 +64,10 @@ export class McpToolRegistry {
         serverName: string,
         connection: Awaited<ReturnType<McpClientPool['connect']>>,
     ): CachedMcpToolDescriptor[] {
-        return connection.tools.map((tool) => ({
-            originalName: tool.originalName,
-            description: tool.description || `Tool from ${serverName}: ${tool.originalName}`,
-            inputSchema: tool.inputSchema,
+        return Object.entries(connection.tools).map(([originalName, tool]) => ({
+            originalName,
+            description: tool.description || `Tool from ${serverName}: ${originalName}`,
+            inputSchema: (tool.inputSchema as { jsonSchema?: () => unknown }).jsonSchema?.(),
         }))
     }
 

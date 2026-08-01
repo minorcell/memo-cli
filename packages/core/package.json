@@ -19,13 +19,14 @@
         "test": "vitest run"
     },
     "dependencies": {
-        "ignore": "^7.0.5",
-        "zod": "^4.3.6",
-        "ai": "^6.0.0",
+        "@ai-sdk/mcp": "1.0.66",
         "@ai-sdk/openai-compatible": "^2.0.0",
         "@modelcontextprotocol/sdk": "^1.24.3",
+        "ai": "^6.0.0",
         "diff": "^8.0.3",
-        "minimatch": "^10.0.1"
+        "ignore": "^7.0.5",
+        "minimatch": "^10.0.1",
+        "zod": "^4.3.6"
     },
     "devDependencies": {
         "vitest": "^2.1.8"

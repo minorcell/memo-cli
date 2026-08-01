@@ -16,21 +16,14 @@ function createConfig(): MCPServerConfig {
 function createConnection(serverName: string, toolName: string) {
     return {
         name: serverName,
-        client: {
-            callTool: async () => ({ content: [] }),
-        },
-        transport: {} as any,
-        tools: [
-            {
-                name: `${serverName}_${toolName}`,
+        client: {},
+        tools: {
+            [toolName]: {
                 description: `Tool from ${serverName}: ${toolName}`,
-                source: 'mcp' as const,
-                serverName,
-                originalName: toolName,
-                inputSchema: {},
-                execute: async () => ({ content: [] }),
+                inputSchema: { jsonSchema: () => ({ type: 'object' }) },
+                execute: async () => ({ type: 'text', value: '' }),
             },
-        ],
+        },
     }
 }
 

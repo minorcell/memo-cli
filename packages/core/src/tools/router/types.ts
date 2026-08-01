@@ -83,12 +83,10 @@ export type MCPServerConfig =
           bearer_token_env_var?: string
       }
 
-/** MCP Client connection info */
+/** MCP Client connection info (AI SDK MCP client + tool set). */
 export interface McpClientConnection {
     name: string
-    client: import('@modelcontextprotocol/sdk/client/index.js').Client
-    transport:
-        | import('@modelcontextprotocol/sdk/client/stdio.js').StdioClientTransport
-        | import('@modelcontextprotocol/sdk/client/streamableHttp.js').StreamableHTTPClientTransport
-    tools: McpTool[]
+    client: import('@ai-sdk/mcp').MCPClient
+    /** originalName → AI SDK Tool (own execute, JSON-RPC under the hood). */
+    tools: Record<string, import('ai').Tool>
 }

@@ -1,13 +1,14 @@
-/** @file MCP Client 连接池管理 */
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
-import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+/** @file MCP Client 连接池管理（基于 @ai-sdk/mcp） */
+import {
+    createMCPClient,
+    UnauthorizedError,
+    type MCPClient,
+    type MCPClientConfig,
+    type OAuthClientProvider as SdkOAuthClientProvider,
+} from '@ai-sdk/mcp'
+import { Experimental_StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio'
 import type { MCPServerConfig, McpClientConnection } from '../types'
 import { createRuntimeMcpOAuthProvider, type McpOAuthSettings } from './oauth'
-
-type ClientTransport = StdioClientTransport | StreamableHTTPClientTransport
 
 function mergeProcessEnv(env?: Record<string, string>): Record<string, string> | undefined {
     if (!env) return undefined
@@ -17,25 +18,6 @@ function mergeProcessEnv(env?: Record<string, string>): Record<string, string> |
     }
     const entries = Object.entries(merged).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
     return Object.fromEntries(entries)
-}
-
-/** 创建标准化的 MCP Client */
-function createMcpClient(): Client {
-    return new Client(
-        {
-            name: 'memo-code-cli-client',
-            version: '1.0.0',
-        },
-        {
-            capabilities: {},
-        },
-    )
-}
-
-/** 构建 HTTP 请求的 headers */
-function buildRequestInit(headers?: Record<string, string>): RequestInit | undefined {
-    if (!headers || Object.keys(headers).length === 0) return undefined
-    return { headers }
 }
 
 function resolveHttpHeaders(config: Extract<MCPServerConfig, { url: string }>) {
@@ -51,63 +33,44 @@ function resolveHttpHeaders(config: Extract<MCPServerConfig, { url: string }>) {
     return headers
 }
 
-/** 通过 HTTP 连接 MCP Server */
-async function connectOverHttp(
-    name: string,
-    config: Extract<MCPServerConfig, { url: string }>,
-    oauthSettings: McpOAuthSettings | undefined,
-): Promise<{ client: Client; transport: ClientTransport }> {
-    const baseUrl = new URL(config.url)
-    const requestInit = buildRequestInit(resolveHttpHeaders(config))
-    const authProvider = await createRuntimeMcpOAuthProvider({
-        serverName: name,
-        config,
-        settings: oauthSettings,
-    })
-
-    try {
-        const client = createMcpClient()
-        const transport = new StreamableHTTPClientTransport(baseUrl, {
-            requestInit,
-            ...(authProvider ? { authProvider } : {}),
-        })
-        await client.connect(transport)
-        return { client, transport }
-    } catch (streamErr) {
-        const authHint = isAuthFailure(streamErr) ? ` Run "memo mcp login ${name}".` : ''
-        const message = `Failed to connect via streamable_http (${(streamErr as Error).message}).${authHint}`
-        const error = new Error(message)
-        ;(error as any).cause = streamErr
-        throw error
-    }
-}
-
-/** 根据配置建立连接 */
+/** 根据配置建立 AI SDK MCP 客户端 */
 async function connectWithConfig(
     name: string,
     config: MCPServerConfig,
     oauthSettings: McpOAuthSettings | undefined,
-): Promise<{ client: Client; transport: ClientTransport }> {
+): Promise<MCPClient> {
     if ('url' in config) {
-        return connectOverHttp(name, config, oauthSettings)
+        const authProvider = await createRuntimeMcpOAuthProvider({
+            serverName: name,
+            config,
+            settings: oauthSettings,
+        })
+        const transport: MCPClientConfig['transport'] = {
+            type: 'http',
+            url: config.url,
+            headers: resolveHttpHeaders(config),
+            // memo's provider implements the same OAuthClientProvider contract (SDK-origin).
+            ...(authProvider ? { authProvider: authProvider as unknown as SdkOAuthClientProvider } : {}),
+        }
+        try {
+            return await createMCPClient({ transport })
+        } catch (streamErr) {
+            const authHint = isAuthFailure(streamErr) ? ` Run "memo mcp login ${name}".` : ''
+            const message = `Failed to connect via streamable_http (${(streamErr as Error).message}).${authHint}`
+            const error = new Error(message)
+            ;(error as any).cause = streamErr
+            throw error
+        }
     }
 
     // stdio 类型
-    const stdioOptions: {
-        command: string
-        args?: string[]
-        env?: Record<string, string>
-        stderr?: 'inherit' | 'pipe' | 'ignore'
-    } = {
+    const transport = new Experimental_StdioMCPTransport({
         command: config.command,
         args: config.args,
         env: mergeProcessEnv(config.env),
         stderr: config.stderr ?? (process.stdout.isTTY && process.stdin.isTTY ? 'ignore' : undefined),
-    }
-    const transport = new StdioClientTransport(stdioOptions as any)
-    const client = createMcpClient()
-    await client.connect(transport)
-    return { client, transport }
+    })
+    return createMCPClient({ transport })
 }
 
 /** MCP Client 连接池 */
@@ -130,7 +93,7 @@ export class McpClientPool {
      * Connect to specified MCP Server
      * @param name - server name (key in configuration)
      * @param config - server configuration
-     * @returns connection info (contains client, transport, and tool list)
+     * @returns connection info (AI SDK MCP client + tool set)
      */
     async connect(name: string, config?: MCPServerConfig): Promise<McpClientConnection> {
         if (config) {
@@ -154,28 +117,15 @@ export class McpClientPool {
         }
 
         const pending = (async () => {
-            // Establish new connection
-            const { client, transport } = await connectWithConfig(name, effectiveConfig, this.oauthSettings)
+            const client = await connectWithConfig(name, effectiveConfig, this.oauthSettings)
 
             try {
-                // Get tool list
-                const toolsResult = await client.listTools()
-
-                // Build McpTool array (execute not filled yet, handled by Registry)
+                // Get tool set (AI SDK Tools with own execute).
+                const tools = await client.tools()
                 const connection: McpClientConnection = {
                     name,
                     client,
-                    transport,
-                    tools: (toolsResult.tools || []).map((t) => ({
-                        name: `${name}_${t.name}`,
-                        description: t.description || `Tool from ${name}: ${t.name}`,
-                        source: 'mcp' as const,
-                        serverName: name,
-                        originalName: t.name,
-                        inputSchema: t.inputSchema as any,
-                        // execute 会在 registry 中绑定
-                        execute: async () => ({ type: 'text', value: '' }),
-                    })),
+                    tools,
                 }
 
                 this.connections.set(name, connection)
@@ -223,18 +173,18 @@ export class McpClientPool {
             description: string
             serverName: string
             originalName: string
-            inputSchema: any
-            client: Client
+            inputSchema: unknown
+            client: MCPClient
         }[] = []
 
         for (const conn of this.connections.values()) {
-            for (const tool of conn.tools) {
+            for (const [originalName, tool] of Object.entries(conn.tools)) {
                 allTools.push({
-                    name: tool.name,
-                    description: tool.description,
-                    serverName: tool.serverName,
-                    originalName: tool.originalName,
-                    inputSchema: tool.inputSchema,
+                    name: `${conn.name}_${originalName}`,
+                    description: tool.description ?? `Tool from ${conn.name}: ${originalName}`,
+                    serverName: conn.name,
+                    originalName,
+                    inputSchema: (tool.inputSchema as { jsonSchema?: () => unknown }).jsonSchema?.(),
                     client: conn.client,
                 })
             }
@@ -266,9 +216,6 @@ export class McpClientPool {
 
 function isAuthFailure(error: unknown): boolean {
     if (error instanceof UnauthorizedError) return true
-    if (error instanceof StreamableHTTPError) {
-        return error.code === 401 || error.code === 403
-    }
     const message = (error as Error)?.message?.toLowerCase() ?? ''
     return (
         message.includes('unauthorized') ||

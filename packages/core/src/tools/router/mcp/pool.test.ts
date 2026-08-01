@@ -3,70 +3,41 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import type { MCPServerConfig } from '../types'
 
 const {
-    connectMock,
-    listToolsMock,
+    toolsMock,
+    createClientConfigMock,
     closeMock,
     createRuntimeMcpOAuthProviderMock,
-    streamableInstances,
     stdioInstances,
     UnauthorizedErrorMock,
-    StreamableHTTPErrorMock,
 } = vi.hoisted(() => {
     class UnauthorizedErrorMock extends Error {}
-    class StreamableHTTPErrorMock extends Error {
-        code: number
-        constructor(message: string, code: number) {
-            super(message)
-            this.code = code
-        }
-    }
     return {
-        connectMock: vi.fn(),
-        listToolsMock: vi.fn(),
+        toolsMock: vi.fn(),
+        createClientConfigMock: vi.fn(),
         closeMock: vi.fn(),
         createRuntimeMcpOAuthProviderMock: vi.fn(),
-        streamableInstances: [] as Array<{ url: URL; options: Record<string, unknown> }>,
         stdioInstances: [] as Array<{ options: Record<string, unknown> }>,
         UnauthorizedErrorMock,
-        StreamableHTTPErrorMock,
     }
 })
 
-vi.mock('@modelcontextprotocol/sdk/client/index.js', () => {
-    class MockClient {
-        async connect(transport: unknown) {
-            return connectMock(transport)
-        }
-        async listTools() {
-            return listToolsMock()
-        }
-        async close() {
-            return closeMock()
-        }
-    }
+vi.mock('@ai-sdk/mcp', async () => {
+    const actual = await vi.importActual('@ai-sdk/mcp')
     return {
-        Client: MockClient,
+        ...(actual as Record<string, unknown>),
+        createMCPClient: async (config: unknown) => {
+            await createClientConfigMock(config)
+            return {
+                tools: async () => toolsMock(),
+                close: async () => closeMock(),
+            }
+        },
+        UnauthorizedError: UnauthorizedErrorMock,
     }
 })
 
-vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => {
-    class MockStreamableHTTPClientTransport {
-        url: URL
-        options: Record<string, unknown>
-        constructor(url: URL, options: Record<string, unknown>) {
-            this.url = url
-            this.options = options
-            streamableInstances.push(this)
-        }
-    }
-    return {
-        StreamableHTTPClientTransport: MockStreamableHTTPClientTransport,
-        StreamableHTTPError: StreamableHTTPErrorMock,
-    }
-})
-
-vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => {
-    class MockStdioClientTransport {
+vi.mock('@ai-sdk/mcp/mcp-stdio', () => {
+    class MockStdioMCPTransport {
         options: Record<string, unknown>
         constructor(options: Record<string, unknown>) {
             this.options = options
@@ -74,13 +45,7 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => {
         }
     }
     return {
-        StdioClientTransport: MockStdioClientTransport,
-    }
-})
-
-vi.mock('@modelcontextprotocol/sdk/client/auth.js', () => {
-    return {
-        UnauthorizedError: UnauthorizedErrorMock,
+        Experimental_StdioMCPTransport: MockStdioMCPTransport,
     }
 })
 
@@ -100,25 +65,21 @@ function httpConfig(extra?: Partial<Extract<MCPServerConfig, { url: string }>>):
     }
 }
 
-afterEach(() => {
-    vi.restoreAllMocks()
-    connectMock.mockReset()
-    listToolsMock.mockReset()
-    closeMock.mockReset()
-    createRuntimeMcpOAuthProviderMock.mockReset()
-    streamableInstances.splice(0)
-    stdioInstances.splice(0)
-    delete process.env.MCP_TOKEN
-    delete process.env.BASE_ENV
-})
-
 describe('mcp client pool', () => {
+    afterEach(() => {
+        toolsMock.mockReset()
+        createClientConfigMock.mockReset()
+        closeMock.mockReset()
+        createRuntimeMcpOAuthProviderMock.mockReset()
+        stdioInstances.splice(0)
+        delete process.env.MCP_TOKEN
+    })
+
     test('connects HTTP server with oauth settings and request headers', async () => {
         const authProvider = { kind: 'oauth-provider' }
         createRuntimeMcpOAuthProviderMock.mockResolvedValue(authProvider)
-        connectMock.mockResolvedValue(undefined)
-        listToolsMock.mockResolvedValue({
-            tools: [{ name: 'search', description: 'Search docs', inputSchema: { type: 'object' } }],
+        toolsMock.mockResolvedValue({
+            search: { description: 'Search docs', inputSchema: { type: 'object' } },
         })
         process.env.MCP_TOKEN = 'token-123'
 
@@ -139,19 +100,19 @@ describe('mcp client pool', () => {
             config,
             settings: { memoHome: '/tmp/memo-home', storeMode: 'file', callbackPort: 33333 },
         })
-        expect(connectMock).toHaveBeenCalledTimes(1)
-        assert.strictEqual(streamableInstances.length, 1)
-        const transport = streamableInstances[0]
-        assert.strictEqual(transport?.url.toString(), 'https://example.com/mcp')
-        expect(transport?.options.authProvider).toEqual(authProvider)
-        expect(transport?.options.requestInit).toEqual({
-            headers: {
-                'X-Custom': 'value',
-                Authorization: 'Bearer token-123',
-            },
+        expect(createClientConfigMock).toHaveBeenCalledTimes(1)
+        const transportConfig = createClientConfigMock.mock.calls[0]?.[0] as {
+            transport: { type: string; url: string; headers: Record<string, string>; authProvider: unknown }
+        }
+        assert.strictEqual(transportConfig.transport.type, 'http')
+        assert.strictEqual(transportConfig.transport.url, 'https://example.com/mcp')
+        expect(transportConfig.transport.authProvider).toEqual(authProvider)
+        expect(transportConfig.transport.headers).toEqual({
+            'X-Custom': 'value',
+            Authorization: 'Bearer token-123',
         })
-        assert.strictEqual(connection.tools.length, 1)
-        assert.strictEqual(connection.tools[0]?.name, 'remote_search')
+        assert.strictEqual(Object.keys(connection.tools).length, 1)
+        assert.ok(connection.tools['search'])
     })
 
     test('reuses inflight connect promise for same server', async () => {
@@ -159,8 +120,8 @@ describe('mcp client pool', () => {
         const connectPromise = new Promise<void>((resolve) => {
             resolveConnect = resolve
         })
-        connectMock.mockImplementation(() => connectPromise)
-        listToolsMock.mockResolvedValue({ tools: [] })
+        createClientConfigMock.mockImplementation(() => connectPromise)
+        toolsMock.mockResolvedValue({})
         createRuntimeMcpOAuthProviderMock.mockResolvedValue(null)
 
         const pool = new McpClientPool()
@@ -172,58 +133,44 @@ describe('mcp client pool', () => {
         resolveConnect()
         const [left, right] = await Promise.all([first, second])
 
-        expect(connectMock).toHaveBeenCalledTimes(1)
+        expect(createClientConfigMock).toHaveBeenCalledTimes(1)
         assert.strictEqual(left, right)
     })
 
     test('includes login hint for unauthorized HTTP failures', async () => {
-        connectMock.mockRejectedValue(new UnauthorizedErrorMock('unauthorized'))
+        createClientConfigMock.mockRejectedValue(new UnauthorizedErrorMock('unauthorized'))
         createRuntimeMcpOAuthProviderMock.mockResolvedValue(null)
 
         const pool = new McpClientPool()
-
-        await expect(pool.connect('remote', httpConfig())).rejects.toThrow('Run "memo mcp login remote".')
-    })
-
-    test('includes login hint for 403 streamable HTTP failures', async () => {
-        connectMock.mockRejectedValue(new StreamableHTTPErrorMock('forbidden', 403))
-        createRuntimeMcpOAuthProviderMock.mockResolvedValue(null)
-
-        const pool = new McpClientPool()
-
         await expect(pool.connect('remote', httpConfig())).rejects.toThrow('Run "memo mcp login remote".')
     })
 
     test('does not include login hint for non-auth failures', async () => {
-        connectMock.mockRejectedValue(new Error('network timeout'))
+        createClientConfigMock.mockRejectedValue(new Error('connection refused'))
         createRuntimeMcpOAuthProviderMock.mockResolvedValue(null)
 
         const pool = new McpClientPool()
-
         await expect(pool.connect('remote', httpConfig())).rejects.toThrow(
-            'Failed to connect via streamable_http (network timeout).',
+            'Failed to connect via streamable_http (connection refused).',
         )
     })
 
     test('closes client when listing tools fails', async () => {
-        connectMock.mockResolvedValue(undefined)
-        listToolsMock.mockRejectedValue(new Error('list failed'))
-        closeMock.mockResolvedValue(undefined)
+        toolsMock.mockRejectedValue(new Error('list failed'))
         createRuntimeMcpOAuthProviderMock.mockResolvedValue(null)
 
         const pool = new McpClientPool()
-
         await expect(pool.connect('remote', httpConfig())).rejects.toThrow('list failed')
         expect(closeMock).toHaveBeenCalledTimes(1)
     })
 
     test('connects stdio server with merged env and explicit stderr mode', async () => {
-        connectMock.mockResolvedValue(undefined)
-        listToolsMock.mockResolvedValue({ tools: [] })
+        toolsMock.mockResolvedValue({})
+        createRuntimeMcpOAuthProviderMock.mockResolvedValue(null)
         process.env.BASE_ENV = 'base'
 
         const pool = new McpClientPool()
-        await pool.connect('local', {
+        await pool.connect('remote', {
             command: 'node',
             args: ['server.js'],
             env: { LOCAL_ENV: 'local' },
@@ -238,14 +185,12 @@ describe('mcp client pool', () => {
         const env = transport?.options.env as Record<string, string>
         assert.strictEqual(env.LOCAL_ENV, 'local')
         assert.strictEqual(env.BASE_ENV, 'base')
-        delete process.env.BASE_ENV
     })
 
     test('closeAll logs close failures and clears connected clients', async () => {
-        connectMock.mockResolvedValue(undefined)
-        listToolsMock.mockResolvedValue({ tools: [] })
-        closeMock.mockRejectedValue(new Error('close failed'))
+        toolsMock.mockResolvedValue({})
         createRuntimeMcpOAuthProviderMock.mockResolvedValue(null)
+        closeMock.mockRejectedValue(new Error('close failed'))
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
         const pool = new McpClientPool()
@@ -253,23 +198,22 @@ describe('mcp client pool', () => {
         assert.strictEqual(pool.size, 1)
 
         await pool.closeAll()
-
         assert.strictEqual(pool.size, 0)
         expect(consoleSpy).toHaveBeenCalled()
+        consoleSpy.mockRestore()
     })
 
     test('tracks known servers from configs and active connections', async () => {
-        connectMock.mockResolvedValue(undefined)
-        listToolsMock.mockResolvedValue({ tools: [] })
+        toolsMock.mockResolvedValue({})
         createRuntimeMcpOAuthProviderMock.mockResolvedValue(null)
 
         const pool = new McpClientPool()
         pool.setServerConfigs({ configured: httpConfig() })
+        await pool.connect('connected', httpConfig())
+
         assert.strictEqual(pool.hasServer('configured'), true)
-
-        await pool.connect('connected', httpConfig({ url: 'https://example.com/other' }))
+        assert.strictEqual(pool.hasServer('connected'), true)
         const names = pool.getKnownServerNames()
-
         expect(names).toContain('configured')
         expect(names).toContain('connected')
     })

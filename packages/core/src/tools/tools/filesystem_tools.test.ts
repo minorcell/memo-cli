@@ -12,8 +12,6 @@ import { editFileTool } from '@memo/core/tools/tools/edit_file'
 import { listDirectoryTool } from '@memo/core/tools/tools/list_directory'
 import { searchFilesTool } from '@memo/core/tools/tools/search_files'
 
-type ToolResult = { content?: Array<{ type: string; text?: string }>; isError?: boolean }
-
 function textPayload(result: MemoToolOutput): string {
     if (result.type === 'text' || result.type === 'error-text') return result.value ?? ''
     return ''
