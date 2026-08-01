@@ -60,6 +60,29 @@ import {
 const DEFAULT_AUTO_COMPACT_THRESHOLD_PERCENT = 80
 const COMPACT_USER_MESSAGE_MAX_TOKENS = 20_000
 
+export type SessionOperationKind = 'turn' | 'compact'
+
+export class SessionBusyError extends Error {
+    override name = 'SessionBusyError'
+
+    constructor(activeOperation: SessionOperationKind, requestedOperation: SessionOperationKind) {
+        super(`Session is busy with ${activeOperation}; cannot start ${requestedOperation}.`)
+    }
+}
+
+export class SessionClosedError extends Error {
+    override name = 'SessionClosedError'
+
+    constructor() {
+        super('Session is closed.')
+    }
+}
+
+type ActiveSessionOperation = {
+    kind: SessionOperationKind
+    done: Promise<void>
+}
+
 /** In-process conversation Session, implements multi-turn execution and log writing. */
 export class AgentSessionImpl implements AgentSession {
     public title?: string
@@ -75,6 +98,8 @@ export class AgentSessionImpl implements AgentSession {
     private startedAt = Date.now()
     private hooks: HookRunnerMap
     private closed = false
+    private activeOperation: ActiveSessionOperation | null = null
+    private closePromise: Promise<void> | null = null
     private sessionStartEmitted = false
     private currentAbortController: AbortController | null = null
     private cancelling = false
@@ -121,6 +146,26 @@ export class AgentSessionImpl implements AgentSession {
     /** 初始化：延迟写入 session_start，避免空会话落盘。 */
     async init() {
         // 留空，等第一次 runTurn 时再写 session_start 事件
+    }
+
+    private async runExclusiveOperation<T>(kind: SessionOperationKind, operation: () => Promise<T>): Promise<T> {
+        if (this.closed) throw new SessionClosedError()
+        if (this.activeOperation) throw new SessionBusyError(this.activeOperation.kind, kind)
+
+        let resolveDone!: () => void
+        const done = new Promise<void>((resolve) => {
+            resolveDone = resolve
+        })
+        this.activeOperation = { kind, done }
+
+        try {
+            return await operation()
+        } finally {
+            if (this.activeOperation?.done === done) {
+                this.activeOperation = null
+            }
+            resolveDone()
+        }
     }
 
     private resetActionRepetition() {
@@ -431,6 +476,10 @@ export class AgentSessionImpl implements AgentSession {
 
     /** 执行一次 Turn：接受用户输入，走 ReAct 循环，返回最终结果与步骤轨迹。 */
     async runTurn(input: string): Promise<TurnResult> {
+        return this.runExclusiveOperation('turn', () => this.runTurnInternal(input))
+    }
+
+    private async runTurnInternal(input: string): Promise<TurnResult> {
         return runWithRuntimeContext({ cwd: this.resolveSessionCwd() }, async () => {
             const abortController = new AbortController()
             this.currentAbortController = abortController
@@ -807,6 +856,13 @@ export class AgentSessionImpl implements AgentSession {
                                 tools: toolUseBlocks.map((b) => b.toolName),
                                 action_ids: toolUseBlocks.map((b) => b.toolCallId),
                                 action_id: toolUseBlocks[0]?.toolCallId,
+                                tool: toolUseBlocks[0]?.toolName,
+                                input: toolUseBlocks[0]?.input,
+                                toolBlocks: toolUseBlocks.map((block) => ({
+                                    id: block.toolCallId,
+                                    name: block.toolName,
+                                    input: block.input,
+                                })),
                                 parallel: toolUseBlocks.length > 1,
                                 phase: 'dispatch',
                                 thinking: parsed.thinking,
@@ -816,8 +872,16 @@ export class AgentSessionImpl implements AgentSession {
                             sessionId: this.id,
                             turn,
                             step,
-                            action: { tool: toolUseBlocks[0]?.toolName ?? '', input: toolUseBlocks[0]?.input },
-                            parallelActions: toolUseBlocks.map((b) => ({ tool: b.toolName, input: b.input })),
+                            action: {
+                                toolCallId: toolUseBlocks[0]?.toolCallId ?? '',
+                                tool: toolUseBlocks[0]?.toolName ?? '',
+                                input: toolUseBlocks[0]?.input,
+                            },
+                            parallelActions: toolUseBlocks.map((block) => ({
+                                toolCallId: block.toolCallId,
+                                tool: block.toolName,
+                                input: block.input,
+                            })),
                             thinking: parsed.thinking,
                             history: snapshotHistory(this.history),
                         })
@@ -825,12 +889,19 @@ export class AgentSessionImpl implements AgentSession {
                         // 逐结果回填历史 + observation 事件
                         const observations: string[] = []
                         const resultStatuses: ToolActionStatus[] = []
+                        const observationResults = []
                         let denied = false
                         for (const [idx, tr] of toolResults.entries()) {
                             const observation = outputToObservation(tr)
                             const status = mapOutputStatus(tr)
                             observations.push(observation)
                             resultStatuses.push(status)
+                            observationResults.push({
+                                toolCallId: tr.toolCallId,
+                                tool: tr.toolName,
+                                observation,
+                                status,
+                            })
                             this.history.push(toToolHistoryMessage(tr))
                             await this.emitEvent('observation', {
                                 turn,
@@ -863,6 +934,7 @@ export class AgentSessionImpl implements AgentSession {
                             observation: hookObservation,
                             resultStatus,
                             parallelResultStatuses: resultStatuses,
+                            results: observationResults,
                             history: snapshotHistory(this.history),
                         })
 
@@ -998,16 +1070,23 @@ export class AgentSessionImpl implements AgentSession {
     }
 
     async compactHistory(reason: CompactReason = 'manual'): Promise<CompactResult> {
-        return this.compactHistoryInternal(reason, this.turnIndex, 0)
+        return this.runExclusiveOperation('compact', () => this.compactHistoryInternal(reason, this.turnIndex, 0))
     }
 
     listToolNames() {
         return Object.keys(this.deps.tools)
     }
 
-    async close() {
-        if (this.closed) return
+    close(): Promise<void> {
+        if (this.closePromise) return this.closePromise
         this.closed = true
+        this.cancelCurrentTurn()
+        this.closePromise = this.closeInternal()
+        return this.closePromise
+    }
+
+    private async closeInternal() {
+        await this.activeOperation?.done
         // 空会话（从未 runTurn）不写 session_end，避免空会话落盘；sink 清理始终执行。
         if (this.sessionStartEmitted) {
             await this.emitEvent('session_end', {

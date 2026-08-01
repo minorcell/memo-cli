@@ -331,6 +331,7 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
             const tool = safeString(event.meta?.tool)
             if (tool) {
                 step.action = {
+                    toolCallId: safeString(event.meta?.action_id) || undefined,
                     tool,
                     input: event.meta?.input,
                 }
@@ -345,11 +346,14 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
                         const name = safeString(block.name)
                         if (!name) return null
                         return {
+                            toolCallId: safeString(block.id) || undefined,
                             tool: name,
                             input: block.input,
                         }
                     })
-                    .filter((item): item is { tool: string; input: unknown } => Boolean(item))
+                    .filter((item): item is { toolCallId: string | undefined; tool: string; input: unknown } =>
+                        Boolean(item),
+                    )
                 if (parallelActions.length > 1) step.parallelActions = parallelActions
             }
         }
@@ -360,6 +364,13 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
             step.observation = event.content
             const status = safeString(event.meta?.status)
             if (status) step.resultStatus = status
+            const result = {
+                toolCallId: safeString(event.meta?.action_id) || undefined,
+                tool: safeString(event.meta?.tool) || step.action?.tool || '',
+                observation: event.content ?? '',
+                resultStatus: status || undefined,
+            }
+            step.toolResults = [...(step.toolResults ?? []), result]
             applyObservationStatus(state, status)
         }
 

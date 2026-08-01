@@ -262,6 +262,51 @@ describe('session hooks & middleware', () => {
         }
     })
 
+    test('emits structured results for parallel tool calls', async () => {
+        const outputs: LLMResult[] = [
+            multiToolUseResponse([
+                { id: 'list-call', name: 'echo', input: { text: 'first' } },
+                { id: 'search-call', name: 'read_note', input: { topic: 'second' } },
+            ]),
+            endTurnResponse('done'),
+        ]
+        let actionIds: string[] = []
+        let resultPayload: Array<{ toolCallId: string; tool: string; observation: string }> = []
+        const session = await createAgentSession(
+            {
+                tools: { echo: echoTool, read_note: readNoteTool },
+                callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
+                historySinks: [],
+                tokenCounter: createTokenCounter(),
+                requestApproval: async () => 'once',
+                hooks: {
+                    onAction: ({ parallelActions }) => {
+                        actionIds = (parallelActions ?? []).map((action) => action.toolCallId)
+                    },
+                    onObservation: ({ results }) => {
+                        resultPayload = results.map(({ toolCallId, tool, observation }) => ({
+                            toolCallId,
+                            tool,
+                            observation,
+                        }))
+                    },
+                },
+            },
+            {},
+        )
+
+        try {
+            await session.runTurn('parallel')
+            assert.deepStrictEqual(actionIds, ['list-call', 'search-call'])
+            assert.deepStrictEqual(resultPayload, [
+                { toolCallId: 'list-call', tool: 'echo', observation: 'echo:first' },
+                { toolCallId: 'search-call', tool: 'read_note', observation: 'note:second' },
+            ])
+        } finally {
+            await session.close()
+        }
+    })
+
     test('reuses previous assistant text when end_turn arrives empty after tool call', async () => {
         const outputs: LLMResult[] = [
             toolUseResponse('action-1', 'echo', { text: 'x' }, '这是最终答案'),

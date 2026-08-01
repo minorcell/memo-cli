@@ -4,6 +4,8 @@ import { DEFAULT_SESSION_MODE } from '@memo/core/agent/constants'
 import { AgentSessionImpl } from '@memo/core/agent/loop'
 import type { AgentSession, AgentSessionDeps, AgentSessionOptions } from '@memo/core/types'
 
+export { SessionBusyError, SessionClosedError, type SessionOperationKind } from '@memo/core/agent/loop'
+
 /**
  * 创建一个 Agent Session，支持多轮对话与 JSONL 事件记录。
  */

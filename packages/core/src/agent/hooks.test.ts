@@ -186,7 +186,7 @@ describe('runHook', () => {
             sessionId: 's1',
             turn: 1,
             step: 1,
-            action: { tool: 'test', input: {} },
+            action: { toolCallId: 'call-1', tool: 'test', input: {} },
             history: [],
         }
 
@@ -252,6 +252,14 @@ describe('runHook', () => {
             step: 1,
             tool: 'test',
             observation: 'result',
+            results: [
+                {
+                    toolCallId: 'call-1',
+                    tool: 'test',
+                    observation: 'result',
+                    status: 'success',
+                },
+            ],
             history: [],
         }
 

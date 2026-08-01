@@ -78,6 +78,10 @@ export type ParsedAssistant = {
     thinking?: string
 }
 
+export type ToolHookAction = NonNullable<ParsedAssistant['action']> & {
+    toolCallId: string
+}
+
 /** Tool registry: keys are tool names, values are standard AI SDK Tool definitions. */
 export type ToolRegistry = Record<string, import('ai').Tool>
 
@@ -198,11 +202,18 @@ export type ActionHookPayload = {
     sessionId: string
     turn: number
     step: number
-    action: NonNullable<ParsedAssistant['action']>
+    action: ToolHookAction
     /** 并发工具调用时，包含所有工具 action（顺序与调用一致）。 */
-    parallelActions?: Array<NonNullable<ParsedAssistant['action']>>
+    parallelActions?: ToolHookAction[]
     thinking?: string
     history: ChatMessage[]
+}
+
+export type ToolObservationResult = {
+    toolCallId: string
+    tool: string
+    observation: string
+    status: ToolActionStatus
 }
 
 export type ObservationHookPayload = {
@@ -213,6 +224,8 @@ export type ObservationHookPayload = {
     observation: string
     resultStatus?: ToolActionStatus
     parallelResultStatuses?: ToolActionStatus[]
+    /** Structured per-call results. UI consumers should prefer this over the combined observation string. */
+    results: ToolObservationResult[]
     history: ChatMessage[]
 }
 

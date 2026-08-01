@@ -49,15 +49,23 @@ export type SessionTurnStep = {
     assistantText?: string
     thinking?: string
     action?: {
+        toolCallId?: string
         tool: string
         input: unknown
     }
     parallelActions?: Array<{
+        toolCallId?: string
         tool: string
         input: unknown
     }>
     observation?: string
     resultStatus?: string
+    toolResults?: Array<{
+        toolCallId?: string
+        tool: string
+        observation: string
+        resultStatus?: string
+    }>
 }
 
 export type SessionTurnDetail = {
