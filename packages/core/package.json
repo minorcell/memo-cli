@@ -22,7 +22,10 @@
         "ignore": "^7.0.5",
         "zod": "^4.3.6",
         "ai": "^6.0.0",
-        "@ai-sdk/openai-compatible": "^2.0.0"
+        "@ai-sdk/openai-compatible": "^2.0.0",
+        "@modelcontextprotocol/sdk": "^1.24.3",
+        "diff": "^8.0.3",
+        "minimatch": "^10.0.1"
     },
     "devDependencies": {
         "vitest": "^2.1.8"

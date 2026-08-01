@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import { describe, test } from 'vitest'
 import { createAgentSession, createTokenCounter } from '@memo/core'
 import type { ChatMessage, HistoryEvent, LLMResult, TokenCounter } from '@memo/core'
-import type { Tool } from '@memo/tools/router'
+import type { Tool } from '@memo/core/tools/router'
 import { CONTEXT_COMPACTION_SYSTEM_PROMPT, CONTEXT_SUMMARY_PREFIX } from '@memo/core/agent/compact_prompt'
 import { emptyUsage } from '@memo/core/agent/loop'
 

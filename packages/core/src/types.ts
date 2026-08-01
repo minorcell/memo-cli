@@ -1,9 +1,9 @@
 /** @file Common type declarations shared between Core and Runtime (reused by UI/Tools). */
 import type { FinishReason, LanguageModelUsage, ModelMessage, ToolCallPart } from 'ai'
-import type { ApprovalRequest, ApprovalDecision } from '@memo/tools/approval'
-import type { ToolActionStatus } from '@memo/tools/orchestrator'
-export type { ApprovalDecision, ApprovalRequest } from '@memo/tools/approval'
-export type { ToolActionStatus } from '@memo/tools/orchestrator'
+import type { ApprovalRequest, ApprovalDecision } from '@memo/core/tools/approval'
+import type { ToolActionStatus } from '@memo/core/tools/orchestrator'
+export type { ApprovalDecision, ApprovalRequest } from '@memo/core/tools/approval'
+export type { ToolActionStatus } from '@memo/core/tools/orchestrator'
 export type { FinishReason, LanguageModelUsage } from 'ai'
 
 /** AI SDK generation result subset returned by CallLLM (all fields are AI SDK types). */
@@ -23,7 +23,7 @@ export type LLMResult = {
 /**
  * Basic type declarations for Agent layer, covering conversation messages,
  * parsing results, and dependency injection interfaces.
- * Types are kept minimal for easy reuse in UI/tools layers.
+ * Types are kept minimal for easy reuse in UI/core/tools layers.
  */
 export type Role = 'system' | 'user' | 'assistant' | 'tool'
 
@@ -92,7 +92,7 @@ export type ParsedAssistant = {
 }
 
 /** Tool registry: keys are tool names, values are tool definitions. */
-export type ToolRegistry = Record<string, import('@memo/tools/router/types').Tool>
+export type ToolRegistry = Record<string, import('@memo/core/tools/router/types').Tool>
 
 /** Tool definition structure (for passing to LLM API) */
 export type ToolDefinition = {

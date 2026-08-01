@@ -1,5 +1,5 @@
 /** @file Session default dependency assembly: toolset, LLM, history sinks, tokenizer, etc. */
-import { NATIVE_TOOLS } from '@memo/tools'
+import { NATIVE_TOOLS } from '@memo/core/tools'
 import { createTokenCounter } from '@memo/core/utils/tokenizer'
 import { buildSessionPath, getSessionsDir, loadMemoConfig, selectProvider } from '@memo/core/config/config'
 import { JsonlHistorySink } from '@memo/core/features/history'
@@ -7,7 +7,7 @@ import { resolveModelProfile } from '@memo/core/llm/model_profile'
 import { streamCallLLM } from '@memo/core/llm/ai_stream'
 import { getProviderFactory } from '@memo/core/llm/ai_provider'
 import { loadSystemPrompt as defaultLoadPrompt } from '@memo/core/prompt/prompt'
-import { ToolRouter } from '@memo/tools/router'
+import { ToolRouter } from '@memo/core/tools/router'
 import type {
     AgentSessionDeps,
     AgentSessionOptions,

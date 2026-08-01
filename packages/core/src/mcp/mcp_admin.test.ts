@@ -15,7 +15,7 @@ vi.mock('@memo/core/config/config', () => ({
     writeMemoConfig: mocks.writeMemoConfig,
 }))
 
-vi.mock('@memo/tools/router/mcp/oauth', () => ({
+vi.mock('@memo/core/tools/router/mcp/oauth', () => ({
     getMcpAuthStatus: mocks.getMcpAuthStatus,
     loginMcpServerOAuth: mocks.loginMcpServerOAuth,
     logoutMcpServerOAuth: mocks.logoutMcpServerOAuth,

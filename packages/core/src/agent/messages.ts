@@ -1,7 +1,7 @@
 /** @file Message construction and LLM result normalization for the agent loop. */
 import type { LanguageModelUsage, ToolCallPart } from 'ai'
 import type { ChatMessage, LLMResult, ToolRegistry } from '@memo/core/types'
-import type { ToolActionResult } from '@memo/tools/orchestrator'
+import type { ToolActionResult } from '@memo/core/tools/orchestrator'
 
 const TOOL_SKIPPED_AFTER_REJECTION_MESSAGE = 'Skipped tool execution after previous rejection.'
 

@@ -33,8 +33,8 @@ import {
     type ToolApprovalHooks,
     type ToolOrchestrator,
     type ToolActionResult,
-} from '@memo/tools/orchestrator'
-import { runWithRuntimeContext } from '@memo/tools/runtime/context'
+} from '@memo/core/tools/orchestrator'
+import { runWithRuntimeContext } from '@memo/core/tools/runtime/context'
 import {
     buildAssistantToolCalls,
     completeToolResultsForProtocol,
@@ -42,8 +42,8 @@ import {
     parseTextToolCall,
     toToolHistoryMessage,
 } from './messages'
-import type { ApprovalRequest, ApprovalDecision } from '@memo/tools/approval'
-import type { ToolActionStatus } from '@memo/tools/orchestrator'
+import type { ApprovalRequest, ApprovalDecision } from '@memo/core/tools/approval'
+import type { ToolActionStatus } from '@memo/core/tools/orchestrator'
 
 const DEFAULT_AUTO_COMPACT_THRESHOLD_PERCENT = 80
 const COMPACT_USER_MESSAGE_MAX_TOKENS = 20_000
@@ -1225,7 +1225,7 @@ export const DEFAULT_SESSION_MODE: SessionMode = 'interactive'
 export const DEFAULT_CONTEXT_WINDOW = 120_000
 export const TOOL_ACTION_SUCCESS_STATUS: ToolActionStatus = 'success'
 export const TOOL_DISABLED_ERROR_MESSAGE =
-    'Tool usage is disabled in the current permission mode. Switch to /tools once or /tools full to enable tools.'
+    'Tool usage is disabled in the current permission mode. Switch to /core/tools once or /core/tools full to enable tools.'
 export const SESSION_TITLE_MAX_CHARS = 60
 export const TOOL_SKIPPED_DISABLED_MESSAGE = 'Tool execution skipped: tools are disabled in current permission mode.'
 

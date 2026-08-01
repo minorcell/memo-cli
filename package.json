@@ -31,7 +31,6 @@
         "test": "vitest run",
         "test:coverage": "vitest run --coverage",
         "test:core": "vitest run packages/core",
-        "test:tools": "vitest run packages/tools",
         "test:tui": "vitest run packages/tui",
         "ci": "pnpm run format:check && pnpm run test:coverage && pnpm run build",
         "prepublishOnly": "pnpm run build && chmod +x dist/index.js",

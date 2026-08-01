@@ -10,7 +10,7 @@ import type {
 import type { MCPServerConfig } from '@memo/core/config/config'
 import type { AIProviderFactory } from '@memo/core/llm/ai_provider'
 import { emptyUsage } from '@memo/core/agent/loop'
-import type { Tool } from '@memo/tools/router'
+import type { Tool } from '@memo/core/tools/router'
 
 const state = vi.hoisted(() => ({
     loadedConfig: {
@@ -80,7 +80,7 @@ const state = vi.hoisted(() => ({
     } as LLMResult,
 }))
 
-vi.mock('@memo/tools', () => ({
+vi.mock('@memo/core/tools', () => ({
     NATIVE_TOOLS: [],
 }))
 
@@ -134,7 +134,7 @@ vi.mock('@memo/core/utils/tokenizer', () => ({
     }),
 }))
 
-vi.mock('@memo/tools/router', () => ({
+vi.mock('@memo/core/tools/router', () => ({
     ToolRouter: class ToolRouter {
         registerNativeTools(tools: unknown) {
             state.registerNativeToolsCalls.push(tools)

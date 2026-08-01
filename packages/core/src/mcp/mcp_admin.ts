@@ -4,7 +4,7 @@ import {
     loginMcpServerOAuth,
     logoutMcpServerOAuth,
     type McpAuthStatus,
-} from '@memo/tools/router/mcp/oauth'
+} from '@memo/core/tools/router/mcp/oauth'
 import type { McpServerRecord } from '../api_types.js'
 
 export class McpAdminError extends Error {

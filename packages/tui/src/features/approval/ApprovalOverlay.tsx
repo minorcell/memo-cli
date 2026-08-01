@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { Box, Text, useInput } from 'ink'
 import { Select, StatusMessage, type Option as SelectOption } from '@inkjs/ui'
-import type { ApprovalDecision, ApprovalRequest } from '@memo/tools/approval'
+import type { ApprovalDecision, ApprovalRequest } from '@memo/core/tools/approval'
 
 type ApprovalOverlayProps = {
     request: ApprovalRequest

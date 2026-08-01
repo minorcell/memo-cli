@@ -1,5 +1,5 @@
 import path from 'node:path'
-import type { ToolActionStatus } from '@memo/tools/orchestrator'
+import type { ToolActionStatus } from '@memo/core/tools/orchestrator'
 import { TOOL_STATUS, type ToolStatus } from '../types'
 
 const TOOL_ACTION_STATUS_SUCCESS: ToolActionStatus = 'success'
