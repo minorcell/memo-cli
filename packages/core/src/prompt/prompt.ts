@@ -4,7 +4,8 @@ import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadSkills, renderSkillsSection } from '@memo/core/skills/skills'
+import { filterActiveSkills, loadSkills, renderSkillsSection } from '@memo/core/skills/skills'
+import type { SkillMetadata } from '@memo/core/skills/skills'
 
 const TEMPLATE_PATTERN = /{{\s*([\w.-]+)\s*}}/g
 
@@ -35,18 +36,10 @@ type LoadSystemPromptOptions = {
     includeSkills?: boolean
     /** Optional explicit prompt template path (overrides default lookup). */
     promptPath?: string
-}
-
-function normalizePath(path: string): string {
-    return resolve(path)
-}
-
-function filterActiveSkills(skills: Awaited<ReturnType<typeof loadSkills>>, activeSkillPaths: string[] | undefined) {
-    if (!Array.isArray(activeSkillPaths)) {
-        return skills
-    }
-    const active = new Set(activeSkillPaths.map((item) => normalizePath(item)))
-    return skills.filter((skill) => active.has(normalizePath(skill.path)))
+    /** Pre-loaded skill snapshot; skips the internal loadSkills scan. */
+    skills?: SkillMetadata[]
+    /** Skills directory context budget in chars; defaults to DEFAULT_SKILLS_BUDGET_CHARS. */
+    skillsBudget?: number
 }
 
 async function readProjectAgentsMd(projectRoot: string): Promise<{ path: string; content: string } | null> {
@@ -124,14 +117,16 @@ export async function loadSystemPrompt(options: LoadSystemPromptOptions = {}): P
     }
 
     if (options.includeSkills !== false) {
-        const allSkills = await loadSkills({
-            cwd: startupRoot,
-            skillRoots: options.skillRoots,
-            homeDir: options.homeDir,
-            memoHome: options.memoHome,
-        })
+        const allSkills =
+            options.skills ??
+            (await loadSkills({
+                cwd: startupRoot,
+                skillRoots: options.skillRoots,
+                homeDir: options.homeDir,
+                memoHome: options.memoHome,
+            }))
         const skills = filterActiveSkills(allSkills, options.activeSkillPaths)
-        const skillsSection = renderSkillsSection(skills)
+        const skillsSection = renderSkillsSection(skills, { budgetChars: options.skillsBudget })
         if (skillsSection) {
             composedPrompt = appendSkillsPrompt(composedPrompt, skillsSection)
         }

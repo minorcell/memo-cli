@@ -1,13 +1,34 @@
 import { access, readFile, readdir, stat } from 'node:fs/promises'
 import { constants as fsConstants } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import fg from 'fast-glob'
+
+export type SkillScope = 'project' | 'global'
 
 export type SkillMetadata = {
     name: string
     description: string
+    /** Winning path (first by root priority) for the deduped skill. */
     path: string
+    /** All absolute SKILL.md paths with identical content, winner first. */
+    paths: string[]
+    /** sha256 of the SKILL.md content; dedup key. */
+    hash: string
+    scope: SkillScope
+    /** Root directory the skill was discovered from. */
+    sourceRoot: string
+}
+
+/** Index over a deduped skill snapshot, used by read_skill and the CLI. */
+export type SkillIndex = {
+    list: SkillMetadata[]
+    /** name → all records (same name with different content coexists). */
+    byName: Map<string, SkillMetadata[]>
+    /** resolved absolute path → record (includes deduped-away copies). */
+    byPath: Map<string, SkillMetadata>
+    byHash: Map<string, SkillMetadata>
 }
 
 type LoadSkillsOptions = {
@@ -24,12 +45,18 @@ const DEFAULT_MAX_SKILLS = 200
 const MAX_NAME_LEN = 64
 const MAX_DESCRIPTION_LEN = 1024
 
-const SKILLS_USAGE_RULES = `- Discovery: The list above is the skills available in this session (name + description + file path). Skill bodies live on disk at the listed paths.
+/** Context budget for the skills directory in the system prompt (fixed fallback). */
+export const DEFAULT_SKILLS_BUDGET_CHARS = 4096
+
+/** Smallest entry worth keeping in the skills directory: "- a: b" shape. */
+const MIN_ENTRY_CHARS = 8
+
+const SKILLS_USAGE_RULES = `- Discovery: The list above is the skills available in this session (name + description). To use a skill, call the \`read_skill\` tool with its name (or its SKILL.md path when names are ambiguous) to load the full SKILL.md instructions.
 - Trigger rules: If the user names a skill (with \`$SkillName\` or plain text) OR the task clearly matches a skill's description shown above, you must use that skill for that turn. Multiple mentions mean use them all. Do not carry skills across turns unless re-mentioned.
-- Missing/blocked: If a named skill isn't in the list or the path can't be read, say so briefly and continue with the best fallback.
+- Missing/blocked: If a named skill isn't in the list or the read_skill call fails, say so briefly and continue with the best fallback.
 - How to use a skill (progressive disclosure):
-  1) After deciding to use a skill, open its \`SKILL.md\`. Read only enough to follow the workflow.
-  2) When \`SKILL.md\` references relative paths (e.g., \`scripts/foo.py\`), resolve them relative to the skill directory listed above first, and only consider other paths if needed.
+  1) After deciding to use a skill, call \`read_skill\` with the skill name. Read only enough to follow the workflow.
+  2) When \`SKILL.md\` references relative paths (e.g., \`scripts/foo.py\`), resolve them relative to the skill directory returned by \`read_skill\` first, and only consider other paths if needed.
   3) If \`SKILL.md\` points to extra folders such as \`references/\`, load only the specific files needed for the request; don't bulk-load everything.
   4) If \`scripts/\` exist, prefer running or patching them instead of retyping large code blocks.
   5) If \`assets/\` or templates exist, reuse them instead of recreating from scratch.
@@ -88,7 +115,8 @@ function parseMultilineValue(frontmatter: string, key: string): string | null {
     const collected: string[] = []
     for (const line of lines) {
         if (!inBlock) {
-            const match = line.match(new RegExp(`^${key}\\s*:\\s*[|>]\\s*$`))
+            // YAML block scalars: "key: >", "key: >-", "key: |", "key: |-".
+            const match = line.match(new RegExp(`^${key}\\s*:\\s*[|>]-?\\s*$`))
             if (match) {
                 inBlock = true
             }
@@ -121,7 +149,9 @@ function parseFrontmatterValue(frontmatter: string, key: string): string | null 
     return normalizeValue(unquote(match[1]))
 }
 
-function parseSkillFile(content: string, path: string): SkillMetadata | null {
+type ParsedSkillFile = Pick<SkillMetadata, 'name' | 'description' | 'path'>
+
+function parseSkillFile(content: string, path: string): ParsedSkillFile | null {
     const frontmatter = extractFrontmatter(content)
     if (!frontmatter) {
         return null
@@ -228,7 +258,13 @@ async function defaultSkillRoots(options: LoadSkillsOptions): Promise<string[]> 
 
     const projectRoot = await resolveProjectRoot(cwd)
     const roots: string[] = await projectDotSkillRoots(projectRoot)
+    // User-level global roots, ordered by priority (first wins on dedup):
+    // memo home first so skills_admin writes stay the winning paths, then the
+    // well-known Claude / Codex / Agents skill directories.
     roots.push(join(memoHome, 'skills'))
+    roots.push(join(homeDir, '.claude', 'skills'))
+    roots.push(join(homeDir, '.codex', 'skills'))
+    roots.push(join(homeDir, '.agents', 'skills'))
 
     return dedupePaths(roots)
 }
@@ -247,9 +283,11 @@ async function resolveSkillRoots(options: LoadSkillsOptions): Promise<string[]> 
 
 export async function loadSkills(options: LoadSkillsOptions = {}): Promise<SkillMetadata[]> {
     const roots = await resolveSkillRoots(options)
+    const projectRoot = await resolveProjectRoot(options.cwd ?? process.cwd())
     const maxSkills = Math.max(1, options.maxSkills ?? DEFAULT_MAX_SKILLS)
     const skills: SkillMetadata[] = []
     const seenPaths = new Set<string>()
+    const byHash = new Map<string, SkillMetadata>()
 
     for (const root of roots) {
         if (!(await existsAsDirectory(root))) {
@@ -274,6 +312,7 @@ export async function loadSkills(options: LoadSkillsOptions = {}): Promise<Skill
             if (seenPaths.has(normalizedPath)) {
                 continue
             }
+            seenPaths.add(normalizedPath)
 
             let content: string
             try {
@@ -287,8 +326,24 @@ export async function loadSkills(options: LoadSkillsOptions = {}): Promise<Skill
                 continue
             }
 
-            skills.push(parsed)
-            seenPaths.add(normalizedPath)
+            // Dedup by SKILL.md content hash (first root priority wins); copies
+            // are registered as aliases on the winner for active_skills compat.
+            const hash = sha256Hex(content)
+            const existing = byHash.get(hash)
+            if (existing) {
+                existing.paths.push(normalizedPath)
+                continue
+            }
+
+            const record: SkillMetadata = {
+                ...parsed,
+                paths: [normalizedPath],
+                hash,
+                scope: isPathInside(root, projectRoot) ? 'project' : 'global',
+                sourceRoot: root,
+            }
+            byHash.set(hash, record)
+            skills.push(record)
             if (skills.length >= maxSkills) {
                 return skills
             }
@@ -298,21 +353,135 @@ export async function loadSkills(options: LoadSkillsOptions = {}): Promise<Skill
     return skills
 }
 
-export function renderSkillsSection(skills: SkillMetadata[]): string | null {
+function sha256Hex(content: string): string {
+    return createHash('sha256').update(content, 'utf-8').digest('hex')
+}
+
+function isPathInside(path: string, dir: string): boolean {
+    const normalizedPath = resolve(path)
+    const normalizedDir = resolve(dir)
+    if (normalizedPath === normalizedDir) {
+        return true
+    }
+    return normalizedPath.startsWith(normalizedDir.endsWith(sep) ? normalizedDir : `${normalizedDir}${sep}`)
+}
+
+/**
+ * Filter skills by the configured active_skills paths (absolute SKILL.md paths).
+ * Undefined means all skills are active. Paths pointing at deduped-away copies
+ * still activate the winner via its alias list.
+ */
+export function filterActiveSkills(skills: SkillMetadata[], activeSkillPaths: string[] | undefined): SkillMetadata[] {
+    if (!Array.isArray(activeSkillPaths)) {
+        return skills
+    }
+    const active = new Set(activeSkillPaths.map((item) => resolve(item)))
+    return skills.filter((skill) => skill.paths.some((alias) => active.has(resolve(alias))))
+}
+
+export function buildSkillIndex(skills: SkillMetadata[]): SkillIndex {
+    const byName = new Map<string, SkillMetadata[]>()
+    const byPath = new Map<string, SkillMetadata>()
+    const byHash = new Map<string, SkillMetadata>()
+    for (const skill of skills) {
+        const nameMatches = byName.get(skill.name) ?? []
+        nameMatches.push(skill)
+        byName.set(skill.name, nameMatches)
+        for (const alias of skill.paths) {
+            byPath.set(resolve(alias), skill)
+        }
+        byHash.set(skill.hash, skill)
+    }
+    return { list: skills, byName, byPath, byHash }
+}
+
+export function findSkillByName(index: SkillIndex, name: string): SkillMetadata[] {
+    return index.byName.get(name) ?? []
+}
+
+export function findSkillByPath(index: SkillIndex, path: string): SkillMetadata | undefined {
+    return index.byPath.get(resolve(path))
+}
+
+/** Read the SKILL.md body with the frontmatter stripped. */
+export async function readSkillBody(record: SkillMetadata): Promise<string> {
+    const content = await readFile(record.path, 'utf-8')
+    return stripFrontmatter(content)
+}
+
+export function stripFrontmatter(content: string): string {
+    const lines = content.split(/\r?\n/)
+    if (lines[0]?.trim() !== '---') {
+        return content.trim()
+    }
+    let found = 0
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i]?.trim() === '---') {
+            found += 1
+            if (found === 2) {
+                return lines
+                    .slice(i + 1)
+                    .join('\n')
+                    .trim()
+            }
+        }
+    }
+    return content.trim()
+}
+
+export function renderSkillsSection(skills: SkillMetadata[], options: { budgetChars?: number } = {}): string | null {
     if (skills.length === 0) {
         return null
     }
+    const budget = options.budgetChars ?? DEFAULT_SKILLS_BUDGET_CHARS
 
-    const lines: string[] = []
-    lines.push('## Skills')
-    lines.push(
-        'A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and file path so you can open the source for full instructions when using a specific skill.',
-    )
-    lines.push('### Available skills')
-    for (const skill of skills) {
-        lines.push(`- ${skill.name}: ${skill.description} (file: ${skill.path})`)
+    const intro = [
+        '## Skills',
+        'A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills available in this session. To use a skill, call the `read_skill` tool with its name (or its SKILL.md path when names are ambiguous) to load the full instructions.',
+        '### Available skills',
+    ]
+    const rules = ['### How to use skills', SKILLS_USAGE_RULES]
+    const entries = skills.map((skill) => `- ${skill.name}: ${skill.description}`)
+
+    const render = (keptEntries: string[], omitted: number): string => {
+        const parts = [...intro, ...keptEntries]
+        if (omitted > 0) {
+            parts.push(`- (${omitted} more skills omitted due to context budget)`)
+        }
+        parts.push(...rules)
+        return parts.join('\n')
     }
-    lines.push('### How to use skills')
-    lines.push(SKILLS_USAGE_RULES)
-    return lines.join('\n')
+
+    if (render(entries, 0).length <= budget) {
+        return render(entries, 0)
+    }
+
+    // Over budget: truncate descriptions fairly, then drop low-priority entries from the tail.
+    const fixedCost = render([], 0).length + 1
+    const entryBudget = Math.max(0, budget - fixedCost)
+    if (entryBudget <= 0) {
+        return render([], skills.length)
+    }
+
+    const share = Math.floor(entryBudget / skills.length)
+    if (share >= MIN_ENTRY_CHARS) {
+        const truncated = skills.map((skill) => {
+            const maxDesc = Math.max(1, share - skill.name.length - 6)
+            if (skill.description.length <= maxDesc) {
+                return `- ${skill.name}: ${skill.description}`
+            }
+            return `- ${skill.name}: ${skill.description.slice(0, Math.max(1, maxDesc - 3)).trimEnd()}...`
+        })
+        let kept = truncated.length
+        while (kept > 0 && render(truncated.slice(0, kept), skills.length - kept).length > budget) {
+            kept -= 1
+        }
+        return render(truncated.slice(0, kept), skills.length - kept)
+    }
+
+    let kept = entries.length
+    while (kept > 0 && render(entries.slice(0, kept), skills.length - kept).length > budget) {
+        kept -= 1
+    }
+    return render(entries.slice(0, kept), skills.length - kept)
 }

@@ -53,11 +53,27 @@ Memo automatically scans the following locations at startup to discover Skills:
 ### User-level Skills
 
 - `$MEMO_HOME/skills` (default: `~/.memo/skills`)
+- `~/.claude/skills`
+- `~/.codex/skills`
+- `~/.agents/skills`
+
+### Deduplication
+
+Skills are deduplicated by the sha256 hash of their `SKILL.md` content. When the same skill exists
+in multiple locations (for example installed in both `~/.claude/skills` and `~/.agents/skills`),
+only the highest-priority copy is kept, in this order:
+
+1. Project-level roots
+2. `$MEMO_HOME/skills`
+3. `~/.claude/skills`
+4. `~/.codex/skills`
+5. `~/.agents/skills`
+
+The remaining copies still resolve as aliases — see [Configuring Default Active Skills](#configuring-default-active-skills).
 
 ### Excluded Directories
 
 - `.git/` and `node_modules/`
-- `~/.xxx/skills` hidden directories outside Memo home
 
 ## Creating a Skill
 
@@ -137,7 +153,7 @@ When a task description closely matches a Skill's description, Memo will automat
 
 ### View Available Skills
 
-In a session, Memo lists all discovered Skills in the system prompt:
+In a session, Memo lists all discovered Skills (name + description only) in the system prompt:
 
 ```
 ## Skills
@@ -147,6 +163,19 @@ A skill is a set of local instructions to follow that is stored in a SKILL.md fi
 - react-hooks: Best practices for React Hooks usage...
 - doc-writing: Generate and update technical documentation...
 ```
+
+The directory is capped at a context budget; when it overflows, descriptions are truncated and
+excess skills are omitted (with a note). Use the `read_skill` tool to load a skill's full
+`SKILL.md` on demand.
+
+### Reading a Skill with the read_skill Tool
+
+The `read_skill` tool loads the complete instructions of a skill when you decide to use it:
+
+- Pass the skill `name` from the directory, or the exact `SKILL.md` `path` when names are ambiguous
+- The frontmatter is stripped automatically
+- The result includes the `skill_directory`, so relative paths in the skill (e.g. `scripts/foo.py`, `references/`) resolve against it
+- Very long skills may be truncated by the tool output limit
 
 ## Configuring Default Active Skills
 
@@ -166,25 +195,28 @@ active_skills = [
 ]
 ```
 
-Note: `active_skills` stores **absolute paths** to SKILL.md files.
+Note: `active_skills` stores **absolute paths** to SKILL.md files. A path pointing at a
+deduplicated copy (e.g. `~/.agents/skills/react-hooks/SKILL.md` when `~/.claude/skills` won the
+dedup) still activates the skill.
 
-## Managing Skills in Web UI
+## Managing Skills with CLI
 
-Start the Web Console:
+List all discovered Skills (across project and user-level roots, deduplicated):
 
 ```bash
-memo web --open
+memo skills list
+memo skills list --json
 ```
 
-In the **Skills** page in the sidebar, you can:
+Read a Skill's full instructions:
 
-- View all discovered Skills
-- Create new Skills (auto-generates directory structure and template)
-- Delete Skills
-- Toggle activation status
-- View Skill details
+```bash
+memo skills read react-hooks
+memo skills read /absolute/path/to/.codex/skills/react-hooks/SKILL.md
+memo skills read react-hooks --json
+```
 
-Skill activation state changes are automatically saved to `config.toml`.
+When a name matches multiple skills, `read` reports the candidate paths; pass the exact path to disambiguate.
 
 ## Skills Usage Rules
 
@@ -196,8 +228,8 @@ Memo has built-in rules for using Skills:
     - Multiple mentions mean use all of them
 
 2. **How to Use** (Progressive Disclosure):
-    - First read SKILL.md to understand the workflow
-    - When SKILL.md references relative paths, resolve them relative to the Skill directory first
+    - Call `read_skill` with the skill name to load its SKILL.md, then read only enough to follow the workflow
+    - When SKILL.md references relative paths, resolve them relative to the returned Skill directory first
     - If `scripts/` directory exists, prefer running or patching scripts
     - If `assets/` or templates exist, prefer reusing over recreating from scratch
 
@@ -260,7 +292,7 @@ Memo has built-in rules for using Skills:
 ### Skill Not Taking Effect
 
 1. Check `active_skills` configuration in `config.toml`
-2. Confirm Skill is activated in Web UI
+2. Confirm the Skill appears in `memo skills list` (active skills are marked with ✓)
 3. Ensure correct `$skill-name` syntax is used in prompt
 
 ## Related

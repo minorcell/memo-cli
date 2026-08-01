@@ -173,7 +173,8 @@ description: ${marker}
             const systemPrompt = systemPromptOf(session.history)
             assert.ok(systemPrompt.includes('## Skills'))
             assert.ok(systemPrompt.includes('### Available skills'))
-            assert.ok(systemPrompt.includes(`- doc-writing: ${marker} (file: ${skillPath})`))
+            assert.ok(systemPrompt.includes(`- doc-writing: ${marker}`))
+            assert.ok(!systemPrompt.includes(skillPath), 'directory must not leak file paths')
         } finally {
             await session.close()
             await removeDir(projectRoot)

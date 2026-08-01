@@ -4,6 +4,7 @@ import type { ToolResultOutput } from '@ai-sdk/provider-utils'
 import type { ApprovalDecision, ApprovalManager, ApprovalRequest } from '@memo/core/tools/approval'
 import { getMaxToolResultChars } from '@memo/core/tools/runtime/tool_output_limits'
 import type { StepGate } from '@memo/core/tools/runtime/step_gate'
+import type { SkillIndex } from '@memo/core/skills/skills'
 
 const TOOL_SKIPPED_AFTER_REJECTION_MESSAGE = 'Skipped tool execution after previous rejection.'
 export const TOOL_SKIPPED_DISABLED_MESSAGE = 'Tool execution skipped: tools are disabled in current permission mode.'
@@ -22,6 +23,8 @@ export type ToolExecutionContext = {
     toolsDisabled: boolean
     /** Fresh per streamText call. */
     gate: StepGate
+    /** Deduped skill snapshot for the current session (read_skill). */
+    skillIndex?: SkillIndex
 }
 
 function escapeXmlAttr(value: string) {

@@ -2,6 +2,7 @@
 import type { FinishReason, LanguageModelUsage, ModelMessage, ToolCallPart, ToolResultPart } from 'ai'
 import type { ApprovalRequest, ApprovalDecision, ToolActionStatus } from '@memo/core/tools/approval'
 import type { ToolExecutionContext } from '@memo/core/tools/sdk_tools'
+import type { SkillIndex } from '@memo/core/skills/skills'
 export type { ApprovalDecision, ApprovalRequest, ToolActionStatus } from '@memo/core/tools/approval'
 export type { FinishReason, LanguageModelUsage } from 'ai'
 
@@ -123,6 +124,8 @@ export type AgentDeps = {
     dispose?: () => Promise<void>
     /** Request user approval for tool calls (for dangerous operations) */
     requestApproval?: (request: ApprovalRequest) => Promise<ApprovalDecision>
+    /** Deduped skill index for the session (read_skill tool reads it). */
+    skillIndex?: SkillIndex
 }
 
 /** Session mode: currently only interactive is supported. */

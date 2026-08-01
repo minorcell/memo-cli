@@ -18,6 +18,7 @@ import {
 } from '@memo/core/tools/tools/mcp_resources'
 import { updatePlanTool } from '@memo/core/tools/tools/update_plan'
 import { getMemoryTool } from '@memo/core/tools/tools/get_memory'
+import { readSkillTool } from '@memo/core/tools/tools/read_skill'
 import { webfetchTool } from '@memo/core/tools/tools/webfetch'
 import { closeAgentTool, resumeAgentTool, sendInputTool, spawnAgentTool, waitTool } from '@memo/core/tools/tools/collab'
 
@@ -43,6 +44,7 @@ function buildCodexTools(): Record<string, Tool> {
     tools.list_mcp_resource_templates = listMcpResourceTemplatesTool
     tools.read_mcp_resource = readMcpResourceTool
     tools.update_plan = updatePlanTool
+    tools.read_skill = readSkillTool
     tools.apply_patch = applyPatchTool
     tools.read_text_file = readTextFileTool
     tools.read_media_file = readMediaFileTool

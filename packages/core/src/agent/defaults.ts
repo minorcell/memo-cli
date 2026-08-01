@@ -10,6 +10,8 @@ import { getProviderFactory } from '@memo/core/llm/ai_provider'
 import { loadSystemPrompt as defaultLoadPrompt } from '@memo/core/prompt/prompt'
 import { McpToolRegistry } from '@memo/core/tools/router'
 import { wrapToolSetWithRuntime } from '@memo/core/tools/sdk_tools'
+import { buildSkillIndex, filterActiveSkills, loadSkills } from '@memo/core/skills/skills'
+import type { SkillIndex } from '@memo/core/skills/skills'
 import type { AgentSessionDeps, AgentSessionOptions, CallLLM, HistorySink, TokenCounter } from '@memo/core/types'
 import type { MCPServerConfig } from '@memo/core/config/config'
 
@@ -48,6 +50,7 @@ export async function withDefaultDeps(
     tokenCounter: TokenCounter
     dispose: () => Promise<void>
     historyFilePath?: string
+    skillIndex: SkillIndex
 }> {
     const loaded = await loadMemoConfig()
     const config = loaded.config
@@ -74,6 +77,12 @@ export async function withDefaultDeps(
     // Context flows in per call via streamText experimental_context.
     const runtimeTools = wrapToolSetWithRuntime(combinedTools) ?? combinedTools
 
+    // 5. Skills: one scan per session, shared by the system prompt directory
+    // and the read_skill tool (keeps both consistent).
+    const skillSnapshot = await loadSkills({ cwd: options.cwd, memoHome: loaded.home })
+    const activeSkills = filterActiveSkills(skillSnapshot, config.active_skills)
+    const skillIndex = buildSkillIndex(activeSkills)
+
     // 6. Build loadPrompt (tool exposure is handled by the AI SDK tools schema, not prompt text)
     const loadPrompt = async () => {
         if (deps.loadPrompt) {
@@ -83,6 +92,7 @@ export async function withDefaultDeps(
             cwd: options.cwd,
             memoHome: loaded.home,
             activeSkillPaths: config.active_skills,
+            skills: activeSkills,
         })
     }
 
@@ -125,5 +135,6 @@ export async function withDefaultDeps(
         historySinks: deps.historySinks ?? [defaultHistorySink],
         tokenCounter: deps.tokenCounter ?? createTokenCounter(),
         historyFilePath: historyFilePath,
+        skillIndex,
     }
 }

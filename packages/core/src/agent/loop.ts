@@ -555,6 +555,7 @@ export class AgentSessionImpl implements AgentSession {
                         approvalHooks: this.buildToolApprovalHooks(turn, step),
                         toolsDisabled: this.toolsDisabled,
                         gate: createStepGate(),
+                        skillIndex: this.deps.skillIndex,
                     }
                     try {
                         const llmResult = await this.deps.callLLM(
