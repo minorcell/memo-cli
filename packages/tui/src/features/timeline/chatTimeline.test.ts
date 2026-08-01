@@ -1,5 +1,6 @@
 import assert from 'node:assert'
 import { describe, test } from 'vitest'
+import type { LanguageModelUsage } from '@memo/core'
 import { chatTimelineReducer, createInitialTimelineState } from './chatTimeline'
 
 describe('chatTimelineReducer', () => {
@@ -61,5 +62,94 @@ describe('chatTimelineReducer', () => {
         assert.ok(turn)
         assert.strictEqual(turn?.contextPromptTokens, 42)
         assert.strictEqual(turn?.steps[0]?.contextPromptTokens, 42)
+    })
+
+    test('accumulates streaming reasoning chunks into streamingThinking', () => {
+        let state = createInitialTimelineState()
+
+        state = chatTimelineReducer(state, { type: 'turn_start', turn: 1, input: 'hi' })
+        state = chatTimelineReducer(state, { type: 'reasoning_chunk', turn: 1, step: 0, chunk: 'think ' })
+        state = chatTimelineReducer(state, { type: 'reasoning_chunk', turn: 1, step: 0, chunk: 'more' })
+
+        assert.strictEqual(state.turns[0]?.steps[0]?.streamingThinking, 'think more')
+        assert.strictEqual(state.turns[0]?.steps[0]?.assistantText, '')
+    })
+
+    test('tool_action with full thinking drops the live stream', () => {
+        let state = createInitialTimelineState()
+
+        state = chatTimelineReducer(state, { type: 'turn_start', turn: 1, input: 'hi' })
+        state = chatTimelineReducer(state, { type: 'reasoning_chunk', turn: 1, step: 0, chunk: 'live trace' })
+        state = chatTimelineReducer(state, {
+            type: 'tool_action',
+            turn: 1,
+            step: 0,
+            action: { tool: 'exec_command', input: 'ls' },
+            thinking: 'complete thinking',
+        })
+
+        const step = state.turns[0]?.steps[0]
+        assert.strictEqual(step?.thinking, 'complete thinking')
+        assert.strictEqual(step?.streamingThinking, undefined)
+    })
+
+    test('keeps structured parallel tool results associated by call id', () => {
+        let state = createInitialTimelineState()
+
+        state = chatTimelineReducer(state, { type: 'turn_start', turn: 1, input: 'inspect' })
+        state = chatTimelineReducer(state, {
+            type: 'tool_action',
+            turn: 1,
+            step: 0,
+            action: { toolCallId: 'call-list', tool: 'list_directory', input: { path: '.' } },
+            parallelActions: [
+                { toolCallId: 'call-list', tool: 'list_directory', input: { path: '.' } },
+                { toolCallId: 'call-search', tool: 'search_files', input: { path: '.', pattern: '*.md' } },
+            ],
+        })
+        state = chatTimelineReducer(state, {
+            type: 'tool_observation',
+            turn: 1,
+            step: 0,
+            observation: 'combined legacy value',
+            toolStatus: 'success',
+            toolResults: [
+                {
+                    toolCallId: 'call-list',
+                    tool: 'list_directory',
+                    observation: '[DIR] packages',
+                    status: 'success',
+                },
+                {
+                    toolCallId: 'call-search',
+                    tool: 'search_files',
+                    observation: 'README.md',
+                    status: 'success',
+                },
+            ],
+        })
+
+        assert.deepStrictEqual(
+            state.turns[0]?.steps[0]?.toolResults?.map((result) => result.toolCallId),
+            ['call-list', 'call-search'],
+        )
+    })
+
+    test('turn_final promotes the live stream when no complete thinking is provided', () => {
+        let state = createInitialTimelineState()
+
+        state = chatTimelineReducer(state, { type: 'turn_start', turn: 1, input: 'hi' })
+        state = chatTimelineReducer(state, { type: 'reasoning_chunk', turn: 1, step: 0, chunk: 'live trace' })
+        state = chatTimelineReducer(state, {
+            type: 'turn_final',
+            turn: 1,
+            finalText: 'done',
+            status: 'ok',
+            turnUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } as LanguageModelUsage,
+        })
+
+        const step = state.turns[0]?.steps[0]
+        assert.strictEqual(step?.thinking, 'live trace')
+        assert.strictEqual(step?.streamingThinking, undefined)
     })
 })

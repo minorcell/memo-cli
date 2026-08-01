@@ -8,6 +8,7 @@ export default defineConfig({
     entry: {
         index: 'packages/tui/src/cli.tsx',
         'commands/index': 'packages/tui/src/commands/index.tsx',
+        'commands/init': 'packages/tui/src/commands/init.tsx',
         'commands/mcp/list': 'packages/tui/src/commands/mcp/list.tsx',
         'commands/mcp/get': 'packages/tui/src/commands/mcp/get.tsx',
         'commands/mcp/add': 'packages/tui/src/commands/mcp/add.tsx',
@@ -29,11 +30,15 @@ export default defineConfig({
         options.jsx = 'automatic'
     },
     async onSuccess() {
-        copyFileSync(join('packages/core/src/runtime/prompt.md'), join('dist/prompt.md'))
+        copyFileSync(join('packages/core/src/prompt/prompt.md'), join('dist/prompt.md'))
         mkdirSync(join('dist/task-prompts'), { recursive: true })
         cpSync(join('packages/tui/src/task-prompts'), join('dist/task-prompts'), {
             recursive: true,
         })
-        console.log('✓ Copied prompt.md and task prompts to dist/')
+        mkdirSync(join('dist/skills/builtin'), { recursive: true })
+        cpSync(join('packages/core/src/skills/builtin/skill-creator'), join('dist/skills/builtin/skill-creator'), {
+            recursive: true,
+        })
+        console.log('✓ Copied prompt.md, task prompts, and builtin skills to dist/')
     },
 })

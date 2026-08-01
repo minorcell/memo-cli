@@ -1,4 +1,4 @@
-import { Box, Text, useInput } from 'ink'
+import { Box, Text } from 'ink'
 import { Spinner, StatusMessage, TextInput } from '@inkjs/ui'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { writeMemoConfig, type MemoConfig } from '@memo/core'
@@ -6,7 +6,6 @@ import { writeMemoConfig, type MemoConfig } from '@memo/core'
 type SetupWizardProps = {
     configPath: string
     onComplete: () => void
-    onExit: () => void
 }
 
 type SetupStep = {
@@ -48,7 +47,7 @@ const STEPS: SetupStep[] = [
     },
 ]
 
-export const SetupWizard = memo(function SetupWizard({ configPath, onComplete, onExit }: SetupWizardProps) {
+export const SetupWizard = memo(function SetupWizard({ configPath, onComplete }: SetupWizardProps) {
     const [stepIndex, setStepIndex] = useState(0)
     const [values, setValues] = useState<Partial<SetupValues>>({})
     const [busy, setBusy] = useState(false)
@@ -106,11 +105,7 @@ export const SetupWizard = memo(function SetupWizard({ configPath, onComplete, o
         [saveConfig, step, stepIndex, values],
     )
 
-    useInput((input, key) => {
-        if (key.ctrl && input === 'c') {
-            onExit()
-        }
-    })
+    // Note: Ctrl+C is handled by Ink's built-in exit, so no custom handling here.
 
     const progress = useMemo(() => `Step ${stepIndex + 1}/${STEPS.length}`, [stepIndex])
 

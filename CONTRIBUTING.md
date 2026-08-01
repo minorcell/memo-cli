@@ -4,7 +4,7 @@ Thanks for your interest in **Memo Code**. Please read these guidelines before o
 
 ## Getting Started
 
-- Install [Node.js](https://nodejs.org/) (>=18) and [pnpm](https://pnpm.io/). Some tools/tests depend on [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`).
+- Install [Node.js](https://nodejs.org/) (>=22) and [pnpm](https://pnpm.io/). Some tools/tests depend on [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`).
 - Install dependencies: `pnpm install`
 - Run CLI: `pnpm start "your prompt" --once` or interactive mode with `pnpm start`
 - Build output: `pnpm run build`

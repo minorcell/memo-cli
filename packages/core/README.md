@@ -6,12 +6,32 @@ Core provides the central capabilities of **Memo Code**: the ReAct loop, session
 
 - `config/`
     - `config.ts`: Reads `~/.memo/config.toml` (providers, sessions path), handles provider selection, session path building, and config writes.
-- `runtime/`
-    - `prompt.ts/xml`: System prompt loading.
-    - `history.ts`: JSONL history sink and event construction.
-    - `defaults.ts`: Default dependency completion (toolset, LLM, prompt, history sink, tokenizer).
-    - `session.ts`: Session/Turn runtime, executes ReAct loop, writes events, tracks token usage.
-- `types.ts`: Shared types (`AgentDeps`, `Session/Turn`, `TokenUsage`, `HistoryEvent`, etc.).
+- `llm/`
+    - `ai_provider.ts`: AI SDK provider factory registry (dispatch by provider name; openai-compatible default).
+    - `ai_stream.ts`: Default streaming LLM call via AI SDK `streamText`.
+    - `model_profile.ts`: Model capability resolution (parallel tool calls, reasoning, context window).
+- `agent/` — the agent loop kernel (minimal, readable, replaceable)
+    - `loop.ts`: ReAct loop (observe → think → act → record), session state, token usage, permissions, abort handling.
+    - `messages.ts`: Message construction and LLM result normalization (AI SDK `ModelMessage`/`GenerateTextResult`).
+    - `sdk_tools.ts`: Adapter from the memo Tool registry to AI SDK tools — execute wrappers run approval (white-list → classifier → fingerprint), truncation, and deny handling inside `streamText`.
+    - `step_gate.ts`: Per-step concurrency gate (serializes mutating tools, skips pending tools after denial).
+    - `session.ts`: `createAgentSession` factory.
+    - `defaults.ts`: Composition root — default dependency completion (toolset, LLM, prompt, history sink, tokenizer).
+    - `hooks.ts`: Hook/middleware runners and history snapshotting.
+    - `compact_prompt.ts`: Context compaction prompt building.
+- `tools/` — tool registry, approval, and the 24 built-in tools (merged back from the former tools package)
+    - `router/`: ToolRouter (native + MCP registries); MCP clients via `@ai-sdk/mcp` (`router/mcp/pool.ts`), disk cache and OAuth credentials kept.
+    - `approval/`: Approval manager (risk classifier, fingerprints, once/session/deny caches).
+    - `tools/`: Built-in tool implementations (`defineMcpTool` zod adapter).
+- `features/` — user-facing capabilities built on the contracts (not part of the loop); one directory per module, exports via `index.ts`
+    - `slash/`: Slash command specs and registry.
+    - `file_suggestions/`: File suggestion helpers for the composer.
+    - `history/`: Complete session-history module — JSONL sink (write side, injected by the composition root), parser and index (read side for resume/viewing).
+- `prompt/`
+    - `prompt.ts` + `prompt.md`: System prompt loading (runtime context, AGENTS.md/skills injection).
+- `skills/` / `mcp/`
+    - Skill management and MCP server admin.
+- `types.ts`: Shared types (`AgentDeps`, `Session/Turn`, `LanguageModelUsage`, `HistoryEvent`, etc.).
 - `utils/`
     - Utility functions (assistant output parsing, message wrappers).
     - `tokenizer.ts`: tiktoken-based tokenizer helpers.

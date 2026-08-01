@@ -15,11 +15,18 @@
     "version": "0.1.0",
     "private": true,
     "scripts": {
-        "build": "tsup --config tsup.config.ts && node -e \"const { copyFileSync } = require('node:fs'); copyFileSync('src/runtime/prompt.md', 'dist/prompt.md');\"",
+        "build": "tsup --config tsup.config.ts && node -e \"const { copyFileSync } = require('node:fs'); copyFileSync('src/prompt/prompt.md', 'dist/prompt.md');\"",
         "test": "vitest run"
     },
     "dependencies": {
+        "@ai-sdk/mcp": "1.0.66",
+        "@ai-sdk/openai-compatible": "^2.0.0",
+        "@ai-sdk/provider-utils": "4.0.41",
+        "ai": "^6.0.0",
+        "diff": "^8.0.3",
         "ignore": "^7.0.5",
+        "js-tiktoken": "^1.0.21",
+        "minimatch": "^10.0.1",
         "zod": "^4.3.6"
     },
     "devDependencies": {

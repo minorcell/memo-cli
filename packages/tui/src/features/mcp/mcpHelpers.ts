@@ -1,6 +1,6 @@
 /** Shared helpers for MCP CLI commands. */
 import { loadMemoConfig, type MCPServerConfig } from '@memo/core'
-import type { McpAuthStatus } from '@memo/tools/router/mcp/oauth'
+import type { McpAuthStatus } from '@memo/core'
 
 export function getErrorMessage(error: unknown): string {
     if (error instanceof Error) return error.message

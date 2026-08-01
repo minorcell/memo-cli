@@ -1,4 +1,4 @@
-import type { TokenUsage, TurnStatus } from '@memo/core'
+import type { LanguageModelUsage, TurnStatus } from '@memo/core'
 
 export const TOOL_STATUS = {
     PENDING: 'pending',
@@ -9,18 +9,31 @@ export const TOOL_STATUS = {
 
 export type ToolStatus = (typeof TOOL_STATUS)[keyof typeof TOOL_STATUS]
 
+export type RuntimeStatus = 'idle' | 'running' | 'awaiting_approval' | 'cancelling' | 'compacting'
+
 export type ToolAction = {
+    toolCallId?: string
     tool: string
     input: unknown
+}
+
+export type ToolResultView = {
+    toolCallId?: string
+    tool: string
+    observation: string
+    status: ToolStatus
 }
 
 export type StepView = {
     index: number
     assistantText: string
     contextPromptTokens?: number
+    /** Live thinking trace accumulated from streaming reasoning deltas. */
+    streamingThinking?: string
     thinking?: string
     action?: ToolAction
     parallelActions?: ToolAction[]
+    toolResults?: ToolResultView[]
     parallelToolStatuses?: ToolStatus[]
     observation?: string
     toolStatus?: ToolStatus
@@ -32,7 +45,7 @@ export type TurnView = {
     steps: StepView[]
     status?: TurnStatus
     errorMessage?: string
-    tokenUsage?: TokenUsage
+    tokenUsage?: LanguageModelUsage
     contextPromptTokens?: number
     finalText?: string
     startedAt?: number

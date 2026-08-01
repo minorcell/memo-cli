@@ -54,6 +54,21 @@ Memo 在启动时自动扫描以下位置来发现 Skills：
 
 - `$MEMO_HOME/skills`（默认为 `~/.memo/skills`）
 
+### 内置 Skills
+
+Memo 内置 `skill-creator` skill。每次会话启动时，如果 `$MEMO_HOME/skills`（默认为
+`~/.memo/skills`）中还没有它，Memo 会幂等地安装，开箱即用。
+
+安装是非破坏性的：
+
+- 未被修改过的旧版内置副本会在 Memo 升级内容时被自动更新
+- 被你自己修改过（或由其他工具安装）的副本永远不会被覆盖。如需重新安装内置版本，
+  删除该目录即可
+
+如果你同时使用 Claude Code，它的 `~/.claude/skills/skill-creator` 是另一个 skill
+（内容不同，不去重），两者会同时出现在 skills 列表中。可用
+`memo skills read /absolute/path/to/SKILL.md` 指定路径区分。
+
 ### 排除的目录
 
 - `.git/` 和 `node_modules/`

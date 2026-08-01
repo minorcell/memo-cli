@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import type { ApprovalRequest } from '@memo/tools/approval'
+import type { ApprovalRequest } from '@memo/core'
 
 const TERMINAL_BELL = '\u0007'
 const DESKTOP_NOTIFICATION_TITLE = 'Memo: Approval required'

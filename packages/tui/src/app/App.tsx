@@ -8,6 +8,7 @@ import {
     resolveContextWindowForProvider,
     selectProvider,
     writeMemoConfig,
+    type ApprovalDecision,
     type AgentSession,
     type AgentSessionDeps,
     type AgentSessionOptions,
@@ -16,25 +17,30 @@ import {
     type ModelProfileOverride,
     type ProviderConfig,
 } from '@memo/core'
-import { useApproval } from './hooks/useApproval'
+import { ApprovalQueue } from './approvalQueue'
+import {
+    createInitialRuntimeState,
+    pendingRuntimeApproval,
+    runtimeReducer,
+    runtimeStatus,
+    type TurnRequest,
+} from './runtimeState'
+import { VisibleUpdateQueue, type VisibleUpdate } from './visibleUpdateQueue'
 import { ChatWidget } from '../features/timeline/ChatWidget'
 import { Composer } from '../features/composer/Composer'
 import { Footer } from '../shared/ui/Footer'
 import { ApprovalOverlay } from '../features/approval/ApprovalOverlay'
 import { McpActivationOverlay } from '../features/mcp/McpActivationOverlay'
 import { notifyApprovalRequested } from '../features/approval/approvalNotification'
+import { PlanPanel } from '../features/plan/PlanPanel'
+import { planStateReducer } from '../features/plan/planState'
 import { SetupWizard } from '../features/setup/SetupWizard'
 import { parseHistoryLog } from '../features/session/historyParser'
-import {
-    chatTimelineReducer,
-    createInitialTimelineState,
-    type ChatTimelineAction,
-} from '../features/timeline/chatTimeline'
+import { chatTimelineReducer, createInitialTimelineState } from '../features/timeline/chatTimeline'
 import { calculateContextPercent, inferParallelToolStatuses, inferToolStatus } from '../shared/lib/utils'
 import { checkForUpdate, findLocalPackageInfoSync } from '../shared/lib/version'
 import type { SessionHistoryEntry } from '../features/session/sessionHistory'
 import { loadTaskPrompt } from '../shared/lib/taskPrompt'
-import { resolveReviewBackend } from '../features/review/backend'
 import {
     formatSlashCommand,
     PLAIN_EXIT_COMMAND,
@@ -114,12 +120,19 @@ export function App({
         sessionOptions.toolPermissionMode ?? (dangerous ? TOOL_PERMISSION_MODES.FULL : TOOL_PERMISSION_MODES.ONCE)
 
     const [timeline, dispatchTimeline] = useReducer(chatTimelineReducer, undefined, createInitialTimelineState)
+    const [runtime, dispatchRuntime] = useReducer(runtimeReducer, undefined, createInitialRuntimeState)
+    const [activePlan, dispatchPlan] = useReducer(planStateReducer, null)
 
     const [currentProvider, setCurrentProvider] = useState(providerName)
     const [currentModel, setCurrentModel] = useState(model)
     const [providersState, setProvidersState] = useState(providers)
     const [modelProfilesState, setModelProfilesState] = useState(modelProfiles)
     const [toolPermissionMode, setToolPermissionMode] = useState<ToolPermissionMode>(defaultToolPermissionMode)
+    const [thinkingOn, setThinkingOn] = useState<boolean>(() => {
+        const override = modelProfilesState?.[model] ?? modelProfilesState?.[`${providerName}:${model}`]
+        return override?.supports_reasoning_content ?? true
+    })
+    const thinkingOnRef = useRef(thinkingOn)
 
     const resolveContextLimit = useCallback(
         (providerConfig: Pick<ProviderConfig, 'name' | 'model'>) =>
@@ -130,55 +143,139 @@ export function App({
     const [sessionOptionsState, setSessionOptionsState] = useState<AgentSessionOptions>({
         ...sessionOptions,
         providerName,
+        modelName: model,
         contextWindow: resolveContextLimit({ name: providerName, model }),
         dangerous: defaultToolPermissionMode === TOOL_PERMISSION_MODES.FULL,
         toolPermissionMode: defaultToolPermissionMode,
+        thinking: thinkingOn,
     })
 
     const [inputHistory, setInputHistory] = useState<string[]>([])
 
     const [contextLimit, setContextLimit] = useState<number>(resolveContextLimit({ name: providerName, model }))
     const [currentContextTokens, setCurrentContextTokens] = useState(0)
+    const [followOutput, setFollowOutput] = useState(true)
 
     const [setupPending, setSetupPending] = useState(needsSetup)
     const [mcpSelectionPending, setMcpSelectionPending] = useState(!needsSetup && availableMcpServerNames.length > 0)
     const [activeMcpServerNames, setActiveMcpServerNames] = useState<string[]>(initialActiveMcpServers)
     const [exitMessage, setExitMessage] = useState<string | null>(null)
 
-    const [busy, setBusy] = useState(false)
     const [sessionLogPath, setSessionLogPath] = useState<string | null>(null)
     const [pendingHistoryMessages, setPendingHistoryMessages] = useState<ChatMessage[] | null>(null)
     const [session, setSession] = useState<AgentSession | null>(null)
     const sessionRef = useRef<AgentSession | null>(null)
     const currentTurnRef = useRef<number | null>(null)
     const nextUserInputOverrideRef = useRef<string | null>(null)
+    const startedOperationRef = useRef<number | null>(null)
+    const followOutputRef = useRef(true)
 
-    const { pendingApproval, setPendingApproval, approvalResolverRef, handleApprovalDecision } = useApproval()
+    const applyVisibleUpdate = useCallback((update: VisibleUpdate) => {
+        if (update.kind === 'timeline') {
+            dispatchTimeline(update.action)
+        } else if (update.kind === 'plan') {
+            dispatchPlan(update.action)
+        } else {
+            setCurrentContextTokens(update.promptTokens)
+        }
+    }, [])
+    const visibleUpdateQueueRef = useRef<VisibleUpdateQueue | null>(null)
+    if (!visibleUpdateQueueRef.current) {
+        visibleUpdateQueueRef.current = new VisibleUpdateQueue(applyVisibleUpdate)
+    }
+    const visibleUpdateQueue = visibleUpdateQueueRef.current
+
+    const setOutputFollowing = useCallback(
+        (following: boolean) => {
+            followOutputRef.current = following
+            visibleUpdateQueue.setFollowing(following)
+            setFollowOutput(following)
+        },
+        [visibleUpdateQueue],
+    )
+
+    const resetVisibleOutput = useCallback(() => {
+        visibleUpdateQueue.clear()
+        followOutputRef.current = true
+        visibleUpdateQueue.setFollowing(true)
+        setFollowOutput(true)
+    }, [visibleUpdateQueue])
+
+    const operationStatus = runtimeStatus(runtime)
+    const pendingApproval = pendingRuntimeApproval(runtime)
+    const approvalQueueRef = useRef<ApprovalQueue | null>(null)
+    if (!approvalQueueRef.current) {
+        approvalQueueRef.current = new ApprovalQueue((request) => {
+            dispatchRuntime(request ? { type: 'approval_requested', request } : { type: 'approval_resolved' })
+        })
+    }
+    const approvalQueue = approvalQueueRef.current
+    const handleApprovalDecision = useCallback(
+        (decision: ApprovalDecision) => {
+            approvalQueue.decide(decision)
+        },
+        [approvalQueue],
+    )
+
+    const handleToggleThinking = useCallback(() => {
+        setThinkingOn((prev) => {
+            const next = !prev
+            thinkingOnRef.current = next
+            sessionRef.current?.setThinking?.(next)
+            return next
+        })
+    }, [])
+
+    const handleToggleFollowOutput = useCallback(() => {
+        if (followOutputRef.current && runtime.active?.kind !== 'turn') return
+        setOutputFollowing(!followOutputRef.current)
+    }, [runtime.active, setOutputFollowing])
 
     const localPackageInfo = useMemo(() => findLocalPackageInfoSync(), [])
 
-    const dispatch = useCallback((action: ChatTimelineAction) => {
-        dispatchTimeline(action)
+    const restoreSessionUiState = useCallback((parsed: ParsedHistoryLog) => {
+        const restoredToolPermissionMode =
+            parsed.toolPermissionMode === 'none' ||
+            parsed.toolPermissionMode === 'once' ||
+            parsed.toolPermissionMode === 'full'
+                ? parsed.toolPermissionMode
+                : undefined
+        if (parsed.providerName) setCurrentProvider(parsed.providerName)
+        if (parsed.modelName) setCurrentModel(parsed.modelName)
+        if (typeof parsed.thinking === 'boolean') {
+            thinkingOnRef.current = parsed.thinking
+            setThinkingOn(parsed.thinking)
+        }
+        if (parsed.contextWindow) setContextLimit(parsed.contextWindow)
+        if (restoredToolPermissionMode) setToolPermissionMode(restoredToolPermissionMode)
+        setInputHistory(parsed.turns.map((turn) => turn.userInput.trim()).filter(Boolean))
+        setSessionOptionsState((prev) => ({
+            ...prev,
+            providerName: parsed.providerName ?? prev.providerName,
+            modelName: parsed.modelName ?? prev.modelName,
+            contextWindow: parsed.contextWindow ?? prev.contextWindow,
+            toolPermissionMode: restoredToolPermissionMode ?? prev.toolPermissionMode,
+            dangerous:
+                restoredToolPermissionMode === undefined
+                    ? prev.dangerous
+                    : restoredToolPermissionMode === TOOL_PERMISSION_MODES.FULL,
+            thinking: typeof parsed.thinking === 'boolean' ? parsed.thinking : prev.thinking,
+        }))
     }, [])
 
     useEffect(() => {
         if (!initialHistory) return
-        dispatch({ type: 'clear_current_timeline' })
-        dispatch({
+        resetVisibleOutput()
+        dispatchTimeline({ type: 'clear_current_timeline' })
+        dispatchTimeline({
             type: 'replace_history',
             turns: initialHistory.turns,
             maxSequence: initialHistory.maxSequence,
         })
+        dispatchPlan({ type: 'restore_history', turns: initialHistory.turns })
         setPendingHistoryMessages(initialHistory.messages)
-        if (initialHistory.summary.trim()) {
-            dispatch({
-                type: 'append_system_message',
-                title: 'History',
-                content: initialHistory.summary,
-                tone: 'info',
-            })
-        }
-    }, [dispatch, initialHistory])
+        restoreSessionUiState(initialHistory)
+    }, [dispatchTimeline, initialHistory, resetVisibleOutput, restoreSessionUiState])
 
     useEffect(() => {
         if (setupPending) return
@@ -188,9 +285,9 @@ export function App({
 
     const appendSystemMessage = useCallback(
         (title: string, content: string, tone: 'info' | 'warning' | 'error' = 'info') => {
-            dispatch({ type: 'append_system_message', title, content, tone })
+            dispatchTimeline({ type: 'append_system_message', title, content, tone })
         },
-        [dispatch],
+        [dispatchTimeline],
     )
 
     const deps = useMemo<AgentSessionDeps>(
@@ -198,17 +295,26 @@ export function App({
             onAssistantStep: (chunk: string, step: number) => {
                 const turn = currentTurnRef.current
                 if (!turn) return
-                dispatch({ type: 'assistant_chunk', turn, step, chunk })
+                visibleUpdateQueue.enqueue({
+                    kind: 'timeline',
+                    action: { type: 'assistant_chunk', turn, step, chunk },
+                })
+            },
+            onReasoningChunk: (chunk: string, step: number) => {
+                const turn = currentTurnRef.current
+                if (!turn) return
+                visibleUpdateQueue.enqueue({
+                    kind: 'timeline',
+                    action: { type: 'reasoning_chunk', turn, step, chunk },
+                })
             },
             requestApproval:
                 toolPermissionMode === TOOL_PERMISSION_MODES.FULL || toolPermissionMode === TOOL_PERMISSION_MODES.NONE
                     ? undefined
-                    : (request) =>
-                          new Promise((resolve) => {
-                              void notifyApprovalRequested(request)
-                              setPendingApproval(request)
-                              approvalResolverRef.current = resolve
-                          }),
+                    : (request) => {
+                          void notifyApprovalRequested(request)
+                          return approvalQueue.request(request)
+                      },
             hooks: {
                 onTurnStart: ({ turn, input, promptTokens }) => {
                     currentTurnRef.current = turn
@@ -218,88 +324,116 @@ export function App({
                     }
                     const displayInput = override ?? input
 
+                    const updates: VisibleUpdate[] = []
                     if (promptTokens && promptTokens > 0) {
-                        setCurrentContextTokens(promptTokens)
+                        updates.push({ kind: 'context', promptTokens })
                     }
-
-                    dispatch({
-                        type: 'turn_start',
-                        turn,
-                        input: displayInput,
-                        promptTokens,
+                    updates.push({
+                        kind: 'timeline',
+                        action: {
+                            type: 'turn_start',
+                            turn,
+                            input: displayInput,
+                            promptTokens,
+                        },
                     })
+                    visibleUpdateQueue.enqueueMany(updates)
                 },
                 onContextUsage: ({ turn, step, promptTokens, phase }) => {
-                    setCurrentContextTokens(promptTokens)
-                    dispatch({
-                        type: 'context_usage',
-                        turn,
-                        step,
-                        promptTokens,
-                        phase,
-                    })
+                    visibleUpdateQueue.enqueueMany([
+                        { kind: 'context', promptTokens },
+                        {
+                            kind: 'timeline',
+                            action: {
+                                type: 'context_usage',
+                                turn,
+                                step,
+                                promptTokens,
+                                phase,
+                            },
+                        },
+                    ])
                 },
                 onContextCompacted: ({ reason, status, beforeTokens, afterTokens, reductionPercent, errorMessage }) => {
-                    if (status === 'success') {
-                        setCurrentContextTokens(afterTokens)
-                    }
                     const compactedBy = reason === 'manual' ? 'manual command' : 'auto trigger'
+                    let content: string
+                    let tone: 'info' | 'warning' = 'info'
                     if (status === 'success') {
-                        appendSystemMessage(
-                            'Context compacted',
-                            `Compacted by ${compactedBy}: ${beforeTokens} -> ${afterTokens} tokens (${reductionPercent.toFixed(2)}% reduced).`,
-                        )
-                        return
+                        content = `Compacted by ${compactedBy}: ${beforeTokens} -> ${afterTokens} tokens (${reductionPercent.toFixed(2)}% reduced).`
+                    } else if (status === 'skipped') {
+                        content = `Skipped (${compactedBy}): nothing to compact.`
+                        tone = 'warning'
+                    } else {
+                        content = `Failed (${compactedBy}): ${errorMessage ?? 'unknown error'}`
+                        tone = 'warning'
                     }
-                    if (status === 'skipped') {
-                        appendSystemMessage(
-                            'Context compacted',
-                            `Skipped (${compactedBy}): nothing to compact.`,
-                            'warning',
-                        )
-                        return
-                    }
-                    appendSystemMessage(
-                        'Context compacted',
-                        `Failed (${compactedBy}): ${errorMessage ?? 'unknown error'}`,
-                        'warning',
-                    )
+                    const updates: VisibleUpdate[] = []
+                    if (status === 'success') updates.push({ kind: 'context', promptTokens: afterTokens })
+                    updates.push({
+                        kind: 'timeline',
+                        action: { type: 'append_system_message', title: 'Context compacted', content, tone },
+                    })
+                    visibleUpdateQueue.enqueueMany(updates)
                 },
                 onAction: ({ turn, step, action, thinking, parallelActions }) => {
-                    dispatch({
-                        type: 'tool_action',
-                        turn,
-                        step,
-                        action,
-                        thinking,
-                        parallelActions,
+                    visibleUpdateQueue.enqueue({
+                        kind: 'timeline',
+                        action: {
+                            type: 'tool_action',
+                            turn,
+                            step,
+                            action,
+                            thinking,
+                            parallelActions,
+                        },
                     })
                 },
-                onObservation: ({ turn, step, observation, resultStatus, parallelResultStatuses }) => {
-                    dispatch({
-                        type: 'tool_observation',
-                        turn,
-                        step,
-                        observation,
-                        toolStatus: inferToolStatus(resultStatus),
-                        parallelToolStatuses: inferParallelToolStatuses(parallelResultStatuses),
-                    })
+                onObservation: ({ turn, step, observation, resultStatus, parallelResultStatuses, results }) => {
+                    const toolResults = results.map((result) => ({
+                        toolCallId: result.toolCallId,
+                        tool: result.tool,
+                        observation: result.observation,
+                        status: inferToolStatus(result.status),
+                    }))
+                    visibleUpdateQueue.enqueueMany([
+                        {
+                            kind: 'timeline',
+                            action: {
+                                type: 'tool_observation',
+                                turn,
+                                step,
+                                observation,
+                                toolStatus: inferToolStatus(resultStatus),
+                                parallelToolStatuses: inferParallelToolStatuses(parallelResultStatuses),
+                                toolResults,
+                            },
+                        },
+                        ...toolResults.map(
+                            (result): VisibleUpdate => ({
+                                kind: 'plan',
+                                action: { type: 'tool_result', result },
+                            }),
+                        ),
+                    ])
                 },
-                onFinal: ({ turn, finalText, status, errorMessage, turnUsage, tokenUsage }) => {
-                    dispatch({
-                        type: 'turn_final',
-                        turn,
-                        finalText,
-                        status,
-                        errorMessage,
-                        turnUsage,
-                        tokenUsage,
+                onFinal: ({ turn, finalText, status, errorMessage, turnUsage, tokenUsage, thinking }) => {
+                    visibleUpdateQueue.enqueue({
+                        kind: 'timeline',
+                        action: {
+                            type: 'turn_final',
+                            turn,
+                            finalText,
+                            status,
+                            errorMessage,
+                            turnUsage,
+                            tokenUsage,
+                            thinking,
+                        },
                     })
-                    setBusy(false)
                 },
             },
         }),
-        [appendSystemMessage, dispatch, toolPermissionMode],
+        [approvalQueue, toolPermissionMode, visibleUpdateQueue],
     )
 
     useEffect(() => {
@@ -313,7 +447,10 @@ export function App({
                     await previous.close()
                 }
 
-                const created = await createAgentSession(deps, sessionOptionsState)
+                const created = await createAgentSession(deps, {
+                    ...sessionOptionsState,
+                    thinking: thinkingOnRef.current,
+                })
                 if (cancelled) {
                     await created.close()
                     return
@@ -327,7 +464,8 @@ export function App({
                 sessionRef.current = null
                 setSession(null)
                 setSessionLogPath(null)
-                setBusy(false)
+                resetVisibleOutput()
+                dispatchRuntime({ type: 'reset' })
                 appendSystemMessage('Session', `Failed to create session: ${(err as Error).message}`, 'error')
             }
         })()
@@ -335,8 +473,9 @@ export function App({
         return () => {
             cancelled = true
         }
-    }, [appendSystemMessage, deps, mcpSelectionPending, sessionOptionsState, setupPending])
+    }, [appendSystemMessage, deps, mcpSelectionPending, resetVisibleOutput, sessionOptionsState, setupPending])
 
+    useEffect(() => () => visibleUpdateQueue.dispose(), [visibleUpdateQueue])
     useEffect(() => {
         return () => {
             if (sessionRef.current) {
@@ -362,50 +501,55 @@ export function App({
     }, [appendSystemMessage])
 
     const handleExit = useCallback(async () => {
-        const resolver = approvalResolverRef.current
-        if (resolver) {
-            resolver('deny')
-            approvalResolverRef.current = null
-        }
-        if (pendingApproval) {
-            setPendingApproval(null)
+        approvalQueue.denyAll()
+        if (runtime.active?.kind === 'turn') {
+            dispatchRuntime({ type: 'cancel_requested' })
         }
         if (sessionRef.current) {
             await sessionRef.current.close()
         }
         setExitMessage('Bye!')
-        setTimeout(() => exit(), 250)
-    }, [exit, pendingApproval])
+    }, [approvalQueue, runtime.active])
+
+    // Render the farewell message first, then unmount.
+    useEffect(() => {
+        if (exitMessage) {
+            exit()
+        }
+    }, [exit, exitMessage])
+
+    const guardActiveOperation = useCallback(
+        (action: string): boolean => {
+            if (!runtime.active) return false
+            const message =
+                operationStatus === 'awaiting_approval'
+                    ? 'Resolve the current approval request before proceeding.'
+                    : operationStatus === 'compacting'
+                      ? 'Wait for context compaction to finish before proceeding.'
+                      : operationStatus === 'cancelling'
+                        ? 'Wait for cancellation to finish before proceeding.'
+                        : 'Cancel the current run before proceeding.'
+            appendSystemMessage(action, message, 'warning')
+            return true
+        },
+        [appendSystemMessage, operationStatus, runtime.active],
+    )
 
     const handleClear = useCallback(() => {
-        if (busy) {
-            appendSystemMessage('Clear', 'Cancel current run before clearing timeline.', 'warning')
-            return
-        }
-        if (pendingApproval) {
-            appendSystemMessage('Clear', 'Resolve current approval request before clearing timeline.', 'warning')
-            return
-        }
-        dispatch({ type: 'clear_current_timeline' })
+        if (guardActiveOperation('Clear')) return
+        resetVisibleOutput()
+        dispatchTimeline({ type: 'clear_current_timeline' })
         setPendingHistoryMessages(null)
         setCurrentContextTokens(0)
         clearTerminalScreen()
-    }, [appendSystemMessage, busy, dispatch, pendingApproval])
+    }, [dispatchTimeline, guardActiveOperation, resetVisibleOutput])
 
     const handleNewSession = useCallback(() => {
-        if (busy) {
-            appendSystemMessage('New Session', 'Cancel current run before starting a new session.', 'warning')
-            return
-        }
-        if (pendingApproval) {
-            appendSystemMessage(
-                'New Session',
-                'Resolve current approval request before starting a new session.',
-                'warning',
-            )
-            return
-        }
-        dispatch({ type: 'reset_all' })
+        if (guardActiveOperation('New Session')) return
+        resetVisibleOutput()
+        dispatchTimeline({ type: 'reset_all' })
+        dispatchRuntime({ type: 'reset' })
+        dispatchPlan({ type: 'clear' })
         setPendingHistoryMessages(null)
         setCurrentContextTokens(0)
         currentTurnRef.current = null
@@ -414,7 +558,7 @@ export function App({
             sessionId: randomUUID(),
         }))
         appendSystemMessage('New Session', 'Started a fresh session.')
-    }, [appendSystemMessage, busy, dispatch, pendingApproval])
+    }, [appendSystemMessage, dispatchTimeline, guardActiveOperation, resetVisibleOutput])
 
     const persistCurrentProvider = useCallback(
         async (name: string) => {
@@ -433,17 +577,17 @@ export function App({
 
     const handleModelSelect = useCallback(
         async (provider: ProviderConfig) => {
-            if (busy) {
-                appendSystemMessage('Model switch', 'Cancel current run before switching models.', 'warning')
-                return
-            }
+            if (guardActiveOperation('Model switch')) return
 
             if (provider.name === currentProvider && provider.model === currentModel) {
                 appendSystemMessage('Model switch', `Already using ${provider.name} (${provider.model}).`)
                 return
             }
 
-            dispatch({ type: 'reset_all' })
+            resetVisibleOutput()
+            dispatchTimeline({ type: 'reset_all' })
+            dispatchRuntime({ type: 'reset' })
+            dispatchPlan({ type: 'clear' })
             setCurrentContextTokens(0)
             currentTurnRef.current = null
 
@@ -455,6 +599,7 @@ export function App({
                 ...prev,
                 sessionId: randomUUID(),
                 providerName: provider.name,
+                modelName: provider.model,
                 contextWindow: nextContextLimit,
             }))
 
@@ -463,11 +608,12 @@ export function App({
         },
         [
             appendSystemMessage,
-            busy,
             currentModel,
             currentProvider,
-            dispatch,
+            dispatchTimeline,
+            guardActiveOperation,
             persistCurrentProvider,
+            resetVisibleOutput,
             resolveContextLimit,
         ],
     )
@@ -480,35 +626,39 @@ export function App({
 
     const handleSetToolPermission = useCallback(
         (mode: ToolPermissionMode) => {
-            if (busy) {
-                appendSystemMessage('Tools', 'Cancel current run before changing tool permission mode.', 'warning')
-                return
-            }
-
-            if (pendingApproval) {
-                appendSystemMessage(
-                    'Tools',
-                    'Resolve current approval request before changing tool permission mode.',
-                    'warning',
-                )
-                return
-            }
+            if (guardActiveOperation('Tools')) return
 
             if (mode === toolPermissionMode) {
                 appendSystemMessage('Tools', `Already using ${toolPermissionLabel(mode)}.`)
                 return
             }
 
+            // Tool permission is baked into the session at creation time, so
+            // switching modes recreates the session; reset the visible timeline
+            // to match the fresh session's (empty) history.
             setToolPermissionMode(mode)
+            resetVisibleOutput()
+            dispatchTimeline({ type: 'reset_all' })
+            dispatchRuntime({ type: 'reset' })
+            dispatchPlan({ type: 'clear' })
+            setCurrentContextTokens(0)
+            currentTurnRef.current = null
             setSessionOptionsState((prev) => ({
                 ...prev,
                 sessionId: randomUUID(),
                 dangerous: mode === TOOL_PERMISSION_MODES.FULL,
                 toolPermissionMode: mode,
             }))
-            appendSystemMessage('Tools', `Tool permission set to ${toolPermissionLabel(mode)}.`)
+            appendSystemMessage('Tools', `Tool permission set to ${toolPermissionLabel(mode)}. Conversation reset.`)
         },
-        [appendSystemMessage, busy, pendingApproval, toolPermissionLabel, toolPermissionMode],
+        [
+            appendSystemMessage,
+            dispatchTimeline,
+            guardActiveOperation,
+            resetVisibleOutput,
+            toolPermissionLabel,
+            toolPermissionMode,
+        ],
     )
 
     const persistActiveMcpServers = useCallback(
@@ -546,35 +696,26 @@ export function App({
 
     const handleHistorySelect = useCallback(
         async (entry: SessionHistoryEntry) => {
-            if (busy) {
-                appendSystemMessage('History', 'Cancel current run before loading session history.', 'warning')
-                return
-            }
-            if (pendingApproval) {
-                appendSystemMessage(
-                    'History',
-                    'Resolve current approval request before loading session history.',
-                    'warning',
-                )
-                return
-            }
+            if (guardActiveOperation('History')) return
             try {
                 const raw = await readFile(entry.sessionFile, 'utf8')
                 const parsed = parseHistoryLog(raw)
-                dispatch({ type: 'clear_current_timeline' })
-                dispatch({
+                resetVisibleOutput()
+                dispatchTimeline({ type: 'clear_current_timeline' })
+                dispatchTimeline({
                     type: 'replace_history',
                     turns: parsed.turns,
                     maxSequence: parsed.maxSequence,
                 })
+                dispatchPlan({ type: 'restore_history', turns: parsed.turns })
                 setPendingHistoryMessages(parsed.messages)
-                setBusy(false)
+                dispatchRuntime({ type: 'reset' })
                 setSession(null)
                 setSessionLogPath(null)
                 setCurrentContextTokens(0)
                 currentTurnRef.current = null
+                restoreSessionUiState(parsed)
                 setSessionOptionsState((prev) => ({ ...prev, sessionId: randomUUID() }))
-                appendSystemMessage('History', parsed.summary || entry.input)
             } catch (err) {
                 appendSystemMessage(
                     'History',
@@ -583,99 +724,57 @@ export function App({
                 )
             }
         },
-        [appendSystemMessage, busy, dispatch, pendingApproval],
+        [appendSystemMessage, dispatchTimeline, guardActiveOperation, resetVisibleOutput, restoreSessionUiState],
     )
 
     const handleCancelRun = useCallback(() => {
-        if (!busy) return
+        if (runtime.active?.kind !== 'turn') return
+        approvalQueue.denyAll()
+        dispatchRuntime({ type: 'cancel_requested' })
         session?.cancelCurrentTurn?.()
-    }, [busy, session])
+    }, [approvalQueue, runtime.active, session])
 
-    const runCompactCommand = useCallback(async () => {
-        if (busy) {
-            appendSystemMessage('Compact', 'Cancel current run before compacting context.', 'warning')
-            return
-        }
-        if (pendingApproval) {
-            appendSystemMessage('Compact', 'Resolve current approval request before compacting context.', 'warning')
-            return
-        }
+    const runCompactCommand = useCallback(() => {
         if (!session) return
-
-        try {
-            const result = await session.compactHistory('manual')
-            setCurrentContextTokens(result.afterTokens)
-        } catch (err) {
-            appendSystemMessage('Compact', `Failed to compact context: ${(err as Error).message}`, 'error')
+        if (runtime.active) {
+            const message =
+                runtime.active.kind === 'compact'
+                    ? 'Context compaction is already running.'
+                    : 'Compact is unavailable while a turn is running.'
+            appendSystemMessage('Compact', message, 'warning')
+            return
         }
-    }, [appendSystemMessage, busy, pendingApproval, session])
+        dispatchRuntime({ type: 'start_compact' })
+    }, [appendSystemMessage, runtime.active, session])
 
     const runInitCommand = useCallback(async () => {
-        if (!session || busy) return
+        if (!session) return
+        if (runtime.active) {
+            appendSystemMessage('Init', 'Init is unavailable while a turn is running.', 'warning')
+            return
+        }
 
         const initCommand = formatSlashCommand(SLASH_COMMANDS.INIT)
+        const targetSessionId = session.id
         try {
             const prompt = await loadTaskPrompt('init_agents')
-            setInputHistory((prev) => [...prev, initCommand])
-            setBusy(true)
-            nextUserInputOverrideRef.current = initCommand
-            await session.runTurn(prompt)
-        } catch (err) {
-            setBusy(false)
-            appendSystemMessage('Init', `Failed to run init task: ${(err as Error).message}`, 'error')
-        }
-    }, [appendSystemMessage, busy, session])
-
-    const runReviewPullRequestCommand = useCallback(
-        async (prNumber: number) => {
-            if (!session || busy) return
-
-            if (toolPermissionMode === TOOL_PERMISSION_MODES.NONE) {
-                appendSystemMessage(
-                    'Review',
-                    'Tool permission mode is "none". Set `/tools once` or `/tools full` before running `/review`.',
-                    'warning',
-                )
+            if (sessionRef.current?.id !== targetSessionId) {
+                appendSystemMessage('Init', 'Session changed before the init task could start.', 'warning')
                 return
             }
-
-            const reviewCommand = `${formatSlashCommand(SLASH_COMMANDS.REVIEW)} ${prNumber}`
-            try {
-                const backend = await resolveReviewBackend({
-                    cwd,
-                    mcpServers,
-                    activeMcpServerNames,
-                    availableToolNames: session.listToolNames?.() ?? [],
-                })
-
-                if (backend.kind === 'unavailable') {
-                    appendSystemMessage('Review', backend.reason, 'error')
-                    return
-                }
-
-                const prompt = await loadTaskPrompt('review_pull_request', {
-                    pr_number: String(prNumber),
-                    backend_strategy: backend.strategy,
-                    backend_details: backend.details,
-                    mcp_server_prefix: backend.kind === 'github_mcp' ? backend.mcpServerPrefix : 'github',
-                })
-
-                setInputHistory((prev) => [...prev, reviewCommand])
-                appendSystemMessage('Review', backend.details)
-                setBusy(true)
-                nextUserInputOverrideRef.current = reviewCommand
-                await session.runTurn(prompt)
-            } catch (err) {
-                setBusy(false)
-                appendSystemMessage(
-                    'Review',
-                    `Failed to run review task for PR #${prNumber}: ${(err as Error).message}`,
-                    'error',
-                )
-            }
-        },
-        [activeMcpServerNames, appendSystemMessage, busy, cwd, mcpServers, session, toolPermissionMode],
-    )
+            setInputHistory((prev) => [...prev, initCommand])
+            dispatchRuntime({
+                type: 'submit_turn',
+                request: {
+                    id: randomUUID(),
+                    input: prompt,
+                    displayInput: initCommand,
+                },
+            })
+        } catch (err) {
+            appendSystemMessage('Init', `Failed to run init task: ${(err as Error).message}`, 'error')
+        }
+    }, [appendSystemMessage, runtime.active, session])
 
     const handleSubmit = useCallback(
         async (value: string) => {
@@ -687,24 +786,56 @@ export function App({
                 return
             }
 
+            if (!followOutputRef.current) {
+                setOutputFollowing(true)
+            }
+
             if (trimmed === formatSlashCommand(SLASH_COMMANDS.INIT)) {
                 await runInitCommand()
                 return
             }
 
-            if (!session || busy) return
+            if (!session) return
 
             setInputHistory((prev) => [...prev, trimmed])
-            setBusy(true)
-            try {
-                await session.runTurn(trimmed)
-            } catch (err) {
-                setBusy(false)
-                appendSystemMessage('Run', `Turn failed: ${(err as Error).message}`, 'error')
+            const request: TurnRequest = {
+                id: randomUUID(),
+                input: trimmed,
+                displayInput: trimmed,
             }
+            dispatchRuntime({ type: 'submit_turn', request })
         },
-        [appendSystemMessage, busy, handleExit, runInitCommand, session],
+        [handleExit, runInitCommand, session, setOutputFollowing],
     )
+
+    useEffect(() => {
+        const active = runtime.active
+        if (!active || !session || startedOperationRef.current === active.id) return
+        startedOperationRef.current = active.id
+
+        void (async () => {
+            try {
+                if (active.kind === 'compact') {
+                    const result = await session.compactHistory('manual')
+                    setCurrentContextTokens(result.afterTokens)
+                    return
+                }
+
+                const override =
+                    active.request.displayInput !== active.request.input ? active.request.displayInput : null
+                nextUserInputOverrideRef.current = override
+                await session.runTurn(active.request.input)
+            } catch (err) {
+                const title = active.kind === 'compact' ? 'Compact' : 'Run'
+                appendSystemMessage(title, `${title} failed: ${(err as Error).message}`, 'error')
+            } finally {
+                if (active.kind === 'turn' && nextUserInputOverrideRef.current === active.request.displayInput) {
+                    nextUserInputOverrideRef.current = null
+                }
+                dispatchRuntime({ type: 'operation_finished', operationId: active.id })
+            }
+        })()
+    }, [appendSystemMessage, runtime.active, session])
 
     const handleSetupComplete = useCallback(async () => {
         try {
@@ -720,6 +851,7 @@ export function App({
                 ...prev,
                 sessionId: randomUUID(),
                 providerName: provider.name,
+                modelName: provider.model,
                 contextWindow: nextContextLimit,
                 autoCompactThresholdPercent: loaded.config.auto_compact_threshold_percent,
             }))
@@ -767,7 +899,7 @@ export function App({
     }
 
     if (setupPending) {
-        return <SetupWizard configPath={configPath} onComplete={handleSetupComplete} onExit={handleExit} />
+        return <SetupWizard configPath={configPath} onComplete={handleSetupComplete} />
     }
 
     if (mcpSelectionPending) {
@@ -776,9 +908,6 @@ export function App({
                 serverNames={availableMcpServerNames}
                 defaultSelected={initialActiveMcpServers}
                 onConfirm={handleConfirmMcpActivation}
-                onExit={() => {
-                    void handleExit()
-                }}
             />
         )
     }
@@ -792,9 +921,11 @@ export function App({
                 historicalTurns={timeline.historicalTurns}
             />
 
+            {activePlan ? <PlanPanel plan={activePlan} /> : null}
+
             <Composer
-                disabled={!session || !!pendingApproval}
-                busy={busy}
+                disabled={!session || operationStatus === 'awaiting_approval'}
+                operationStatus={operationStatus}
                 history={inputHistory}
                 cwd={cwd}
                 sessionsDir={sessionsDir}
@@ -817,6 +948,8 @@ export function App({
                 onCompact={() => {
                     void runCompactCommand()
                 }}
+                onToggleThinking={handleToggleThinking}
+                onToggleFollowOutput={handleToggleFollowOutput}
                 onHistorySelect={(entry) => {
                     void handleHistorySelect(entry)
                 }}
@@ -824,15 +957,19 @@ export function App({
                     void handleModelSelect(provider)
                 }}
                 onSetToolPermission={handleSetToolPermission}
-                onReviewPullRequest={(prNumber) => {
-                    void runReviewPullRequestCommand(prNumber)
-                }}
+                thinkingOn={thinkingOn}
                 onSystemMessage={appendSystemMessage}
             />
 
             {pendingApproval ? <ApprovalOverlay request={pendingApproval} onDecision={handleApprovalDecision} /> : null}
 
-            <Footer busy={busy} pendingApproval={Boolean(pendingApproval)} contextPercent={contextPercent} />
+            <Footer
+                operationStatus={operationStatus}
+                queuedCount={runtime.queuedTurns.length}
+                contextPercent={contextPercent}
+                thinkingOn={thinkingOn}
+                followOutput={followOutput}
+            />
         </Box>
     )
 }

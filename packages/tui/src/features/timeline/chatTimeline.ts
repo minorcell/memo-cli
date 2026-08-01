@@ -1,5 +1,13 @@
-import type { ContextUsagePhase, TokenUsage, TurnStatus } from '@memo/core'
-import type { StepView, SystemMessage, SystemMessageTone, ToolAction, ToolStatus, TurnView } from '../../shared/types'
+import type { ContextUsagePhase, LanguageModelUsage, TurnStatus } from '@memo/core'
+import type {
+    StepView,
+    SystemMessage,
+    SystemMessageTone,
+    ToolAction,
+    ToolResultView,
+    ToolStatus,
+    TurnView,
+} from '../../shared/types'
 import { TOOL_STATUS } from '../../shared/types'
 
 export type ChatTimelineState = {
@@ -20,6 +28,7 @@ export type ChatTimelineAction =
           phase: ContextUsagePhase
       }
     | { type: 'assistant_chunk'; turn: number; step: number; chunk: string }
+    | { type: 'reasoning_chunk'; turn: number; step: number; chunk: string }
     | {
           type: 'tool_action'
           turn: number
@@ -35,6 +44,7 @@ export type ChatTimelineAction =
           observation: string
           toolStatus: ToolStatus
           parallelToolStatuses?: ToolStatus[]
+          toolResults: ToolResultView[]
       }
     | {
           type: 'turn_final'
@@ -42,8 +52,10 @@ export type ChatTimelineAction =
           finalText: string
           status: TurnStatus
           errorMessage?: string
-          turnUsage: TokenUsage
-          tokenUsage?: TokenUsage
+          turnUsage: LanguageModelUsage
+          tokenUsage?: LanguageModelUsage
+          /** Thinking trace of the final step (rendered on the last step cell). */
+          thinking?: string
       }
     | { type: 'replace_history'; turns: TurnView[]; maxSequence: number }
     | { type: 'clear_current_timeline' }
@@ -107,7 +119,8 @@ function nextSystemMessage(action: {
     sequence: number
 }): SystemMessage {
     return {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        // Sequence is monotonically increasing per timeline, so it is a stable unique id.
+        id: String(action.sequence),
         title: action.title,
         content: action.content,
         tone: action.tone ?? 'info',
@@ -200,6 +213,28 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
             }
         }
 
+        case 'reasoning_chunk': {
+            const updated = upsertTurn(state, action.turn, (turnView) => {
+                const steps = ensureStep(turnView.steps, action.step)
+                const currentStep = steps[action.step]
+                if (!currentStep) return turnView
+                const newThinking = `${currentStep.streamingThinking ?? ''}${action.chunk}`
+                if (newThinking === currentStep.streamingThinking) {
+                    return turnView
+                }
+                steps[action.step] = {
+                    ...currentStep,
+                    streamingThinking: newThinking,
+                }
+                return { ...turnView, steps }
+            })
+            return {
+                ...state,
+                turns: updated.turns,
+                sequence: updated.sequence,
+            }
+        }
+
         case 'tool_action': {
             const updated = upsertTurn(state, action.turn, (turnView) => {
                 const steps = ensureStep(turnView.steps, action.step)
@@ -208,7 +243,9 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
                 steps[action.step] = {
                     ...currentStep,
                     action: action.action,
+                    // Full thinking arrived with the action; drop the live stream to avoid duplication.
                     thinking: action.thinking,
+                    streamingThinking: action.thinking ? undefined : currentStep.streamingThinking,
                     parallelActions:
                         action.parallelActions && action.parallelActions.length > 1
                             ? action.parallelActions
@@ -234,6 +271,7 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
                     observation: action.observation,
                     toolStatus: action.toolStatus,
                     parallelToolStatuses: action.parallelToolStatuses,
+                    toolResults: action.toolResults,
                 }
                 return { ...turnView, steps }
             })
@@ -248,9 +286,19 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
             const updated = upsertTurn(state, action.turn, (turnView) => {
                 const startedAt = turnView.startedAt ?? Date.now()
                 const durationMs = Math.max(0, Date.now() - startedAt)
-                const promptTokens = action.tokenUsage?.prompt ?? turnView.contextPromptTokens
+                const promptTokens = action.tokenUsage?.inputTokens ?? turnView.contextPromptTokens
+                const steps = [...turnView.steps]
+                if (steps.length > 0) {
+                    const last = steps[steps.length - 1]
+                    if (last) {
+                        // Complete thinking wins; otherwise promote the live stream.
+                        const thinking = action.thinking ?? last.streamingThinking
+                        steps[steps.length - 1] = { ...last, thinking, streamingThinking: undefined }
+                    }
+                }
                 return {
                     ...turnView,
+                    steps,
                     finalText: action.finalText,
                     status: action.status,
                     errorMessage: action.errorMessage,

@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import zod from 'zod'
 import { option, argument } from 'pastel'
 import { loadMemoConfig } from '@memo/core'
-import { loginMcpServerOAuth } from '@memo/tools/router/mcp/oauth'
+import { loginMcpServerOAuth } from '@memo/core'
 import { getErrorMessage, oauthSettingsFromLoaded } from '../../features/mcp/mcpHelpers'
 
 export const options = zod.object({

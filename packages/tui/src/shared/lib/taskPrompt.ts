@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 const TEMPLATE_PATTERN = /{{\s*([\w.-]+)\s*}}/g
 
-type TaskPromptTemplate = 'init_agents' | 'review_pull_request'
+type TaskPromptTemplate = 'init_agents'
 
 function renderTemplate(template: string, vars: Record<string, string>): string {
     return template.replace(TEMPLATE_PATTERN, (_match, key: string) => vars[key] ?? '')

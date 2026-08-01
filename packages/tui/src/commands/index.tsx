@@ -1,24 +1,12 @@
-import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { createInterface } from 'node:readline/promises'
-import { stdin as input, stdout as output } from 'node:process'
 import React, { useEffect, useState } from 'react'
 import zod from 'zod'
 import { option, argument } from 'pastel'
-import {
-    createAgentSession,
-    loadMemoConfig,
-    resolveContextWindowForProvider,
-    writeMemoConfig,
-    selectProvider,
-    getSessionsDir,
-    type AgentSessionDeps,
-    type AgentSessionOptions,
-    type MemoConfig,
-} from '@memo/core'
+import { createAgentSession, type AgentSessionDeps } from '@memo/core'
 import { App } from '../app/App'
 import { parseHistoryLog } from '../features/session/historyParser'
 import { loadSessionHistoryEntries } from '../features/session/sessionHistory'
+import { ensureProviderConfig, buildRunContext } from '../shared/lib/runContext'
 
 export const options = zod.object({
     once: zod
@@ -42,51 +30,6 @@ export const args = zod
     .array(zod.string())
     .default([])
     .describe(argument({ name: 'question', description: 'Your question' }))
-
-async function ensureProviderConfig(mode: 'plain' | 'tui') {
-    const loaded = await loadMemoConfig()
-    if (!loaded.needsSetup) return loaded
-
-    const defaultProvider = loaded.config.providers[0]
-    const envCandidates = [defaultProvider?.env_api_key, 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY'].filter(
-        Boolean,
-    ) as string[]
-
-    const hasEnvKey = envCandidates.some((key) => Boolean(process.env[key]))
-
-    if (defaultProvider && hasEnvKey) {
-        await writeMemoConfig(loaded.configPath, loaded.config)
-        return { ...loaded, needsSetup: false }
-    }
-
-    if (mode === 'tui') {
-        return loaded
-    }
-
-    const rl = createInterface({ input, output })
-    const ask = async (prompt: string, fallback: string) => {
-        const ans = (await rl.question(prompt)).trim()
-        return ans || fallback
-    }
-
-    try {
-        console.log('No provider config found. Please answer the prompts:')
-        const name = await ask('Provider name [deepseek]: ', 'deepseek')
-        const envKey = await ask('API key env var [DEEPSEEK_API_KEY]: ', 'DEEPSEEK_API_KEY')
-        const model = await ask('Model name [deepseek-chat]: ', 'deepseek-chat')
-        const baseUrl = await ask('Base URL [https://api.deepseek.com]: ', 'https://api.deepseek.com')
-
-        const config: MemoConfig = {
-            current_provider: name,
-            providers: [{ name, env_api_key: envKey, model, base_url: baseUrl || undefined }],
-        }
-        await writeMemoConfig(loaded.configPath, config)
-        console.log(`Config written to ${loaded.configPath}\n`)
-        return { ...loaded, config, needsSetup: false }
-    } finally {
-        rl.close()
-    }
-}
 
 async function loadPreviousSession(sessionsDir: string, cwd: string) {
     const entries = await loadSessionHistoryEntries({ sessionsDir, cwd, limit: 1 })
@@ -138,18 +81,7 @@ function PlainMode({ opts, question: initialQuestion }: { opts: zod.infer<typeof
             }
 
             const loaded = await ensureProviderConfig('plain')
-            const provider = selectProvider(loaded.config)
-            const contextWindow = resolveContextWindowForProvider(loaded.config, provider)
-            const sessionId = randomUUID()
-            const sessionOptions: AgentSessionOptions = {
-                sessionId,
-                mode: 'interactive',
-                contextWindow,
-                autoCompactThresholdPercent: loaded.config.auto_compact_threshold_percent,
-                activeMcpServers: loaded.config.active_mcp_servers,
-                dangerous: opts.dangerous,
-            }
-            const sessionsDir = getSessionsDir(loaded, sessionOptions)
+            const { provider, sessionOptions, sessionsDir } = await buildRunContext(loaded, opts.dangerous)
             const prevSession = opts.prev ? await loadPreviousSession(sessionsDir, process.cwd()) : null
 
             if (opts.prev && !prevSession) {
@@ -192,7 +124,7 @@ function PlainMode({ opts, question: initialQuestion }: { opts: zod.infer<typeof
                 const turnResult = await session.runTurn(question)
                 console.log(`\n${turnResult.finalText}`)
                 console.log(
-                    `\n[tokens] prompt=${turnResult.tokenUsage.prompt} completion=${turnResult.tokenUsage.completion} total=${turnResult.tokenUsage.total}`,
+                    `\n[tokens] prompt=${turnResult.tokenUsage.inputTokens} completion=${turnResult.tokenUsage.outputTokens} total=${turnResult.tokenUsage.totalTokens}`,
                 )
                 console.log(`\nprovider=${provider.name} model=${provider.model}`)
             } catch (err) {
@@ -210,27 +142,16 @@ function PlainMode({ opts, question: initialQuestion }: { opts: zod.infer<typeof
 
 function TuiMode({ opts }: { opts: zod.infer<typeof options> }) {
     const [appProps, setAppProps] = useState<React.ComponentProps<typeof App> | null>(null)
-    const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
         async function init() {
             const loaded = await ensureProviderConfig('tui')
-            const provider = selectProvider(loaded.config)
-            const contextWindow = resolveContextWindowForProvider(loaded.config, provider)
-            const sessionId = randomUUID()
-            const sessionOptions: AgentSessionOptions = {
-                sessionId,
-                mode: 'interactive',
-                contextWindow,
-                autoCompactThresholdPercent: loaded.config.auto_compact_threshold_percent,
-                activeMcpServers: loaded.config.active_mcp_servers,
-                dangerous: opts.dangerous,
-            }
-            const sessionsDir = getSessionsDir(loaded, sessionOptions)
+            const { provider, sessionOptions, sessionsDir } = await buildRunContext(loaded, opts.dangerous)
             const prevSession = opts.prev ? await loadPreviousSession(sessionsDir, process.cwd()) : null
 
             if (opts.prev && !prevSession) {
-                setError('No previous session found for current directory.')
+                console.error('No previous session found for current directory.')
+                process.exit(1)
                 return
             }
 
@@ -252,9 +173,6 @@ function TuiMode({ opts }: { opts: zod.infer<typeof options> }) {
         init()
     }, [])
 
-    if (error) {
-        return null
-    }
     if (!appProps) {
         return null
     }

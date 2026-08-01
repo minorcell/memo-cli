@@ -1,250 +1,99 @@
-import { describe, expect, test, beforeEach, afterEach } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { createTokenCounter } from '@memo/core/utils/tokenizer'
 import type { ChatMessage } from '@memo/core/types'
 
 describe('createTokenCounter', () => {
-    test('creates counter with default model', () => {
+    test('creates counter with countText/countMessages', () => {
         const counter = createTokenCounter()
-        expect(counter.model).toBe('cl100k_base')
         expect(typeof counter.countText).toBe('function')
         expect(typeof counter.countMessages).toBe('function')
-        expect(typeof counter.dispose).toBe('function')
-        counter.dispose()
-    })
-
-    test('creates counter with specified model', () => {
-        const counter = createTokenCounter('gpt-4')
-        expect(counter.model).toBe('gpt-4')
-        counter.dispose()
-    })
-
-    test('falls back to cl100k_base for unknown models', () => {
-        const counter = createTokenCounter('unknown-model-x')
-        expect(counter.model).toBe('cl100k_base')
-        counter.dispose()
-    })
-
-    test('trims whitespace in model name', () => {
-        const counter = createTokenCounter('  gpt-4  ')
-        expect(counter.model).toBe('gpt-4')
-        counter.dispose()
     })
 
     describe('countText', () => {
-        let counter: ReturnType<typeof createTokenCounter>
-
-        beforeEach(() => {
-            counter = createTokenCounter()
-        })
-
-        afterEach(() => {
-            counter.dispose()
-        })
+        const counter = createTokenCounter()
 
         test('returns 0 for empty string', () => {
             expect(counter.countText('')).toBe(0)
         })
 
-        test('counts tokens for simple text', () => {
-            const count = counter.countText('Hello world')
-            expect(count).toBeGreaterThan(0)
+        test('counts ASCII text with the cl100k encoding', () => {
+            expect(counter.countText('hello')).toBe(1)
+            expect(counter.countText('Hello world')).toBe(2)
         })
 
-        test('counts tokens for longer text', () => {
+        test('counts CJK chars (~1 token each in cl100k)', () => {
+            expect(counter.countText('你好')).toBe(2)
+            expect(counter.countText('中文测试')).toBe(3)
+        })
+
+        test('counts longer text more than short text', () => {
             const short = counter.countText('Hi')
             const long = counter.countText('Hello, this is a longer text with more words.')
             expect(long).toBeGreaterThan(short)
         })
 
-        test('counts tokens for special characters', () => {
-            const count = counter.countText('Hello\nWorld\t!\n\n')
-            expect(count).toBeGreaterThan(0)
-        })
-
-        test('counts tokens for unicode text', () => {
-            const count = counter.countText('你好世界 Hello World 🌍')
-            expect(count).toBeGreaterThan(0)
-        })
-
-        test('counts tokens for JSON strings', () => {
-            const json = JSON.stringify({ key: 'value', nested: { a: 1, b: 2 } })
-            const count = counter.countText(json)
-            expect(count).toBeGreaterThan(0)
+        test('counts unicode and special characters', () => {
+            expect(counter.countText('你好世界 Hello World 🌍')).toBeGreaterThan(0)
+            expect(counter.countText('Hello\nWorld\t!\n\n')).toBeGreaterThan(0)
         })
     })
 
     describe('countMessages', () => {
-        let counter: ReturnType<typeof createTokenCounter>
-
-        beforeEach(() => {
-            counter = createTokenCounter()
-        })
-
-        afterEach(() => {
-            counter.dispose()
-        })
+        const counter = createTokenCounter()
 
         test('returns 0 for empty array', () => {
             expect(counter.countMessages([])).toBe(0)
         })
 
-        test('counts system message', () => {
-            const messages: ChatMessage[] = [{ role: 'system', content: 'You are a helpful assistant.' }]
-            const count = counter.countMessages(messages)
-            expect(count).toBeGreaterThan(0)
-        })
-
-        test('counts user message', () => {
-            const messages: ChatMessage[] = [{ role: 'user', content: 'Hello there!' }]
-            const count = counter.countMessages(messages)
-            expect(count).toBeGreaterThan(0)
-        })
-
-        test('counts assistant message', () => {
-            const messages: ChatMessage[] = [{ role: 'assistant', content: 'Hi! How can I help?' }]
-            const count = counter.countMessages(messages)
-            expect(count).toBeGreaterThan(0)
-        })
-
-        test('counts tool message', () => {
+        test('counts encoded content plus fixed structural overhead per message', () => {
             const messages: ChatMessage[] = [
-                {
-                    role: 'tool',
-                    content: 'Tool execution result',
-                    tool_call_id: 'call-123',
-                    name: 'test_tool',
-                },
+                { role: 'system', content: 'You are a helpful assistant.' },
+                { role: 'user', content: 'Hello there!' },
             ]
-            const count = counter.countMessages(messages)
-            expect(count).toBeGreaterThan(0)
+            const expected = 6 + 3 + 3 + 3 // 'You are...' 6 tok + 'Hello there!' 3 tok + 2 × 3 structural
+            expect(counter.countMessages(messages)).toBe(expected)
         })
 
-        test('counts multiple messages', () => {
+        test('counts multiple messages more than a single message', () => {
             const messages: ChatMessage[] = [
                 { role: 'system', content: 'System prompt' },
                 { role: 'user', content: 'User message' },
                 { role: 'assistant', content: 'Assistant response' },
             ]
-            const firstMsg = messages[0]
-            if (firstMsg) {
-                const single = counter.countMessages([firstMsg])
-                const multiple = counter.countMessages(messages)
-                expect(multiple).toBeGreaterThan(single)
-            }
+            const single = counter.countMessages([messages[0]!])
+            expect(counter.countMessages(messages)).toBeGreaterThan(single)
         })
 
-        test('includes assistant priming tokens', () => {
-            const messages: ChatMessage[] = [
-                { role: 'user', content: 'Hello' },
-                { role: 'assistant', content: 'Hi' },
-            ]
-            const count = counter.countMessages(messages)
-            const withoutAssistant = counter.countMessages([{ role: 'user', content: 'Hello' }])
-            expect(count).toBeGreaterThan(withoutAssistant)
-        })
-
-        test('counts tool_calls in assistant message', () => {
-            const messagesWithToolCalls: ChatMessage[] = [
+        test('includes structured parts (tool-call/reasoning)', () => {
+            const withParts: ChatMessage[] = [
                 {
                     role: 'assistant',
-                    content: 'Let me check',
-                    tool_calls: [
-                        {
-                            id: 'call-1',
-                            type: 'function',
-                            function: { name: 'read_file', arguments: '{"path": "test.txt"}' },
-                        },
+                    content: [
+                        { type: 'text', text: 'Let me check' },
+                        { type: 'reasoning', text: 'I should inspect file A before acting.' },
+                        { type: 'tool-call', toolCallId: 'call-1', toolName: 'read_file', input: { path: 'test.txt' } },
                     ],
                 },
             ]
-            const messagesWithoutToolCalls: ChatMessage[] = [{ role: 'assistant', content: 'Let me check' }]
-            const withCalls = counter.countMessages(messagesWithToolCalls)
-            const withoutCalls = counter.countMessages(messagesWithoutToolCalls)
-            expect(withCalls).toBeGreaterThan(withoutCalls)
+            const withoutParts: ChatMessage[] = [{ role: 'assistant', content: 'Let me check' }]
+            expect(counter.countMessages(withParts)).toBeGreaterThan(counter.countMessages(withoutParts))
         })
 
-        test('counts reasoning_content in assistant message', () => {
-            const messagesWithReasoning: ChatMessage[] = [
-                {
-                    role: 'assistant',
-                    content: '',
-                    reasoning_content: 'I should inspect file A before using read_file.',
-                    tool_calls: [
-                        {
-                            id: 'call-1',
-                            type: 'function',
-                            function: { name: 'read_file', arguments: '{"path":"README.md"}' },
-                        },
-                    ],
-                },
-            ]
-            const messagesWithoutReasoning: ChatMessage[] = [
-                {
-                    role: 'assistant',
-                    content: '',
-                    tool_calls: [
-                        {
-                            id: 'call-1',
-                            type: 'function',
-                            function: { name: 'read_file', arguments: '{"path":"README.md"}' },
-                        },
-                    ],
-                },
-            ]
-            const withReasoning = counter.countMessages(messagesWithReasoning)
-            const withoutReasoning = counter.countMessages(messagesWithoutReasoning)
-            expect(withReasoning).toBeGreaterThan(withoutReasoning)
-        })
-
-        test('includes tool_call_id in tool message counting', () => {
+        test('counts tool result messages', () => {
             const messages: ChatMessage[] = [
                 {
                     role: 'tool',
-                    content: 'Result',
-                    tool_call_id: 'call-abc123',
-                },
-            ]
-            const count = counter.countMessages(messages)
-            expect(count).toBeGreaterThan(0)
-        })
-
-        test('includes name field in tool message counting', () => {
-            const messages: ChatMessage[] = [
-                {
-                    role: 'tool',
-                    content: 'Result',
-                    tool_call_id: 'call-1',
-                    name: 'my_tool',
-                },
-            ]
-            const count = counter.countMessages(messages)
-            expect(count).toBeGreaterThan(0)
-        })
-
-        test('handles assistant message with only tool_calls and empty content', () => {
-            const messages: ChatMessage[] = [
-                {
-                    role: 'assistant',
-                    content: '',
-                    tool_calls: [
+                    content: [
                         {
-                            id: 'call-1',
-                            type: 'function',
-                            function: { name: 'test', arguments: '{}' },
+                            type: 'tool-result',
+                            toolCallId: 'call-123',
+                            toolName: 'test_tool',
+                            output: { type: 'text', value: 'Tool execution result' },
                         },
                     ],
                 },
             ]
-            const count = counter.countMessages(messages)
-            expect(count).toBeGreaterThan(0)
-        })
-
-        test('includes name overhead when message has name field', () => {
-            const msg: ChatMessage & { name?: string } = { role: 'system', content: 'Test' }
-            msg.name = 'custom_name'
-            const messages: ChatMessage[] = [msg]
-            const count = counter.countMessages(messages)
-            expect(count).toBeGreaterThan(0)
+            expect(counter.countMessages(messages)).toBeGreaterThan(0)
         })
 
         test('counts complex conversation', () => {
@@ -253,41 +102,36 @@ describe('createTokenCounter', () => {
                 { role: 'user', content: 'Write a function that adds two numbers.' },
                 {
                     role: 'assistant',
-                    content: 'I will create a simple add function for you.',
-                    tool_calls: [
+                    content: [
+                        { type: 'text', text: 'I will create a simple add function for you.' },
                         {
-                            id: 'call-1',
-                            type: 'function',
-                            function: {
-                                name: 'write_file',
-                                arguments: JSON.stringify({
-                                    path: 'add.js',
-                                    content: 'function add(a, b) { return a + b; }',
-                                }),
+                            type: 'tool-call',
+                            toolCallId: 'call-1',
+                            toolName: 'write_file',
+                            input: {
+                                path: 'add.js',
+                                content: 'function add(a, b) { return a + b; }',
                             },
                         },
                     ],
                 },
                 {
                     role: 'tool',
-                    content: 'File written successfully',
-                    tool_call_id: 'call-1',
-                    name: 'write_file',
+                    content: [
+                        {
+                            type: 'tool-result',
+                            toolCallId: 'call-1',
+                            toolName: 'write_file',
+                            output: { type: 'text', value: 'File written successfully' },
+                        },
+                    ],
                 },
                 {
                     role: 'assistant',
                     content: 'I have created the add.js file with the function.',
                 },
             ]
-            const count = counter.countMessages(messages)
-            expect(count).toBeGreaterThan(0)
-        })
-    })
-
-    describe('dispose', () => {
-        test('disposes counter without error', () => {
-            const counter = createTokenCounter()
-            counter.dispose()
+            expect(counter.countMessages(messages)).toBeGreaterThan(0)
         })
     })
 })

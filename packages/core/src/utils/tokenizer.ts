@@ -1,76 +1,93 @@
-/** @file tiktoken wrapper for token estimation. Used for compaction triggering, context overflow checks, and tool result sizing — not for usage reporting. */
-import { encoding_for_model, get_encoding, type Tiktoken } from '@dqbd/tiktoken'
+/** @file Token estimation for compaction triggering and context overflow checks — not for usage reporting. */
 import type { ChatMessage, TokenCounter } from '@memo/core/types'
+import { Tiktoken } from 'js-tiktoken/lite'
+import cl100k from 'js-tiktoken/ranks/cl100k_base'
 
-const DEFAULT_TOKENIZER_MODEL = 'cl100k_base'
+// cl100k_base covers OpenAI-compatible models (and is the closest general-purpose
+// encoding for compatible providers). Loaded lazily once and cached: the vocab is
+// ~1MB and encoding calls are sync. Any load failure falls back to the byte
+// estimate below so the counter always works.
+let encoding: Tiktoken | null = null
+let encodingLoadFailed = false
 
-type EncodingFactory = () => Tiktoken
-
-function safeEncodingFactory(model?: string): { model: string; factory: EncodingFactory } {
-    const resolvedModel = model?.trim() || DEFAULT_TOKENIZER_MODEL
+function getEncodingCached(): Tiktoken | null {
+    if (encoding) return encoding
+    if (encodingLoadFailed) return null
     try {
-        // encoding_for_model requires strict model names; using type assertion for dynamic input compatibility.
-        const factory = () => encoding_for_model(resolvedModel as any)
-        factory().free()
-        return { model: resolvedModel, factory }
+        encoding = new Tiktoken(cl100k)
     } catch {
-        // Fallback to generic cl100k_base for unknown models to avoid throwing.
-        const fallbackModel = DEFAULT_TOKENIZER_MODEL
-        const factory = () => get_encoding(fallbackModel)
-        factory().free()
-        return { model: fallbackModel, factory }
+        encodingLoadFailed = true
+    }
+    return encoding
+}
+
+// OpenAI's common approximation: 1 token ≈ 4 bytes (UTF-8).
+// CJK chars are ~3 bytes each, so the estimate stays within range for Chinese too.
+const BYTES_PER_TOKEN = 4
+
+const encoder = new TextEncoder()
+
+/** Rough token count for plain text: ceil(utf8 bytes / 4). Fallback when tiktoken is unavailable. */
+function approxTokenCount(text: string): number {
+    if (!text) return 0
+    return Math.ceil(encoder.encode(text).length / BYTES_PER_TOKEN)
+}
+
+// Fixed structural overhead per message (role wrapper + delimiters), added on top
+// of the encoded content when tiktoken is available.
+const STRUCTURAL_TOKENS_PER_MESSAGE = 3
+
+function encodeText(enc: Tiktoken, text: string): number {
+    try {
+        return enc.encode(text).length
+    } catch {
+        return approxTokenCount(text)
     }
 }
 
-function messagePayloadForCounting(message: ChatMessage): string {
-    if (message.role === 'assistant') {
-        const reasoning = message.reasoning_content ? `\n${message.reasoning_content}` : ''
-        if (message.tool_calls?.length) {
-            return `${message.content}${reasoning}\n${JSON.stringify(message.tool_calls)}`
+function countMessageTokens(message: ChatMessage): number {
+    const enc = getEncodingCached()
+    if (!enc) {
+        return approxTokenCount(JSON.stringify(message))
+    }
+
+    let count = STRUCTURAL_TOKENS_PER_MESSAGE
+    const content = message.content
+    if (typeof content === 'string') {
+        count += encodeText(enc, content)
+        return count
+    }
+    for (const part of content) {
+        switch (part.type) {
+            case 'text':
+            case 'reasoning':
+                count += encodeText(enc, part.text)
+                break
+            case 'tool-call':
+                count += encodeText(enc, part.toolName) + encodeText(enc, JSON.stringify(part.input))
+                break
+            case 'tool-result':
+                count += encodeText(enc, part.toolName)
+                count +=
+                    part.output.type === 'text'
+                        ? encodeText(enc, part.output.value)
+                        : encodeText(enc, JSON.stringify(part.output))
+                break
         }
-        return `${message.content}${reasoning}`
     }
-    if (message.role === 'tool') {
-        return `${message.content}\n${message.tool_call_id}\n${message.name ?? ''}`
-    }
-    return message.content
+    return count
 }
 
-/** Create a reusable token counter for prompt size estimation (compaction trigger, context overflow check). */
-export function createTokenCounter(model?: string): TokenCounter {
-    const { model: resolvedModel, factory } = safeEncodingFactory(model)
-    const encoding = factory()
-
-    // ChatML rough estimation: each message includes role/name wrapping overhead
-    // Reference OpenAI's common estimates for gpt-3.5/4: about 4 tokens per message, plus 2 tokens for assistant priming.
-    const TOKENS_PER_MESSAGE = 4
-    const TOKENS_FOR_ASSISTANT_PRIMING = 2
-    const TOKENS_PER_NAME = 1
-
-    const countText = (text: string) => {
-        if (!text) return 0
-        return encoding.encode(text).length
-    }
-
-    const countMessages = (messages: ChatMessage[]) => {
-        if (!messages.length) return 0
-        let total = 0
-        for (const message of messages) {
-            total += TOKENS_PER_MESSAGE
-            total += countText(messagePayloadForCounting(message))
-            // Currently not using message.name, but add overhead when name field is reserved
-            if ((message as any).name) {
-                total += TOKENS_PER_NAME
-            }
-        }
-        total += TOKENS_FOR_ASSISTANT_PRIMING
-        return total
-    }
-
+/** Create a token counter for prompt size estimation (compaction trigger, context overflow check). */
+export function createTokenCounter(): TokenCounter {
     return {
-        model: resolvedModel,
-        countText,
-        countMessages,
-        dispose: () => encoding.free(),
+        countText: (text: string) => {
+            if (!text) return 0
+            const enc = getEncodingCached()
+            if (enc) return encodeText(enc, text)
+            return approxTokenCount(text)
+        },
+        countMessages: (messages: ChatMessage[]) =>
+            messages.reduce((sum, message) => sum + countMessageTokens(message), 0),
     }
 }

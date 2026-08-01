@@ -10,7 +10,6 @@
     "dependencies": {
         "@inkjs/ui": "^2.0.0",
         "@memo-code/core": "workspace:*",
-        "@memo-code/tools": "workspace:*",
         "ignore": "^7.0.5",
         "ink": "^6.7.0",
         "marked": "^17.0.1",

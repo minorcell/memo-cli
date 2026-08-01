@@ -1,5 +1,5 @@
 import path from 'node:path'
-import type { ToolActionStatus } from '@memo/tools/orchestrator'
+import type { ToolActionStatus } from '@memo/core'
 import { TOOL_STATUS, type ToolStatus } from '../types'
 
 const TOOL_ACTION_STATUS_SUCCESS: ToolActionStatus = 'success'
@@ -19,11 +19,6 @@ export function calculateContextPercent(currentTokens: number, contextLimit: num
     if (!contextLimit || contextLimit <= 0) return 0
     if (!currentTokens || currentTokens <= 0) return 0
     return Math.min(100, (currentTokens / contextLimit) * 100)
-}
-
-export function truncate(input: string, max = 80): string {
-    if (input.length <= max) return input
-    return `${input.slice(0, Math.max(0, max - 3))}...`
 }
 
 export function safeStringify(value: unknown): string {

@@ -1,7 +1,8 @@
 import { memo } from 'react'
-import { Box, Text, useInput } from 'ink'
-import { Select, StatusMessage, type Option as SelectOption } from '@inkjs/ui'
-import type { ApprovalDecision, ApprovalRequest } from '@memo/tools/approval'
+import { Box, Text, useInput, useStdout } from 'ink'
+import { Select, type Option as SelectOption } from '@inkjs/ui'
+import type { ApprovalDecision, ApprovalRequest } from '@memo/core'
+import { previewText } from '../timeline/contentPreview'
 
 type ApprovalOverlayProps = {
     request: ApprovalRequest
@@ -27,30 +28,43 @@ function shortParam(params: unknown): string {
     const [key, value] = entries[0] ?? []
     if (!key) return ''
     const raw = typeof value === 'string' ? value : JSON.stringify(value)
-    return `${key}=${raw?.slice(0, 60) ?? ''}${raw && raw.length > 60 ? '...' : ''}`
+    return `${key}=${raw ?? ''}`
 }
 
 export const ApprovalOverlay = memo(function ApprovalOverlay({ request, onDecision }: ApprovalOverlayProps) {
-    useInput((input, key) => {
-        if (key.escape || (key.ctrl && input === 'c')) {
+    const { stdout } = useStdout()
+    // Note: Ctrl+C is handled by Ink's built-in exit, so only Esc is handled here.
+    useInput((_input, key) => {
+        if (key.escape) {
             onDecision('deny')
         }
     })
 
-    const param = shortParam(request.params)
+    const rawParam = shortParam(request.params)
+    const param = rawParam
+        ? previewText(rawParam, {
+              columns: Math.max(1, (stdout.columns ?? 80) - 4),
+              maxLines: 2,
+          }).text
+        : null
 
     return (
-        <Box flexDirection="column" borderStyle="single" borderColor="yellow" paddingX={1}>
-            <Text bold color="yellow">
-                Tool Approval Required
-            </Text>
-            <Text>
-                {request.toolName}
-                {param ? ` (${param})` : ''}
-            </Text>
-            <Box marginTop={1}>
-                <StatusMessage variant="warning">{request.reason}</StatusMessage>
+        <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} marginTop={1}>
+            <Box justifyContent="space-between">
+                <Text bold color="yellow">
+                    Approval required
+                </Text>
+                <Text color="gray">{request.riskLevel}</Text>
             </Box>
+            <Text bold color="cyan">
+                {request.toolName}
+            </Text>
+            {param ? (
+                <Text color="gray" dimColor>
+                    {param}
+                </Text>
+            ) : null}
+            <Text color="yellow">{request.reason}</Text>
             <Box marginTop={1} flexDirection="column">
                 <Select
                     options={DEFAULT_OPTIONS.map(

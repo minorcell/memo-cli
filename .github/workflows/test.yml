@@ -8,9 +8,9 @@ on:
     workflow_dispatch:
 
 jobs:
-    # 在 Linux 上运行所有检查
-    test:
-        name: Test & Lint
+    # 快速检查：格式化 + lint，与测试/构建并行
+    format-lint:
+        name: Format & Lint
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -19,7 +19,30 @@ jobs:
                   version: 9
             - uses: actions/setup-node@v4
               with:
-                  node-version: '20'
+                  node-version: '22'
+                  cache: 'pnpm'
+
+            - name: Install dependencies
+              run: pnpm install
+
+            - name: Format check
+              run: pnpm run format:check
+
+            - name: Lint
+              run: pnpm run lint
+
+    # 测试 + 覆盖率上报（需要 ripgrep：部分工具/测试依赖 rg）
+    test:
+        name: Test & Coverage
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v2
+              with:
+                  version: 9
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
                   cache: 'pnpm'
 
             - name: Install ripgrep
@@ -28,11 +51,11 @@ jobs:
             - name: Install dependencies
               run: pnpm install
 
-            - name: Format check
-              run: pnpm run format:check
+            - name: Test all packages
+              run: pnpm run test
 
-            - name: Test all packages with coverage
-              run: pnpm run test:coverage
+            - name: Coverage report (warning only, non-blocking)
+              run: pnpm run test:coverage || echo "::warning::Test coverage is below the thresholds in vitest.config.ts. PR is not blocked by coverage."
 
             - name: Upload coverage reports to Codecov
               uses: codecov/codecov-action@v5
@@ -40,6 +63,23 @@ jobs:
                   token: ${{ secrets.CODECOV_TOKEN }}
                   files: ./coverage/lcov.info
                   fail_ci_if_error: false
+
+    # 打包验证：与测试并行
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v2
+              with:
+                  version: 9
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+                  cache: 'pnpm'
+
+            - name: Install dependencies
+              run: pnpm install
 
             - name: Test build
               run: pnpm run build

@@ -51,4 +51,18 @@ describe('markdown parser', () => {
         assert.ok(kinds.includes('code'))
         assert.ok(kinds.includes('hr'))
     })
+
+    test('parses incomplete fenced code during streaming', () => {
+        const blocks = parseMarkdownContent('```ts\nconst value = 1')
+
+        assert.deepStrictEqual(blocks, [{ type: 'code', language: 'ts', content: 'const value = 1' }])
+    })
+
+    test('upgrades incomplete emphasis when the closing marker arrives', () => {
+        assert.deepStrictEqual(parseInlineNodes('streaming **bold'), [{ type: 'text', content: 'streaming **bold' }])
+        assert.deepStrictEqual(parseInlineNodes('streaming **bold**'), [
+            { type: 'text', content: 'streaming ' },
+            { type: 'bold', content: 'bold' },
+        ])
+    })
 })
