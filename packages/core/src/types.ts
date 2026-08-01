@@ -87,6 +87,8 @@ export type CallLLMOptions = {
     signal?: AbortSignal
     /** Tool execution context (approval/gate/hooks) captured by the loop; absent disables tools. */
     toolContext?: ToolExecutionContext
+    /** Thinking toggle for this call; undefined falls back to the provider model profile. */
+    thinking?: boolean
 }
 
 export type CallLLM = (
@@ -149,6 +151,8 @@ export type AgentSessionOptions = {
     dangerous?: boolean
     /** 工具权限模式：禁用工具 / 每次审批 / 全部放行。 */
     toolPermissionMode?: ToolPermissionMode
+    /** 思考模式初始开关（undefined 跟随模型 profile；可运行时 setThinking 切换）。 */
+    thinking?: boolean
 }
 
 /** Session 运行需要的依赖（含扩展项）。 */
@@ -217,6 +221,8 @@ export type FinalHookPayload = {
     tokenUsage?: LanguageModelUsage
     turnUsage: LanguageModelUsage
     steps: AgentStepTrace[]
+    /** Thinking trace of the final step (rendered on the last step cell). */
+    thinking?: string
 }
 
 export type ContextUsagePhase = 'turn_start' | 'step_start' | 'post_compact'
@@ -306,6 +312,8 @@ export type AgentSession = {
     listToolNames?: () => string[]
     /** 手动触发历史压缩。 */
     compactHistory: (reason?: CompactReason) => Promise<CompactResult>
+    /** 运行时切换思考模式（无需重建会话）。 */
+    setThinking?: (enabled: boolean) => void
     /** 结束 Session，释放资源。 */
     close: () => Promise<void>
 }

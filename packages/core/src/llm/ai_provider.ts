@@ -14,8 +14,9 @@ export type AIProviderFactory = {
     /**
      * Request-level providerOptions for non-standard wire fields.
      * Keyed by the provider instance name (config.name) inside streamCallLLM.
+     * `thinking` overrides the profile flag (undefined follows profile.supportsReasoningContent).
      */
-    buildProviderOptions: (profile: ModelProfile) => Record<string, JSONValue> | undefined
+    buildProviderOptions: (profile: ModelProfile, thinking?: boolean) => Record<string, JSONValue> | undefined
 }
 
 function openAICompatibleFactory(defaultBaseURL?: string): AIProviderFactory {
@@ -30,8 +31,19 @@ function openAICompatibleFactory(defaultBaseURL?: string): AIProviderFactory {
                 // Stream usage back through stream_options.include_usage.
                 includeUsage: true,
             }),
-        buildProviderOptions: (profile) =>
-            profile.supportsParallelToolCalls ? { parallel_tool_calls: true } : undefined,
+        buildProviderOptions: (profile, thinking) => {
+            // Non-standard deepseek fields passed through under the provider name:
+            // parallel_tool_calls, thinking (reasoning toggle).
+            // deepseek defaults to thinking; disabling requires an explicit `disabled` value (codex-style).
+            const options: Record<string, JSONValue> = {}
+            if (profile.supportsParallelToolCalls) options.parallel_tool_calls = true
+            if (thinking === false) {
+                options.thinking = { type: 'disabled' }
+            } else if (thinking ?? profile.supportsReasoningContent) {
+                options.thinking = { type: 'enabled' }
+            }
+            return Object.keys(options).length > 0 ? options : undefined
+        },
     }
 }
 

@@ -135,6 +135,7 @@ export async function withDefaultDeps(
                     profile: modelProfile,
                     factory: getProviderFactory(provider),
                     toolContext: callOptions?.toolContext,
+                    thinking: callOptions?.thinking,
                     onChunk,
                     signal: callOptions?.signal,
                 })

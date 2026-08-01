@@ -84,4 +84,39 @@ describe('buildProviderOptions', () => {
             parallel_tool_calls: true,
         })
     })
+
+    test('thinking passthrough when reasoning content supported', () => {
+        const factory = getProviderFactory({ name: 'deepseek' })
+        expect(factory.buildProviderOptions({ ...PROFILE, supportsReasoningContent: true })).toEqual({
+            thinking: { type: 'enabled' },
+        })
+    })
+
+    test('combines parallel_tool_calls and thinking', () => {
+        const factory = getProviderFactory({ name: 'deepseek' })
+        expect(
+            factory.buildProviderOptions({
+                ...PROFILE,
+                supportsParallelToolCalls: true,
+                supportsReasoningContent: true,
+            }),
+        ).toEqual({
+            parallel_tool_calls: true,
+            thinking: { type: 'enabled' },
+        })
+    })
+
+    test('thinking=true enables reasoning regardless of profile', () => {
+        const factory = getProviderFactory({ name: 'deepseek' })
+        expect(factory.buildProviderOptions(PROFILE, true)).toEqual({
+            thinking: { type: 'enabled' },
+        })
+    })
+
+    test('thinking=false sends explicit disabled (deepseek defaults to thinking)', () => {
+        const factory = getProviderFactory({ name: 'deepseek' })
+        expect(factory.buildProviderOptions({ ...PROFILE, supportsReasoningContent: true }, false)).toEqual({
+            thinking: { type: 'disabled' },
+        })
+    })
 })

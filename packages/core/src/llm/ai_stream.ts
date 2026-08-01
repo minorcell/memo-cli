@@ -18,6 +18,8 @@ export type StreamCallLLMParams = {
     profile: ModelProfile
     factory: AIProviderFactory
     toolContext?: ToolExecutionContext
+    /** Thinking override; undefined follows profile.supportsReasoningContent. */
+    thinking?: boolean
     onChunk?: (chunk: string) => void
     signal?: AbortSignal
 }
@@ -40,11 +42,11 @@ export function normalizeStreamError(err: unknown, signal?: AbortSignal): Error 
 
 /** Default callLLM implementation: stream via AI SDK, tools execute inside streamText. */
 export async function streamCallLLM(params: StreamCallLLMParams): Promise<LLMResult> {
-    const { provider, apiKey, messages, tools, profile, factory, toolContext, onChunk, signal } = params
+    const { provider, apiKey, messages, tools, profile, factory, toolContext, thinking, onChunk, signal } = params
     const sdkTools: SdkToolSet | undefined =
         tools && Object.keys(tools).length > 0 && toolContext ? buildSdkTools(tools, toolContext) : undefined
     const model = factory.build(provider, apiKey)(provider.model)
-    const requestProviderOptions = factory.buildProviderOptions(profile)
+    const requestProviderOptions = factory.buildProviderOptions(profile, thinking)
 
     const result = streamText({
         model,

@@ -68,6 +68,8 @@ export class AgentSessionImpl implements AgentSession {
     private approvalManager: ApprovalManager
     private toolsDisabled = false
     private toolPermissionMode: ToolPermissionMode | 'auto' = 'auto'
+    /** Thinking override; undefined follows the provider model profile. */
+    private thinkingOverride: boolean | undefined
 
     constructor(
         private deps: AgentSessionDeps & {
@@ -93,6 +95,12 @@ export class AgentSessionImpl implements AgentSession {
             dangerous: resolvedPermission.dangerous,
             mode: resolvedPermission.approvalMode,
         })
+        this.thinkingOverride = options.thinking
+    }
+
+    /** 运行时切换思考模式（undefined 恢复为跟随模型 profile）。 */
+    setThinking(enabled: boolean): void {
+        this.thinkingOverride = enabled
     }
 
     /** 初始化：延迟写入 session_start，避免空会话落盘。 */
@@ -542,7 +550,7 @@ export class AgentSessionImpl implements AgentSession {
                                 }
                                 this.deps.onAssistantStep?.(chunk, step)
                             },
-                            { signal: abortController.signal, toolContext },
+                            { signal: abortController.signal, toolContext, thinking: this.thinkingOverride },
                         )
                         const normalized = normalizeLLMResponse(llmResult)
                         assistantText = normalized.textContent
@@ -637,7 +645,7 @@ export class AgentSessionImpl implements AgentSession {
                             parsed = {}
                         }
                     } else if (assistantText) {
-                        parsed = { final: assistantText }
+                        parsed = { final: assistantText, thinking: reasoningContent }
                         assistantHistoryMessage = {
                             role: 'assistant',
                             content: [
@@ -680,6 +688,7 @@ export class AgentSessionImpl implements AgentSession {
                             protocol_violation_count: textToolCall
                                 ? protocolViolationCount + 1
                                 : protocolViolationCount || undefined,
+                            thinking: reasoningContent,
                         },
                     })
 
@@ -896,6 +905,7 @@ export class AgentSessionImpl implements AgentSession {
                             meta: {
                                 tokens: stepUsage,
                                 fallback_from_previous_text: shouldFallbackFromPreviousText || undefined,
+                                thinking: reasoningContent,
                             },
                         })
                         await runHook(this.hooks, 'onFinal', {
@@ -907,6 +917,7 @@ export class AgentSessionImpl implements AgentSession {
                             tokenUsage: stepUsage,
                             turnUsage: { ...turnUsage },
                             steps,
+                            thinking: reasoningContent,
                         })
                         break
                     }
