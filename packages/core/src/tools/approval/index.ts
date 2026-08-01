@@ -15,5 +15,5 @@ export type {
 
 export { createApprovalManager } from './manager'
 export { createToolClassifier } from './classifier'
-export { generateFingerprint, stableStringify } from './fingerprint'
+export { generateFingerprint, generatePartialFingerprint } from './fingerprint'
 export { DEFAULT_TOOL_RISK_LEVELS, RISK_LEVEL_ORDER } from './constants'
