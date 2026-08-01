@@ -20,6 +20,11 @@ type ParseResultState = {
     title: string
     project: string
     cwd: string
+    providerName?: string
+    modelName?: string
+    contextWindow?: number
+    toolPermissionMode?: string
+    thinking?: boolean
     startedAt: string
     updatedAt: string
     status: SessionRuntimeStatus
@@ -272,6 +277,11 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
         title: '',
         project: '',
         cwd: '',
+        providerName: undefined,
+        modelName: undefined,
+        contextWindow: undefined,
+        toolPermissionMode: undefined,
+        thinking: undefined,
         startedAt: events[0]?.ts ?? fallbackNow,
         updatedAt: events[events.length - 1]?.ts ?? events[0]?.ts ?? fallbackNow,
         status: 'idle',
@@ -292,6 +302,19 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
         if (event.type === 'session_start' && event.meta) {
             const cwd = safeString(event.meta.cwd)
             if (cwd) state.cwd = cwd
+            const providerName = safeString(event.meta.providerName)
+            if (providerName) state.providerName = providerName
+            const modelName = safeString(event.meta.modelName)
+            if (modelName) state.modelName = modelName
+            const contextWindow = event.meta.contextWindow
+            if (typeof contextWindow === 'number' && Number.isFinite(contextWindow) && contextWindow > 0) {
+                state.contextWindow = contextWindow
+            }
+            const toolPermissionMode = safeString(event.meta.toolPermissionMode)
+            if (toolPermissionMode) state.toolPermissionMode = toolPermissionMode
+            if (typeof event.meta.thinking === 'boolean') {
+                state.thinking = event.meta.thinking
+            }
         }
 
         if (event.type === 'session_title') {
@@ -300,6 +323,9 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
         }
 
         if (event.type === 'turn_start') {
+            if (typeof event.meta?.thinking === 'boolean') {
+                state.thinking = event.meta.thinking
+            }
             const turnId = event.turn ?? state.turnCount + 1
             const turn = ensureTurn(state, turnId)
             turn.input = event.content
@@ -475,6 +501,11 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
         summary: state.summaryParts.join('\n'),
         turns,
         events,
+        providerName: state.providerName,
+        modelName: state.modelName,
+        contextWindow: state.contextWindow,
+        toolPermissionMode: state.toolPermissionMode,
+        thinking: state.thinking,
         compactionSummary: state.compactionSummary,
     }
 }

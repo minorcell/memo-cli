@@ -64,6 +64,7 @@ type ComposerProps = {
     onHistorySelect: (entry: SessionHistoryEntry) => void
     onModelSelect: (provider: ProviderConfig) => void
     onToggleThinking: () => void
+    onToggleFollowOutput: () => void
     thinkingOn: boolean
     onSetToolPermission: (mode: ToolPermissionMode) => void
     onSystemMessage: (title: string, content: string) => void
@@ -317,6 +318,7 @@ export const Composer = memo(function Composer({
     onModelSelect,
     onSetToolPermission,
     onToggleThinking,
+    onToggleFollowOutput,
     thinkingOn,
     onSystemMessage,
 }: ComposerProps) {
@@ -628,6 +630,11 @@ export const Composer = memo(function Composer({
                 closeSuggestions()
                 onClear()
                 onNewSession()
+                return
+            }
+
+            if (key.ctrl && input === 't') {
+                onToggleFollowOutput()
                 return
             }
 

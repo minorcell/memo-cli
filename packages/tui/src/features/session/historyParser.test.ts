@@ -15,7 +15,17 @@ function line(event: Record<string, unknown>): string {
 describe('parseHistoryLog', () => {
     test('maps core history detail to tui timeline model', () => {
         const raw = [
-            line({ type: 'session_start', meta: { cwd: '/tmp/demo' } }),
+            line({
+                type: 'session_start',
+                meta: {
+                    cwd: '/tmp/demo',
+                    providerName: 'deepseek',
+                    modelName: 'deepseek-chat',
+                    contextWindow: 64000,
+                    toolPermissionMode: 'once',
+                    thinking: true,
+                },
+            }),
             line({ type: 'turn_start', turn: 1, content: 'plan this task' }),
             line({ type: 'assistant', turn: 1, step: 0, content: 'thinking...' }),
             line({
@@ -44,6 +54,11 @@ describe('parseHistoryLog', () => {
         ].join('\n')
 
         const parsed = parseHistoryLog(raw)
+        assert.strictEqual(parsed.providerName, 'deepseek')
+        assert.strictEqual(parsed.modelName, 'deepseek-chat')
+        assert.strictEqual(parsed.contextWindow, 64000)
+        assert.strictEqual(parsed.toolPermissionMode, 'once')
+        assert.strictEqual(parsed.thinking, true)
         assert.strictEqual(parsed.messages.length, 2)
         assert.strictEqual(parsed.messages[0]?.role, 'user')
         assert.strictEqual(parsed.messages[0]?.content, 'plan this task')

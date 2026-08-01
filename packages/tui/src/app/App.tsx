@@ -25,6 +25,7 @@ import {
     runtimeStatus,
     type TurnRequest,
 } from './runtimeState'
+import { VisibleUpdateQueue, type VisibleUpdate } from './visibleUpdateQueue'
 import { ChatWidget } from '../features/timeline/ChatWidget'
 import { Composer } from '../features/composer/Composer'
 import { Footer } from '../shared/ui/Footer'
@@ -131,6 +132,7 @@ export function App({
         const override = modelProfilesState?.[model] ?? modelProfilesState?.[`${providerName}:${model}`]
         return override?.supports_reasoning_content ?? true
     })
+    const thinkingOnRef = useRef(thinkingOn)
 
     const resolveContextLimit = useCallback(
         (providerConfig: Pick<ProviderConfig, 'name' | 'model'>) =>
@@ -141,15 +143,18 @@ export function App({
     const [sessionOptionsState, setSessionOptionsState] = useState<AgentSessionOptions>({
         ...sessionOptions,
         providerName,
+        modelName: model,
         contextWindow: resolveContextLimit({ name: providerName, model }),
         dangerous: defaultToolPermissionMode === TOOL_PERMISSION_MODES.FULL,
         toolPermissionMode: defaultToolPermissionMode,
+        thinking: thinkingOn,
     })
 
     const [inputHistory, setInputHistory] = useState<string[]>([])
 
     const [contextLimit, setContextLimit] = useState<number>(resolveContextLimit({ name: providerName, model }))
     const [currentContextTokens, setCurrentContextTokens] = useState(0)
+    const [followOutput, setFollowOutput] = useState(true)
 
     const [setupPending, setSetupPending] = useState(needsSetup)
     const [mcpSelectionPending, setMcpSelectionPending] = useState(!needsSetup && availableMcpServerNames.length > 0)
@@ -163,6 +168,38 @@ export function App({
     const currentTurnRef = useRef<number | null>(null)
     const nextUserInputOverrideRef = useRef<string | null>(null)
     const startedOperationRef = useRef<number | null>(null)
+    const followOutputRef = useRef(true)
+
+    const applyVisibleUpdate = useCallback((update: VisibleUpdate) => {
+        if (update.kind === 'timeline') {
+            dispatchTimeline(update.action)
+        } else if (update.kind === 'plan') {
+            dispatchPlan(update.action)
+        } else {
+            setCurrentContextTokens(update.promptTokens)
+        }
+    }, [])
+    const visibleUpdateQueueRef = useRef<VisibleUpdateQueue | null>(null)
+    if (!visibleUpdateQueueRef.current) {
+        visibleUpdateQueueRef.current = new VisibleUpdateQueue(applyVisibleUpdate)
+    }
+    const visibleUpdateQueue = visibleUpdateQueueRef.current
+
+    const setOutputFollowing = useCallback(
+        (following: boolean) => {
+            followOutputRef.current = following
+            visibleUpdateQueue.setFollowing(following)
+            setFollowOutput(following)
+        },
+        [visibleUpdateQueue],
+    )
+
+    const resetVisibleOutput = useCallback(() => {
+        visibleUpdateQueue.clear()
+        followOutputRef.current = true
+        visibleUpdateQueue.setFollowing(true)
+        setFollowOutput(true)
+    }, [visibleUpdateQueue])
 
     const operationStatus = runtimeStatus(runtime)
     const pendingApproval = pendingRuntimeApproval(runtime)
@@ -183,15 +220,52 @@ export function App({
     const handleToggleThinking = useCallback(() => {
         setThinkingOn((prev) => {
             const next = !prev
+            thinkingOnRef.current = next
             sessionRef.current?.setThinking?.(next)
             return next
         })
     }, [])
 
+    const handleToggleFollowOutput = useCallback(() => {
+        if (followOutputRef.current && runtime.active?.kind !== 'turn') return
+        setOutputFollowing(!followOutputRef.current)
+    }, [runtime.active, setOutputFollowing])
+
     const localPackageInfo = useMemo(() => findLocalPackageInfoSync(), [])
+
+    const restoreSessionUiState = useCallback((parsed: ParsedHistoryLog) => {
+        const restoredToolPermissionMode =
+            parsed.toolPermissionMode === 'none' ||
+            parsed.toolPermissionMode === 'once' ||
+            parsed.toolPermissionMode === 'full'
+                ? parsed.toolPermissionMode
+                : undefined
+        if (parsed.providerName) setCurrentProvider(parsed.providerName)
+        if (parsed.modelName) setCurrentModel(parsed.modelName)
+        if (typeof parsed.thinking === 'boolean') {
+            thinkingOnRef.current = parsed.thinking
+            setThinkingOn(parsed.thinking)
+        }
+        if (parsed.contextWindow) setContextLimit(parsed.contextWindow)
+        if (restoredToolPermissionMode) setToolPermissionMode(restoredToolPermissionMode)
+        setInputHistory(parsed.turns.map((turn) => turn.userInput.trim()).filter(Boolean))
+        setSessionOptionsState((prev) => ({
+            ...prev,
+            providerName: parsed.providerName ?? prev.providerName,
+            modelName: parsed.modelName ?? prev.modelName,
+            contextWindow: parsed.contextWindow ?? prev.contextWindow,
+            toolPermissionMode: restoredToolPermissionMode ?? prev.toolPermissionMode,
+            dangerous:
+                restoredToolPermissionMode === undefined
+                    ? prev.dangerous
+                    : restoredToolPermissionMode === TOOL_PERMISSION_MODES.FULL,
+            thinking: typeof parsed.thinking === 'boolean' ? parsed.thinking : prev.thinking,
+        }))
+    }, [])
 
     useEffect(() => {
         if (!initialHistory) return
+        resetVisibleOutput()
         dispatchTimeline({ type: 'clear_current_timeline' })
         dispatchTimeline({
             type: 'replace_history',
@@ -200,15 +274,8 @@ export function App({
         })
         dispatchPlan({ type: 'restore_history', turns: initialHistory.turns })
         setPendingHistoryMessages(initialHistory.messages)
-        if (initialHistory.summary.trim()) {
-            dispatchTimeline({
-                type: 'append_system_message',
-                title: 'History',
-                content: initialHistory.summary,
-                tone: 'info',
-            })
-        }
-    }, [dispatchTimeline, initialHistory])
+        restoreSessionUiState(initialHistory)
+    }, [dispatchTimeline, initialHistory, resetVisibleOutput, restoreSessionUiState])
 
     useEffect(() => {
         if (setupPending) return
@@ -228,12 +295,18 @@ export function App({
             onAssistantStep: (chunk: string, step: number) => {
                 const turn = currentTurnRef.current
                 if (!turn) return
-                dispatchTimeline({ type: 'assistant_chunk', turn, step, chunk })
+                visibleUpdateQueue.enqueue({
+                    kind: 'timeline',
+                    action: { type: 'assistant_chunk', turn, step, chunk },
+                })
             },
             onReasoningChunk: (chunk: string, step: number) => {
                 const turn = currentTurnRef.current
                 if (!turn) return
-                dispatchTimeline({ type: 'reasoning_chunk', turn, step, chunk })
+                visibleUpdateQueue.enqueue({
+                    kind: 'timeline',
+                    action: { type: 'reasoning_chunk', turn, step, chunk },
+                })
             },
             requestApproval:
                 toolPermissionMode === TOOL_PERMISSION_MODES.FULL || toolPermissionMode === TOOL_PERMISSION_MODES.NONE
@@ -251,61 +324,68 @@ export function App({
                     }
                     const displayInput = override ?? input
 
+                    const updates: VisibleUpdate[] = []
                     if (promptTokens && promptTokens > 0) {
-                        setCurrentContextTokens(promptTokens)
+                        updates.push({ kind: 'context', promptTokens })
                     }
-
-                    dispatchTimeline({
-                        type: 'turn_start',
-                        turn,
-                        input: displayInput,
-                        promptTokens,
+                    updates.push({
+                        kind: 'timeline',
+                        action: {
+                            type: 'turn_start',
+                            turn,
+                            input: displayInput,
+                            promptTokens,
+                        },
                     })
+                    visibleUpdateQueue.enqueueMany(updates)
                 },
                 onContextUsage: ({ turn, step, promptTokens, phase }) => {
-                    setCurrentContextTokens(promptTokens)
-                    dispatchTimeline({
-                        type: 'context_usage',
-                        turn,
-                        step,
-                        promptTokens,
-                        phase,
-                    })
+                    visibleUpdateQueue.enqueueMany([
+                        { kind: 'context', promptTokens },
+                        {
+                            kind: 'timeline',
+                            action: {
+                                type: 'context_usage',
+                                turn,
+                                step,
+                                promptTokens,
+                                phase,
+                            },
+                        },
+                    ])
                 },
                 onContextCompacted: ({ reason, status, beforeTokens, afterTokens, reductionPercent, errorMessage }) => {
-                    if (status === 'success') {
-                        setCurrentContextTokens(afterTokens)
-                    }
                     const compactedBy = reason === 'manual' ? 'manual command' : 'auto trigger'
+                    let content: string
+                    let tone: 'info' | 'warning' = 'info'
                     if (status === 'success') {
-                        appendSystemMessage(
-                            'Context compacted',
-                            `Compacted by ${compactedBy}: ${beforeTokens} -> ${afterTokens} tokens (${reductionPercent.toFixed(2)}% reduced).`,
-                        )
-                        return
+                        content = `Compacted by ${compactedBy}: ${beforeTokens} -> ${afterTokens} tokens (${reductionPercent.toFixed(2)}% reduced).`
+                    } else if (status === 'skipped') {
+                        content = `Skipped (${compactedBy}): nothing to compact.`
+                        tone = 'warning'
+                    } else {
+                        content = `Failed (${compactedBy}): ${errorMessage ?? 'unknown error'}`
+                        tone = 'warning'
                     }
-                    if (status === 'skipped') {
-                        appendSystemMessage(
-                            'Context compacted',
-                            `Skipped (${compactedBy}): nothing to compact.`,
-                            'warning',
-                        )
-                        return
-                    }
-                    appendSystemMessage(
-                        'Context compacted',
-                        `Failed (${compactedBy}): ${errorMessage ?? 'unknown error'}`,
-                        'warning',
-                    )
+                    const updates: VisibleUpdate[] = []
+                    if (status === 'success') updates.push({ kind: 'context', promptTokens: afterTokens })
+                    updates.push({
+                        kind: 'timeline',
+                        action: { type: 'append_system_message', title: 'Context compacted', content, tone },
+                    })
+                    visibleUpdateQueue.enqueueMany(updates)
                 },
                 onAction: ({ turn, step, action, thinking, parallelActions }) => {
-                    dispatchTimeline({
-                        type: 'tool_action',
-                        turn,
-                        step,
-                        action,
-                        thinking,
-                        parallelActions,
+                    visibleUpdateQueue.enqueue({
+                        kind: 'timeline',
+                        action: {
+                            type: 'tool_action',
+                            turn,
+                            step,
+                            action,
+                            thinking,
+                            parallelActions,
+                        },
                     })
                 },
                 onObservation: ({ turn, step, observation, resultStatus, parallelResultStatuses, results }) => {
@@ -315,34 +395,45 @@ export function App({
                         observation: result.observation,
                         status: inferToolStatus(result.status),
                     }))
-                    dispatchTimeline({
-                        type: 'tool_observation',
-                        turn,
-                        step,
-                        observation,
-                        toolStatus: inferToolStatus(resultStatus),
-                        parallelToolStatuses: inferParallelToolStatuses(parallelResultStatuses),
-                        toolResults,
-                    })
-                    for (const result of toolResults) {
-                        dispatchPlan({ type: 'tool_result', result })
-                    }
+                    visibleUpdateQueue.enqueueMany([
+                        {
+                            kind: 'timeline',
+                            action: {
+                                type: 'tool_observation',
+                                turn,
+                                step,
+                                observation,
+                                toolStatus: inferToolStatus(resultStatus),
+                                parallelToolStatuses: inferParallelToolStatuses(parallelResultStatuses),
+                                toolResults,
+                            },
+                        },
+                        ...toolResults.map(
+                            (result): VisibleUpdate => ({
+                                kind: 'plan',
+                                action: { type: 'tool_result', result },
+                            }),
+                        ),
+                    ])
                 },
                 onFinal: ({ turn, finalText, status, errorMessage, turnUsage, tokenUsage, thinking }) => {
-                    dispatchTimeline({
-                        type: 'turn_final',
-                        turn,
-                        finalText,
-                        status,
-                        errorMessage,
-                        turnUsage,
-                        tokenUsage,
-                        thinking,
+                    visibleUpdateQueue.enqueue({
+                        kind: 'timeline',
+                        action: {
+                            type: 'turn_final',
+                            turn,
+                            finalText,
+                            status,
+                            errorMessage,
+                            turnUsage,
+                            tokenUsage,
+                            thinking,
+                        },
                     })
                 },
             },
         }),
-        [appendSystemMessage, approvalQueue, dispatchTimeline, toolPermissionMode],
+        [approvalQueue, toolPermissionMode, visibleUpdateQueue],
     )
 
     useEffect(() => {
@@ -356,7 +447,10 @@ export function App({
                     await previous.close()
                 }
 
-                const created = await createAgentSession(deps, sessionOptionsState)
+                const created = await createAgentSession(deps, {
+                    ...sessionOptionsState,
+                    thinking: thinkingOnRef.current,
+                })
                 if (cancelled) {
                     await created.close()
                     return
@@ -370,6 +464,7 @@ export function App({
                 sessionRef.current = null
                 setSession(null)
                 setSessionLogPath(null)
+                resetVisibleOutput()
                 dispatchRuntime({ type: 'reset' })
                 appendSystemMessage('Session', `Failed to create session: ${(err as Error).message}`, 'error')
             }
@@ -378,8 +473,9 @@ export function App({
         return () => {
             cancelled = true
         }
-    }, [appendSystemMessage, deps, mcpSelectionPending, sessionOptionsState, setupPending])
+    }, [appendSystemMessage, deps, mcpSelectionPending, resetVisibleOutput, sessionOptionsState, setupPending])
 
+    useEffect(() => () => visibleUpdateQueue.dispose(), [visibleUpdateQueue])
     useEffect(() => {
         return () => {
             if (sessionRef.current) {
@@ -441,14 +537,16 @@ export function App({
 
     const handleClear = useCallback(() => {
         if (guardActiveOperation('Clear')) return
+        resetVisibleOutput()
         dispatchTimeline({ type: 'clear_current_timeline' })
         setPendingHistoryMessages(null)
         setCurrentContextTokens(0)
         clearTerminalScreen()
-    }, [dispatchTimeline, guardActiveOperation])
+    }, [dispatchTimeline, guardActiveOperation, resetVisibleOutput])
 
     const handleNewSession = useCallback(() => {
         if (guardActiveOperation('New Session')) return
+        resetVisibleOutput()
         dispatchTimeline({ type: 'reset_all' })
         dispatchRuntime({ type: 'reset' })
         dispatchPlan({ type: 'clear' })
@@ -460,7 +558,7 @@ export function App({
             sessionId: randomUUID(),
         }))
         appendSystemMessage('New Session', 'Started a fresh session.')
-    }, [appendSystemMessage, dispatchTimeline, guardActiveOperation])
+    }, [appendSystemMessage, dispatchTimeline, guardActiveOperation, resetVisibleOutput])
 
     const persistCurrentProvider = useCallback(
         async (name: string) => {
@@ -486,6 +584,7 @@ export function App({
                 return
             }
 
+            resetVisibleOutput()
             dispatchTimeline({ type: 'reset_all' })
             dispatchRuntime({ type: 'reset' })
             dispatchPlan({ type: 'clear' })
@@ -500,6 +599,7 @@ export function App({
                 ...prev,
                 sessionId: randomUUID(),
                 providerName: provider.name,
+                modelName: provider.model,
                 contextWindow: nextContextLimit,
             }))
 
@@ -513,6 +613,7 @@ export function App({
             dispatchTimeline,
             guardActiveOperation,
             persistCurrentProvider,
+            resetVisibleOutput,
             resolveContextLimit,
         ],
     )
@@ -536,6 +637,7 @@ export function App({
             // switching modes recreates the session; reset the visible timeline
             // to match the fresh session's (empty) history.
             setToolPermissionMode(mode)
+            resetVisibleOutput()
             dispatchTimeline({ type: 'reset_all' })
             dispatchRuntime({ type: 'reset' })
             dispatchPlan({ type: 'clear' })
@@ -549,7 +651,14 @@ export function App({
             }))
             appendSystemMessage('Tools', `Tool permission set to ${toolPermissionLabel(mode)}. Conversation reset.`)
         },
-        [appendSystemMessage, dispatchTimeline, guardActiveOperation, toolPermissionLabel, toolPermissionMode],
+        [
+            appendSystemMessage,
+            dispatchTimeline,
+            guardActiveOperation,
+            resetVisibleOutput,
+            toolPermissionLabel,
+            toolPermissionMode,
+        ],
     )
 
     const persistActiveMcpServers = useCallback(
@@ -591,6 +700,7 @@ export function App({
             try {
                 const raw = await readFile(entry.sessionFile, 'utf8')
                 const parsed = parseHistoryLog(raw)
+                resetVisibleOutput()
                 dispatchTimeline({ type: 'clear_current_timeline' })
                 dispatchTimeline({
                     type: 'replace_history',
@@ -604,8 +714,8 @@ export function App({
                 setSessionLogPath(null)
                 setCurrentContextTokens(0)
                 currentTurnRef.current = null
+                restoreSessionUiState(parsed)
                 setSessionOptionsState((prev) => ({ ...prev, sessionId: randomUUID() }))
-                appendSystemMessage('History', parsed.summary || entry.input)
             } catch (err) {
                 appendSystemMessage(
                     'History',
@@ -614,7 +724,7 @@ export function App({
                 )
             }
         },
-        [appendSystemMessage, dispatchTimeline, guardActiveOperation],
+        [appendSystemMessage, dispatchTimeline, guardActiveOperation, resetVisibleOutput, restoreSessionUiState],
     )
 
     const handleCancelRun = useCallback(() => {
@@ -676,6 +786,10 @@ export function App({
                 return
             }
 
+            if (!followOutputRef.current) {
+                setOutputFollowing(true)
+            }
+
             if (trimmed === formatSlashCommand(SLASH_COMMANDS.INIT)) {
                 await runInitCommand()
                 return
@@ -691,7 +805,7 @@ export function App({
             }
             dispatchRuntime({ type: 'submit_turn', request })
         },
-        [handleExit, runInitCommand, session],
+        [handleExit, runInitCommand, session, setOutputFollowing],
     )
 
     useEffect(() => {
@@ -737,6 +851,7 @@ export function App({
                 ...prev,
                 sessionId: randomUUID(),
                 providerName: provider.name,
+                modelName: provider.model,
                 contextWindow: nextContextLimit,
                 autoCompactThresholdPercent: loaded.config.auto_compact_threshold_percent,
             }))
@@ -834,6 +949,7 @@ export function App({
                     void runCompactCommand()
                 }}
                 onToggleThinking={handleToggleThinking}
+                onToggleFollowOutput={handleToggleFollowOutput}
                 onHistorySelect={(entry) => {
                     void handleHistorySelect(entry)
                 }}
@@ -852,6 +968,7 @@ export function App({
                 queuedCount={runtime.queuedTurns.length}
                 contextPercent={contextPercent}
                 thinkingOn={thinkingOn}
+                followOutput={followOutput}
             />
         </Box>
     )

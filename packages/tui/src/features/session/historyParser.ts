@@ -12,6 +12,11 @@ export type ParsedHistoryLog = {
     messages: ChatMessage[]
     turns: TurnView[]
     maxSequence: number
+    providerName?: string
+    modelName?: string
+    contextWindow?: number
+    toolPermissionMode?: string
+    thinking?: boolean
     compactionSummary?: string
 }
 
@@ -100,6 +105,11 @@ export function parseHistoryLog(raw: string): ParsedHistoryLog {
         messages,
         turns,
         maxSequence: sequence,
+        providerName: detail.providerName,
+        modelName: detail.modelName,
+        contextWindow: detail.contextWindow,
+        toolPermissionMode: detail.toolPermissionMode,
+        thinking: detail.thinking,
         compactionSummary: detail.compactionSummary,
     }
 }
