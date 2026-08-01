@@ -25,11 +25,7 @@ import { McpActivationOverlay } from '../features/mcp/McpActivationOverlay'
 import { notifyApprovalRequested } from '../features/approval/approvalNotification'
 import { SetupWizard } from '../features/setup/SetupWizard'
 import { parseHistoryLog } from '../features/session/historyParser'
-import {
-    chatTimelineReducer,
-    createInitialTimelineState,
-    type ChatTimelineAction,
-} from '../features/timeline/chatTimeline'
+import { chatTimelineReducer, createInitialTimelineState } from '../features/timeline/chatTimeline'
 import { calculateContextPercent, inferParallelToolStatuses, inferToolStatus } from '../shared/lib/utils'
 import { checkForUpdate, findLocalPackageInfoSync } from '../shared/lib/version'
 import type { SessionHistoryEntry } from '../features/session/sessionHistory'
@@ -120,6 +116,10 @@ export function App({
     const [providersState, setProvidersState] = useState(providers)
     const [modelProfilesState, setModelProfilesState] = useState(modelProfiles)
     const [toolPermissionMode, setToolPermissionMode] = useState<ToolPermissionMode>(defaultToolPermissionMode)
+    const [thinkingOn, setThinkingOn] = useState<boolean>(() => {
+        const override = modelProfilesState?.[model] ?? modelProfilesState?.[`${providerName}:${model}`]
+        return override?.supports_reasoning_content ?? true
+    })
 
     const resolveContextLimit = useCallback(
         (providerConfig: Pick<ProviderConfig, 'name' | 'model'>) =>
@@ -155,30 +155,34 @@ export function App({
 
     const { pendingApproval, setPendingApproval, approvalResolverRef, handleApprovalDecision } = useApproval()
 
-    const localPackageInfo = useMemo(() => findLocalPackageInfoSync(), [])
-
-    const dispatch = useCallback((action: ChatTimelineAction) => {
-        dispatchTimeline(action)
+    const handleToggleThinking = useCallback(() => {
+        setThinkingOn((prev) => {
+            const next = !prev
+            sessionRef.current?.setThinking?.(next)
+            return next
+        })
     }, [])
+
+    const localPackageInfo = useMemo(() => findLocalPackageInfoSync(), [])
 
     useEffect(() => {
         if (!initialHistory) return
-        dispatch({ type: 'clear_current_timeline' })
-        dispatch({
+        dispatchTimeline({ type: 'clear_current_timeline' })
+        dispatchTimeline({
             type: 'replace_history',
             turns: initialHistory.turns,
             maxSequence: initialHistory.maxSequence,
         })
         setPendingHistoryMessages(initialHistory.messages)
         if (initialHistory.summary.trim()) {
-            dispatch({
+            dispatchTimeline({
                 type: 'append_system_message',
                 title: 'History',
                 content: initialHistory.summary,
                 tone: 'info',
             })
         }
-    }, [dispatch, initialHistory])
+    }, [dispatchTimeline, initialHistory])
 
     useEffect(() => {
         if (setupPending) return
@@ -188,9 +192,9 @@ export function App({
 
     const appendSystemMessage = useCallback(
         (title: string, content: string, tone: 'info' | 'warning' | 'error' = 'info') => {
-            dispatch({ type: 'append_system_message', title, content, tone })
+            dispatchTimeline({ type: 'append_system_message', title, content, tone })
         },
-        [dispatch],
+        [dispatchTimeline],
     )
 
     const deps = useMemo<AgentSessionDeps>(
@@ -198,7 +202,7 @@ export function App({
             onAssistantStep: (chunk: string, step: number) => {
                 const turn = currentTurnRef.current
                 if (!turn) return
-                dispatch({ type: 'assistant_chunk', turn, step, chunk })
+                dispatchTimeline({ type: 'assistant_chunk', turn, step, chunk })
             },
             requestApproval:
                 toolPermissionMode === TOOL_PERMISSION_MODES.FULL || toolPermissionMode === TOOL_PERMISSION_MODES.NONE
@@ -222,7 +226,7 @@ export function App({
                         setCurrentContextTokens(promptTokens)
                     }
 
-                    dispatch({
+                    dispatchTimeline({
                         type: 'turn_start',
                         turn,
                         input: displayInput,
@@ -231,7 +235,7 @@ export function App({
                 },
                 onContextUsage: ({ turn, step, promptTokens, phase }) => {
                     setCurrentContextTokens(promptTokens)
-                    dispatch({
+                    dispatchTimeline({
                         type: 'context_usage',
                         turn,
                         step,
@@ -266,7 +270,7 @@ export function App({
                     )
                 },
                 onAction: ({ turn, step, action, thinking, parallelActions }) => {
-                    dispatch({
+                    dispatchTimeline({
                         type: 'tool_action',
                         turn,
                         step,
@@ -276,7 +280,7 @@ export function App({
                     })
                 },
                 onObservation: ({ turn, step, observation, resultStatus, parallelResultStatuses }) => {
-                    dispatch({
+                    dispatchTimeline({
                         type: 'tool_observation',
                         turn,
                         step,
@@ -285,8 +289,8 @@ export function App({
                         parallelToolStatuses: inferParallelToolStatuses(parallelResultStatuses),
                     })
                 },
-                onFinal: ({ turn, finalText, status, errorMessage, turnUsage, tokenUsage }) => {
-                    dispatch({
+                onFinal: ({ turn, finalText, status, errorMessage, turnUsage, tokenUsage, thinking }) => {
+                    dispatchTimeline({
                         type: 'turn_final',
                         turn,
                         finalText,
@@ -294,12 +298,13 @@ export function App({
                         errorMessage,
                         turnUsage,
                         tokenUsage,
+                        thinking,
                     })
                     setBusy(false)
                 },
             },
         }),
-        [appendSystemMessage, dispatch, toolPermissionMode],
+        [appendSystemMessage, dispatchTimeline, toolPermissionMode],
     )
 
     useEffect(() => {
@@ -374,38 +379,41 @@ export function App({
             await sessionRef.current.close()
         }
         setExitMessage('Bye!')
-        setTimeout(() => exit(), 250)
-    }, [exit, pendingApproval])
+    }, [pendingApproval])
+
+    // Render the farewell message first, then unmount.
+    useEffect(() => {
+        if (exitMessage) {
+            exit()
+        }
+    }, [exit, exitMessage])
+
+    const guardBusyOrApproval = useCallback(
+        (action: string): boolean => {
+            if (busy) {
+                appendSystemMessage(action, 'Cancel current run before proceeding.', 'warning')
+                return true
+            }
+            if (pendingApproval) {
+                appendSystemMessage(action, 'Resolve current approval request before proceeding.', 'warning')
+                return true
+            }
+            return false
+        },
+        [appendSystemMessage, busy, pendingApproval],
+    )
 
     const handleClear = useCallback(() => {
-        if (busy) {
-            appendSystemMessage('Clear', 'Cancel current run before clearing timeline.', 'warning')
-            return
-        }
-        if (pendingApproval) {
-            appendSystemMessage('Clear', 'Resolve current approval request before clearing timeline.', 'warning')
-            return
-        }
-        dispatch({ type: 'clear_current_timeline' })
+        if (guardBusyOrApproval('Clear')) return
+        dispatchTimeline({ type: 'clear_current_timeline' })
         setPendingHistoryMessages(null)
         setCurrentContextTokens(0)
         clearTerminalScreen()
-    }, [appendSystemMessage, busy, dispatch, pendingApproval])
+    }, [dispatchTimeline, guardBusyOrApproval])
 
     const handleNewSession = useCallback(() => {
-        if (busy) {
-            appendSystemMessage('New Session', 'Cancel current run before starting a new session.', 'warning')
-            return
-        }
-        if (pendingApproval) {
-            appendSystemMessage(
-                'New Session',
-                'Resolve current approval request before starting a new session.',
-                'warning',
-            )
-            return
-        }
-        dispatch({ type: 'reset_all' })
+        if (guardBusyOrApproval('New Session')) return
+        dispatchTimeline({ type: 'reset_all' })
         setPendingHistoryMessages(null)
         setCurrentContextTokens(0)
         currentTurnRef.current = null
@@ -414,7 +422,7 @@ export function App({
             sessionId: randomUUID(),
         }))
         appendSystemMessage('New Session', 'Started a fresh session.')
-    }, [appendSystemMessage, busy, dispatch, pendingApproval])
+    }, [appendSystemMessage, dispatchTimeline, guardBusyOrApproval])
 
     const persistCurrentProvider = useCallback(
         async (name: string) => {
@@ -433,17 +441,14 @@ export function App({
 
     const handleModelSelect = useCallback(
         async (provider: ProviderConfig) => {
-            if (busy) {
-                appendSystemMessage('Model switch', 'Cancel current run before switching models.', 'warning')
-                return
-            }
+            if (guardBusyOrApproval('Model switch')) return
 
             if (provider.name === currentProvider && provider.model === currentModel) {
                 appendSystemMessage('Model switch', `Already using ${provider.name} (${provider.model}).`)
                 return
             }
 
-            dispatch({ type: 'reset_all' })
+            dispatchTimeline({ type: 'reset_all' })
             setCurrentContextTokens(0)
             currentTurnRef.current = null
 
@@ -463,10 +468,10 @@ export function App({
         },
         [
             appendSystemMessage,
-            busy,
             currentModel,
             currentProvider,
-            dispatch,
+            dispatchTimeline,
+            guardBusyOrApproval,
             persistCurrentProvider,
             resolveContextLimit,
         ],
@@ -480,35 +485,29 @@ export function App({
 
     const handleSetToolPermission = useCallback(
         (mode: ToolPermissionMode) => {
-            if (busy) {
-                appendSystemMessage('Tools', 'Cancel current run before changing tool permission mode.', 'warning')
-                return
-            }
-
-            if (pendingApproval) {
-                appendSystemMessage(
-                    'Tools',
-                    'Resolve current approval request before changing tool permission mode.',
-                    'warning',
-                )
-                return
-            }
+            if (guardBusyOrApproval('Tools')) return
 
             if (mode === toolPermissionMode) {
                 appendSystemMessage('Tools', `Already using ${toolPermissionLabel(mode)}.`)
                 return
             }
 
+            // Tool permission is baked into the session at creation time, so
+            // switching modes recreates the session; reset the visible timeline
+            // to match the fresh session's (empty) history.
             setToolPermissionMode(mode)
+            dispatchTimeline({ type: 'reset_all' })
+            setCurrentContextTokens(0)
+            currentTurnRef.current = null
             setSessionOptionsState((prev) => ({
                 ...prev,
                 sessionId: randomUUID(),
                 dangerous: mode === TOOL_PERMISSION_MODES.FULL,
                 toolPermissionMode: mode,
             }))
-            appendSystemMessage('Tools', `Tool permission set to ${toolPermissionLabel(mode)}.`)
+            appendSystemMessage('Tools', `Tool permission set to ${toolPermissionLabel(mode)}. Conversation reset.`)
         },
-        [appendSystemMessage, busy, pendingApproval, toolPermissionLabel, toolPermissionMode],
+        [appendSystemMessage, dispatchTimeline, guardBusyOrApproval, toolPermissionLabel, toolPermissionMode],
     )
 
     const persistActiveMcpServers = useCallback(
@@ -546,23 +545,12 @@ export function App({
 
     const handleHistorySelect = useCallback(
         async (entry: SessionHistoryEntry) => {
-            if (busy) {
-                appendSystemMessage('History', 'Cancel current run before loading session history.', 'warning')
-                return
-            }
-            if (pendingApproval) {
-                appendSystemMessage(
-                    'History',
-                    'Resolve current approval request before loading session history.',
-                    'warning',
-                )
-                return
-            }
+            if (guardBusyOrApproval('History')) return
             try {
                 const raw = await readFile(entry.sessionFile, 'utf8')
                 const parsed = parseHistoryLog(raw)
-                dispatch({ type: 'clear_current_timeline' })
-                dispatch({
+                dispatchTimeline({ type: 'clear_current_timeline' })
+                dispatchTimeline({
                     type: 'replace_history',
                     turns: parsed.turns,
                     maxSequence: parsed.maxSequence,
@@ -583,7 +571,7 @@ export function App({
                 )
             }
         },
-        [appendSystemMessage, busy, dispatch, pendingApproval],
+        [appendSystemMessage, dispatchTimeline, guardBusyOrApproval],
     )
 
     const handleCancelRun = useCallback(() => {
@@ -592,14 +580,7 @@ export function App({
     }, [busy, session])
 
     const runCompactCommand = useCallback(async () => {
-        if (busy) {
-            appendSystemMessage('Compact', 'Cancel current run before compacting context.', 'warning')
-            return
-        }
-        if (pendingApproval) {
-            appendSystemMessage('Compact', 'Resolve current approval request before compacting context.', 'warning')
-            return
-        }
+        if (guardBusyOrApproval('Compact')) return
         if (!session) return
 
         try {
@@ -608,7 +589,7 @@ export function App({
         } catch (err) {
             appendSystemMessage('Compact', `Failed to compact context: ${(err as Error).message}`, 'error')
         }
-    }, [appendSystemMessage, busy, pendingApproval, session])
+    }, [appendSystemMessage, guardBusyOrApproval, session])
 
     const runInitCommand = useCallback(async () => {
         if (!session || busy) return
@@ -767,7 +748,7 @@ export function App({
     }
 
     if (setupPending) {
-        return <SetupWizard configPath={configPath} onComplete={handleSetupComplete} onExit={handleExit} />
+        return <SetupWizard configPath={configPath} onComplete={handleSetupComplete} />
     }
 
     if (mcpSelectionPending) {
@@ -776,9 +757,6 @@ export function App({
                 serverNames={availableMcpServerNames}
                 defaultSelected={initialActiveMcpServers}
                 onConfirm={handleConfirmMcpActivation}
-                onExit={() => {
-                    void handleExit()
-                }}
             />
         )
     }
@@ -817,6 +795,7 @@ export function App({
                 onCompact={() => {
                     void runCompactCommand()
                 }}
+                onToggleThinking={handleToggleThinking}
                 onHistorySelect={(entry) => {
                     void handleHistorySelect(entry)
                 }}
@@ -832,7 +811,12 @@ export function App({
 
             {pendingApproval ? <ApprovalOverlay request={pendingApproval} onDecision={handleApprovalDecision} /> : null}
 
-            <Footer busy={busy} pendingApproval={Boolean(pendingApproval)} contextPercent={contextPercent} />
+            <Footer
+                busy={busy}
+                pendingApproval={Boolean(pendingApproval)}
+                contextPercent={contextPercent}
+                thinkingOn={thinkingOn}
+            />
         </Box>
     )
 }

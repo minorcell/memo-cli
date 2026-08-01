@@ -14,7 +14,9 @@ import {
     getSessionsDir,
     type AgentSessionDeps,
     type AgentSessionOptions,
+    type LoadedConfig,
     type MemoConfig,
+    type ProviderConfig,
 } from '@memo/core'
 import { App } from '../app/App'
 import { parseHistoryLog } from '../features/session/historyParser'
@@ -96,6 +98,24 @@ async function loadPreviousSession(sessionsDir: string, cwd: string) {
     return parseHistoryLog(raw)
 }
 
+async function buildRunContext(
+    loaded: LoadedConfig,
+    dangerous: boolean,
+): Promise<{ provider: ProviderConfig; sessionOptions: AgentSessionOptions; sessionsDir: string }> {
+    const provider = selectProvider(loaded.config)
+    const contextWindow = resolveContextWindowForProvider(loaded.config, provider)
+    const sessionOptions: AgentSessionOptions = {
+        sessionId: randomUUID(),
+        mode: 'interactive',
+        contextWindow,
+        autoCompactThresholdPercent: loaded.config.auto_compact_threshold_percent,
+        activeMcpServers: loaded.config.active_mcp_servers,
+        dangerous,
+    }
+    const sessionsDir = getSessionsDir(loaded, sessionOptions)
+    return { provider, sessionOptions, sessionsDir }
+}
+
 async function readStdin(): Promise<string> {
     return new Promise((resolve) => {
         let data = ''
@@ -138,18 +158,7 @@ function PlainMode({ opts, question: initialQuestion }: { opts: zod.infer<typeof
             }
 
             const loaded = await ensureProviderConfig('plain')
-            const provider = selectProvider(loaded.config)
-            const contextWindow = resolveContextWindowForProvider(loaded.config, provider)
-            const sessionId = randomUUID()
-            const sessionOptions: AgentSessionOptions = {
-                sessionId,
-                mode: 'interactive',
-                contextWindow,
-                autoCompactThresholdPercent: loaded.config.auto_compact_threshold_percent,
-                activeMcpServers: loaded.config.active_mcp_servers,
-                dangerous: opts.dangerous,
-            }
-            const sessionsDir = getSessionsDir(loaded, sessionOptions)
+            const { provider, sessionOptions, sessionsDir } = await buildRunContext(loaded, opts.dangerous)
             const prevSession = opts.prev ? await loadPreviousSession(sessionsDir, process.cwd()) : null
 
             if (opts.prev && !prevSession) {
@@ -210,27 +219,16 @@ function PlainMode({ opts, question: initialQuestion }: { opts: zod.infer<typeof
 
 function TuiMode({ opts }: { opts: zod.infer<typeof options> }) {
     const [appProps, setAppProps] = useState<React.ComponentProps<typeof App> | null>(null)
-    const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
         async function init() {
             const loaded = await ensureProviderConfig('tui')
-            const provider = selectProvider(loaded.config)
-            const contextWindow = resolveContextWindowForProvider(loaded.config, provider)
-            const sessionId = randomUUID()
-            const sessionOptions: AgentSessionOptions = {
-                sessionId,
-                mode: 'interactive',
-                contextWindow,
-                autoCompactThresholdPercent: loaded.config.auto_compact_threshold_percent,
-                activeMcpServers: loaded.config.active_mcp_servers,
-                dangerous: opts.dangerous,
-            }
-            const sessionsDir = getSessionsDir(loaded, sessionOptions)
+            const { provider, sessionOptions, sessionsDir } = await buildRunContext(loaded, opts.dangerous)
             const prevSession = opts.prev ? await loadPreviousSession(sessionsDir, process.cwd()) : null
 
             if (opts.prev && !prevSession) {
-                setError('No previous session found for current directory.')
+                console.error('No previous session found for current directory.')
+                process.exit(1)
                 return
             }
 
@@ -252,9 +250,6 @@ function TuiMode({ opts }: { opts: zod.infer<typeof options> }) {
         init()
     }, [])
 
-    if (error) {
-        return null
-    }
     if (!appProps) {
         return null
     }

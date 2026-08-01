@@ -45,7 +45,15 @@ export const SystemCell = memo(function SystemCell({ message }: { message: Syste
     )
 })
 
-const StepCell = memo(function StepCell({ step, cwd }: { step: StepView; cwd: string }) {
+const StepCell = memo(function StepCell({
+    step,
+    cwd,
+    showText = false,
+}: {
+    step: StepView
+    cwd: string
+    showText?: boolean
+}) {
     const isParallel = Boolean(step.parallelActions && step.parallelActions.length > 1)
     const singleActionParam = !isParallel && step.action ? mainParam(step.action.input, cwd) : null
 
@@ -57,6 +65,8 @@ const StepCell = memo(function StepCell({ step, cwd }: { step: StepView; cwd: st
                     <Text color="gray">{step.thinking}</Text>
                 </Box>
             ) : null}
+
+            {showText && step.assistantText ? <Text>{step.assistantText}</Text> : null}
 
             {isParallel
                 ? step.parallelActions?.map((action, index) => {
@@ -85,15 +95,19 @@ const StepCell = memo(function StepCell({ step, cwd }: { step: StepView; cwd: st
 })
 
 export const TurnCell = memo(function TurnCell({ turn, cwd }: { turn: TurnView; cwd: string }) {
+    // While the turn is still streaming, step.assistantText holds the live text
+    // (finalText is only set on turn completion).
+    const inProgress = !turn.finalText && !(turn.status && turn.status !== 'ok')
+
     return (
         <Box flexDirection="column">
-            <Box marginY={0.5}>
+            <Box marginY={1}>
                 <Text color="gray">› </Text>
                 <Text>{turn.userInput}</Text>
             </Box>
 
             {turn.steps.map((step) => (
-                <StepCell key={`${turn.index}-${step.index}`} step={step} cwd={cwd} />
+                <StepCell key={`${turn.index}-${step.index}`} step={step} cwd={cwd} showText={inProgress} />
             ))}
 
             {turn.finalText ? (

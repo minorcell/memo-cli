@@ -4,10 +4,6 @@ import { parseInlineNodes, parseMarkdownContent, type InlineNode, type MarkdownB
 
 const HORIZONTAL_RULE_TEXT = '———'
 
-function repeat(str: string, count: number): string {
-    return str.repeat(Math.max(0, count))
-}
-
 function formatThinkDisplayLines(content: string): string[] {
     const lines = content.split('\n')
     if (lines.length === 0) return ['Think:']
@@ -108,7 +104,7 @@ function renderBlock(node: MarkdownBlock, key: string) {
             return (
                 <Box key={key}>
                     <Text bold color="cyan">
-                        {repeat('#', node.level)} {node.content}
+                        {'#'.repeat(node.level)} {node.content}
                     </Text>
                 </Box>
             )

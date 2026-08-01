@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useEffect } from 'react'
+import { memo, useMemo } from 'react'
 import { Box, Static, Text } from 'ink'
 import type { SystemMessage, TurnView } from '../../shared/types'
 import { SystemCell, TurnCell } from './Cells'
@@ -35,32 +35,12 @@ function isSystemItem(item: HistoryStaticItem): item is SystemMessage {
     return (item as SystemMessage).id !== undefined
 }
 
-// Stable header key helper to minimize Static re-renders
-function useStableHeaderKey(header: HeaderInfo): string {
-    const prevKeyRef = useRef<string>('')
-    return useMemo(() => {
-        const newKey = `${header.sessionId}-${header.providerName}-${header.model}-${header.version}`
-        // Only update if session actually changed
-        if (newKey !== prevKeyRef.current) {
-            prevKeyRef.current = newKey
-        }
-        return prevKeyRef.current
-    }, [header.sessionId, header.providerName, header.model, header.version])
-}
-
 export const ChatWidget = memo(function ChatWidget({
     header,
     systemMessages,
     turns,
     historicalTurns,
 }: ChatWidgetProps) {
-    // Use stable keys to minimize re-renders of Static items
-    const stableHeaderKey = useStableHeaderKey(header)
-    const cwdRef = useRef(header.cwd)
-    useEffect(() => {
-        cwdRef.current = header.cwd
-    }, [header.cwd])
-
     const { inProgressTurn, staticItems } = useMemo(() => {
         const allTurns = [...historicalTurns, ...turns]
         const lastTurn = allTurns.length > 0 ? allTurns[allTurns.length - 1] : undefined
@@ -80,9 +60,6 @@ export const ChatWidget = memo(function ChatWidget({
         return { completedTurns: completed, inProgressTurn: inProgress, staticItems: items }
     }, [header, historicalTurns, turns, systemMessages])
 
-    // Use a stable cwd for TurnCell to avoid re-renders during streaming
-    const stableCwd = cwdRef.current
-
     return (
         <Box flexDirection="column">
             <Static items={staticItems}>
@@ -90,7 +67,7 @@ export const ChatWidget = memo(function ChatWidget({
                     if (isHeaderItem(item)) {
                         return (
                             <Box
-                                key={`header-${stableHeaderKey}`}
+                                key={`header-${item.data.sessionId}`}
                                 borderStyle="round"
                                 borderColor="blue"
                                 paddingX={1}
@@ -110,11 +87,11 @@ export const ChatWidget = memo(function ChatWidget({
                         return <SystemCell key={item.id} message={item} />
                     }
 
-                    return <TurnCell key={`turn-${item.sequence ?? item.index}`} turn={item} cwd={stableCwd} />
+                    return <TurnCell key={`turn-${item.sequence ?? item.index}`} turn={item} cwd={header.cwd} />
                 }}
             </Static>
 
-            {inProgressTurn ? <TurnCell turn={inProgressTurn} cwd={stableCwd} /> : null}
+            {inProgressTurn ? <TurnCell turn={inProgressTurn} cwd={header.cwd} /> : null}
         </Box>
     )
 })

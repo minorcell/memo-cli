@@ -31,8 +31,9 @@ function shortParam(params: unknown): string {
 }
 
 export const ApprovalOverlay = memo(function ApprovalOverlay({ request, onDecision }: ApprovalOverlayProps) {
-    useInput((input, key) => {
-        if (key.escape || (key.ctrl && input === 'c')) {
+    // Note: Ctrl+C is handled by Ink's built-in exit, so only Esc is handled here.
+    useInput((_input, key) => {
+        if (key.escape) {
             onDecision('deny')
         }
     })

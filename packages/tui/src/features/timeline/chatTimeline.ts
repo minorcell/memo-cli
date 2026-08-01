@@ -44,6 +44,8 @@ export type ChatTimelineAction =
           errorMessage?: string
           turnUsage: LanguageModelUsage
           tokenUsage?: LanguageModelUsage
+          /** Thinking trace of the final step (rendered on the last step cell). */
+          thinking?: string
       }
     | { type: 'replace_history'; turns: TurnView[]; maxSequence: number }
     | { type: 'clear_current_timeline' }
@@ -107,7 +109,8 @@ function nextSystemMessage(action: {
     sequence: number
 }): SystemMessage {
     return {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        // Sequence is monotonically increasing per timeline, so it is a stable unique id.
+        id: String(action.sequence),
         title: action.title,
         content: action.content,
         tone: action.tone ?? 'info',
@@ -249,8 +252,14 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
                 const startedAt = turnView.startedAt ?? Date.now()
                 const durationMs = Math.max(0, Date.now() - startedAt)
                 const promptTokens = action.tokenUsage?.inputTokens ?? turnView.contextPromptTokens
+                const steps = [...turnView.steps]
+                if (action.thinking && steps.length > 0) {
+                    const last = steps[steps.length - 1]
+                    if (last) steps[steps.length - 1] = { ...last, thinking: action.thinking }
+                }
                 return {
                     ...turnView,
+                    steps,
                     finalText: action.finalText,
                     status: action.status,
                     errorMessage: action.errorMessage,

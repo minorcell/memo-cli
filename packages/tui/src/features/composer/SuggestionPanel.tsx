@@ -22,7 +22,7 @@ const INACTIVE_BG = '#262626'
 export const SuggestionPanel = memo(function SuggestionPanel({ items, activeIndex, loading }: SuggestionPanelProps) {
     if (loading) {
         return (
-            <Box paddingX={1} {...({ backgroundColor: INACTIVE_BG } as any)}>
+            <Box paddingX={1} backgroundColor={INACTIVE_BG}>
                 <Text color="gray">Loading...</Text>
             </Box>
         )
@@ -30,23 +30,18 @@ export const SuggestionPanel = memo(function SuggestionPanel({ items, activeInde
 
     if (!items.length) {
         return (
-            <Box paddingX={1} {...({ backgroundColor: INACTIVE_BG } as any)}>
+            <Box paddingX={1} backgroundColor={INACTIVE_BG}>
                 <Text color="gray">No matches</Text>
             </Box>
         )
     }
 
     return (
-        <Box flexDirection="column" {...({ backgroundColor: INACTIVE_BG } as any)}>
+        <Box flexDirection="column" borderStyle="round" borderColor="gray" backgroundColor={INACTIVE_BG}>
             {items.map((item, index) => {
                 const active = index === activeIndex
                 return (
-                    <Box
-                        key={item.id}
-                        paddingX={1}
-                        gap={2}
-                        {...({ backgroundColor: active ? ACTIVE_BG : INACTIVE_BG } as any)}
-                    >
+                    <Box key={item.id} paddingX={1} gap={2} backgroundColor={active ? ACTIVE_BG : INACTIVE_BG}>
                         <Text color={active ? 'cyan' : 'white'} bold={active}>
                             {item.title}
                         </Text>

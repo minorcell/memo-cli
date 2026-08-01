@@ -6,7 +6,6 @@ type McpActivationOverlayProps = {
     serverNames: string[]
     defaultSelected: string[]
     onConfirm: (selectedServerNames: string[], persistSelection: boolean) => void
-    onExit: () => void
 }
 
 function normalizeSelected(serverNames: string[], selected: string[]) {
@@ -18,7 +17,6 @@ export const McpActivationOverlay = memo(function McpActivationOverlay({
     serverNames,
     defaultSelected,
     onConfirm,
-    onExit,
 }: McpActivationOverlayProps) {
     const initialSelection = useMemo(() => {
         const normalized = normalizeSelected(serverNames, defaultSelected)
@@ -29,12 +27,9 @@ export const McpActivationOverlay = memo(function McpActivationOverlay({
     const [selectedNames, setSelectedNames] = useState<string[]>(initialSelection)
     const allSelected = selectedNames.length === serverNames.length
 
-    useInput((input, key) => {
-        if (key.ctrl && input === 'c') {
-            onExit()
-            return
-        }
-
+    // Note: Ctrl+C is handled by Ink's built-in exit (session cleanup runs on
+    // unmount); only Esc needs custom handling here.
+    useInput((_input, key) => {
         if (key.escape) {
             onConfirm(selectedNames, false)
         }
