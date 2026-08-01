@@ -8,6 +8,7 @@ type FooterProps = {
     contextPercent: number
     /** Thinking mode state (toggled with Tab on an empty input). */
     thinkingOn?: boolean
+    followOutput?: boolean
 }
 
 export const Footer = memo(function Footer({
@@ -15,26 +16,33 @@ export const Footer = memo(function Footer({
     queuedCount = 0,
     contextPercent,
     thinkingOn = true,
+    followOutput = true,
 }: FooterProps) {
     const { stdout } = useStdout()
     const compact = (stdout.columns ?? 80) < 72
     const context = `${contextPercent.toFixed(1)}%`
     const statusText =
-        operationStatus === 'running'
-            ? 'Running...'
-            : operationStatus === 'awaiting_approval'
-              ? compact
-                  ? 'Approval pending'
-                  : 'Waiting for approval...'
-              : operationStatus === 'cancelling'
-                ? 'Cancelling...'
-                : operationStatus === 'compacting'
+        operationStatus === 'awaiting_approval'
+            ? compact
+                ? 'Approval pending'
+                : 'Waiting for approval...'
+            : operationStatus === 'cancelling'
+              ? 'Cancelling...'
+              : operationStatus === 'compacting'
+                ? compact
+                    ? 'Compacting...'
+                    : 'Compacting context...'
+                : !followOutput
                   ? compact
-                      ? 'Compacting...'
-                      : 'Compacting context...'
-                  : compact
-                    ? 'Enter send • /help'
-                    : 'Enter send • Shift+Enter newline • Tab thinking • Esc×2 cancel • /help'
+                      ? 'Output paused · Ctrl+T resume'
+                      : 'Output paused · Ctrl+T resume following'
+                  : operationStatus === 'running'
+                    ? compact
+                        ? 'Running...'
+                        : 'Running... · Ctrl+T pause output'
+                    : compact
+                      ? 'Enter send • /help'
+                      : 'Enter send • Shift+Enter newline • Tab thinking • Esc×2 cancel • /help'
     const metrics =
         compact && queuedCount > 0
             ? `ctx:${Math.round(contextPercent)}%`
@@ -46,7 +54,7 @@ export const Footer = memo(function Footer({
     return (
         <Box justifyContent="space-between">
             <Box flexShrink={1}>
-                <Text color={operationStatus === 'idle' ? 'gray' : 'yellow'} wrap="truncate-end">
+                <Text color={operationStatus === 'idle' && followOutput ? 'gray' : 'yellow'} wrap="truncate-end">
                     {compact && queueText ? <Text color="cyan">[{queueText}] </Text> : null}
                     {statusText}
                     {!compact && queueText ? <Text color="cyan"> • {queueText}</Text> : null}
