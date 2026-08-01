@@ -154,23 +154,6 @@ describe('ToolRouter', () => {
         expect(result).toEqual({ type: 'text', value: '{"test":true}' })
     })
 
-    test('generateToolDefinitions returns all tools', () => {
-        const router = new ToolRouter()
-        router.registerNativeTool({
-            name: 'test_tool',
-            description: 'Test tool',
-            source: 'native',
-            inputSchema: { type: 'object', properties: { foo: { type: 'string' } } },
-            execute: async () => ({ type: 'text', value: '' }),
-        })
-
-        const defs = router.generateToolDefinitions()
-        expect(defs.length).toBeGreaterThan(0)
-        const testDef = defs.find((d) => d.name === 'test_tool')
-        expect(testDef).toBeDefined()
-        expect(testDef?.description).toBe('Test tool')
-    })
-
     test('generateToolDescriptions returns empty for no tools', () => {
         const router = new ToolRouter()
         expect(router.generateToolDescriptions()).toBe('')

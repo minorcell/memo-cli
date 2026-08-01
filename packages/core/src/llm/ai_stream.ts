@@ -1,6 +1,6 @@
 /** @file Default streaming LLM call backed by AI SDK streamText. */
 import { streamText, type ModelMessage, type ToolResultPart } from 'ai'
-import type { LLMResult, ToolDefinition } from '@memo/core/types'
+import type { LLMResult } from '@memo/core/types'
 import type { ToolRegistry } from '@memo/core/tools/router/types'
 import type { ToolExecutionContext, SdkToolSet } from '@memo/core/agent/sdk_tools'
 import { buildSdkTools } from '@memo/core/agent/sdk_tools'
@@ -15,7 +15,6 @@ export type StreamCallLLMParams = {
     messages: ModelMessage[]
     /** Complete tool registry (native + MCP + custom); undefined disables tools (compaction). */
     tools?: ToolRegistry
-    toolDefinitions: ToolDefinition[]
     profile: ModelProfile
     factory: AIProviderFactory
     toolContext?: ToolExecutionContext
@@ -52,6 +51,9 @@ export async function streamCallLLM(params: StreamCallLLMParams): Promise<LLMRes
         messages,
         tools: sdkTools,
         toolChoice: sdkTools ? 'auto' : undefined,
+        // System messages are part of the memo history (initial prompt + mid-loop warnings);
+        // they cannot move to the system option without restructuring the history model.
+        allowSystemInMessages: true,
         abortSignal: signal,
         // Non-standard wire fields (e.g. parallel_tool_calls) pass through under the provider instance name.
         providerOptions: requestProviderOptions ? { [provider.name]: requestProviderOptions } : undefined,

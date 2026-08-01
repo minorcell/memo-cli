@@ -1,12 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import type {
-    AgentSessionDeps,
-    AgentSessionOptions,
-    ChatMessage,
-    LLMResult,
-    ToolDefinition,
-    ToolRegistry,
-} from '@memo/core/types'
+import type { AgentSessionDeps, AgentSessionOptions, ChatMessage, LLMResult, ToolRegistry } from '@memo/core/types'
 import type { MCPServerConfig } from '@memo/core/config/config'
 import type { AIProviderFactory } from '@memo/core/llm/ai_provider'
 import { emptyUsage } from '@memo/core/agent/loop'
@@ -297,9 +290,6 @@ describe('withDefaultDeps (default path)', () => {
     test('passes call options (tools/signal) and forwards structured LLM response', async () => {
         process.env.MOCK_API_KEY = 'test-key'
         const { withDefaultDeps } = await import('@memo/core/agent/defaults')
-        const callOptionsTools: ToolDefinition[] = [
-            { name: 'override', description: 'override tool', input_schema: { type: 'object' } },
-        ]
         const signal = new AbortController().signal
 
         state.llmResponse = {
@@ -340,7 +330,7 @@ describe('withDefaultDeps (default path)', () => {
                 { role: 'user', content: 'continue' },
             ],
             undefined,
-            { tools: callOptionsTools, signal },
+            { signal },
         )
 
         expect(response).toEqual(state.llmResponse)
@@ -349,13 +339,11 @@ describe('withDefaultDeps (default path)', () => {
             provider: typeof state.selectedProvider
             apiKey: string
             messages: Array<Record<string, unknown>>
-            toolDefinitions: unknown[]
             profile: unknown
             factory: unknown
             signal: AbortSignal
         }
         expect(call.apiKey).toBe('test-key')
-        expect(call.toolDefinitions).toEqual(callOptionsTools)
         expect(call.signal).toBe(signal)
         expect(call.profile).toEqual({ supportsParallelToolCalls: true })
         expect(call.factory).toBe(state.factory)

@@ -746,8 +746,7 @@ describe('session hooks & middleware', () => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
                         messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
-                        Array.isArray(options?.tools) &&
-                        options.tools.length === 0
+                        !options?.toolContext
                     if (isCompactionCall) {
                         autoCompactionCalls += 1
                         return endTurnResponse('checkpoint')
@@ -783,8 +782,7 @@ describe('session hooks & middleware', () => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
                         messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
-                        Array.isArray(options?.tools) &&
-                        options.tools.length === 0
+                        !options?.toolContext
                     if (isCompactionCall) {
                         compactionCalls += 1
                         return endTurnResponse(`summary-${compactionCalls}`)
@@ -831,8 +829,7 @@ describe('session hooks & middleware', () => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
                         messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
-                        Array.isArray(options?.tools) &&
-                        options.tools.length === 0
+                        !options?.toolContext
                     if (isCompactionCall) {
                         throw new Error('compaction failed')
                     }
@@ -921,8 +918,7 @@ describe('session hooks & middleware', () => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
                         messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
-                        Array.isArray(options?.tools) &&
-                        options.tools.length === 0
+                        !options?.toolContext
                     if (isCompactionCall) {
                         sawCompactionCall = true
                         return endTurnResponse('compacted summary')
@@ -1009,8 +1005,7 @@ describe('session hooks & middleware', () => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
                         messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
-                        Array.isArray(options?.tools) &&
-                        options.tools.length === 0
+                        !options?.toolContext
                     if (isCompactionCall) {
                         return endTurnResponse('summary-budget')
                     }
@@ -1054,8 +1049,7 @@ describe('session hooks & middleware', () => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
                         messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
-                        Array.isArray(options?.tools) &&
-                        options.tools.length === 0
+                        !options?.toolContext
                     if (isCompactionCall) {
                         return endTurnResponse('<think>internal</think>\n\nsummary\n\n\nnext')
                     }
@@ -1092,8 +1086,7 @@ describe('session hooks & middleware', () => {
                     const isCompactionCall =
                         messages[0]?.role === 'system' &&
                         messages[0].content === CONTEXT_COMPACTION_SYSTEM_PROMPT &&
-                        Array.isArray(options?.tools) &&
-                        options.tools.length === 0
+                        !options?.toolContext
                     if (isCompactionCall) {
                         return endTurnResponse('new summary')
                     }

@@ -73,17 +73,6 @@ export type TokenCounter = {
     dispose: () => void
 }
 
-/** Tool Use Block - tool call request (internal agent-loop structure). */
-export type ToolUseBlock = {
-    type: 'tool_use'
-    /** Unique ID for the tool call */
-    id: string
-    /** Tool name */
-    name: string
-    /** Tool input parameters */
-    input: unknown
-}
-
 /** Representation of parsed LLM output as action/final structure. */
 export type ParsedAssistant = {
     /** Tool to call and its parameters. */
@@ -97,19 +86,10 @@ export type ParsedAssistant = {
 /** Tool registry: keys are tool names, values are tool definitions. */
 export type ToolRegistry = Record<string, import('@memo/core/tools/router/types').Tool>
 
-/** Tool definition structure (for passing to LLM API) */
-export type ToolDefinition = {
-    name: string
-    description: string
-    input_schema: Record<string, unknown>
-}
-
 /** LLM call interface: input history messages, return structured response, can stream text via onChunk. */
 export type CallLLMOptions = {
     signal?: AbortSignal
-    /** Available tools list (Tool Use API mode) */
-    tools?: ToolDefinition[]
-    /** Tool execution context (approval/gate/hooks) captured by the loop. */
+    /** Tool execution context (approval/gate/hooks) captured by the loop; absent disables tools. */
     toolContext?: ToolExecutionContext
 }
 

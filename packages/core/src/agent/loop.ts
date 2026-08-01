@@ -26,7 +26,7 @@ import type {
     TurnResult,
     TurnStatus,
 } from '@memo/core/types'
-import type { LanguageModelUsage, ToolResultPart } from 'ai'
+import type { LanguageModelUsage, ToolCallPart, ToolResultPart } from 'ai'
 import { buildHookRunners, runHook, snapshotHistory, type HookRunnerMap } from '@memo/core/agent/hooks'
 import { createApprovalManager, type ApprovalManager } from '@memo/core/tools/approval'
 import type { ToolApprovalHooks } from '@memo/core/tools/orchestrator'
@@ -34,7 +34,6 @@ import { runWithRuntimeContext } from '@memo/core/tools/runtime/context'
 import type { ToolExecutionContext } from './sdk_tools'
 import { createStepGate } from './step_gate'
 import {
-    buildAssistantToolCalls,
     mapOutputStatus,
     normalizeLLMResponse,
     outputToObservation,
@@ -314,7 +313,7 @@ export class AgentSessionImpl implements AgentSession {
                     { role: 'user', content: buildCompactionUserPrompt(historyWithoutSystem) },
                 ],
                 undefined,
-                { tools: [] },
+                {},
             )
             const normalized = normalizeLLMResponse(response)
             const summary = this.normalizeCompactionSummary(normalized.textContent)
@@ -523,7 +522,7 @@ export class AgentSessionImpl implements AgentSession {
                     }
 
                     let assistantText = ''
-                    let toolUseBlocks: Array<{ id: string; name: string; input: unknown }> = []
+                    let toolUseBlocks: ToolCallPart[] = []
                     let toolResults: ToolResultPart[] = []
                     let usageFromLLM: Partial<LanguageModelUsage> | undefined
                     let reasoningContent: string | undefined
@@ -619,7 +618,7 @@ export class AgentSessionImpl implements AgentSession {
                             const thinking = assistantText ? buildThinking([assistantText]) : undefined
                             parsed = {
                                 action: {
-                                    tool: firstTool.name,
+                                    tool: firstTool.toolName,
                                     input: firstTool.input,
                                 },
                                 thinking,
@@ -631,7 +630,7 @@ export class AgentSessionImpl implements AgentSession {
                                     ...(reasoningContent
                                         ? [{ type: 'reasoning' as const, text: reasoningContent }]
                                         : []),
-                                    ...buildAssistantToolCalls(toolUseBlocks),
+                                    ...toolUseBlocks,
                                 ],
                             }
                         } else {
@@ -748,7 +747,7 @@ export class AgentSessionImpl implements AgentSession {
                                 meta: {
                                     error_type: 'tool_disabled',
                                     tool_count: toolUseBlocks.length,
-                                    tools: toolUseBlocks.map((block) => block.name).join(','),
+                                    tools: toolUseBlocks.map((block) => block.toolName).join(','),
                                     tokens: stepUsage,
                                 },
                             })
@@ -776,9 +775,9 @@ export class AgentSessionImpl implements AgentSession {
                             turn,
                             step,
                             meta: {
-                                tools: toolUseBlocks.map((b) => b.name),
-                                action_ids: toolUseBlocks.map((b) => b.id),
-                                action_id: toolUseBlocks[0]?.id,
+                                tools: toolUseBlocks.map((b) => b.toolName),
+                                action_ids: toolUseBlocks.map((b) => b.toolCallId),
+                                action_id: toolUseBlocks[0]?.toolCallId,
                                 parallel: toolUseBlocks.length > 1,
                                 phase: 'dispatch',
                                 thinking: parsed.thinking,
@@ -788,8 +787,8 @@ export class AgentSessionImpl implements AgentSession {
                             sessionId: this.id,
                             turn,
                             step,
-                            action: { tool: toolUseBlocks[0]?.name ?? '', input: toolUseBlocks[0]?.input },
-                            parallelActions: toolUseBlocks.map((b) => ({ tool: b.name, input: b.input })),
+                            action: { tool: toolUseBlocks[0]?.toolName ?? '', input: toolUseBlocks[0]?.input },
+                            parallelActions: toolUseBlocks.map((b) => ({ tool: b.toolName, input: b.input })),
                             thinking: parsed.thinking,
                             history: snapshotHistory(this.history),
                         })
@@ -834,7 +833,7 @@ export class AgentSessionImpl implements AgentSession {
                             sessionId: this.id,
                             turn,
                             step,
-                            tool: toolUseBlocks.map((b) => b.name).join(', '),
+                            tool: toolUseBlocks.map((b) => b.toolName).join(', '),
                             observation: hookObservation,
                             resultStatus,
                             parallelResultStatuses: resultStatuses,

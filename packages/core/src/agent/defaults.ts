@@ -106,9 +106,6 @@ export async function withDefaultDeps(
         return basePrompt
     }
 
-    // 7. Generate tool definitions (for Tool Use API)
-    const toolDefinitions = router.generateToolDefinitions()
-
     const sessionsDir = getSessionsDir(loaded, options)
     const historyFilePath = buildSessionPath(sessionsDir, sessionId)
     const defaultHistorySink = new JsonlHistorySink(historyFilePath)
@@ -129,14 +126,12 @@ export async function withDefaultDeps(
                     throw new Error(`Missing env var ${provider.env_api_key} (or OPENAI_API_KEY/DEEPSEEK_API_KEY)`)
                 }
                 const { profile: modelProfile } = resolveModelProfile(provider, config.model_profiles)
-                // Compaction passes { tools: [] } to disable tools; the main turn uses the full registry.
-                const toolsEnabled = callOptions?.tools ? callOptions.tools.length > 0 : true
                 return streamCallLLM({
                     provider,
                     apiKey,
                     messages,
-                    tools: toolsEnabled ? combinedTools : undefined,
-                    toolDefinitions: callOptions?.tools ?? toolDefinitions,
+                    // toolContext absent (compaction) disables tools in streamCallLLM.
+                    tools: combinedTools,
                     profile: modelProfile,
                     factory: getProviderFactory(provider),
                     toolContext: callOptions?.toolContext,

@@ -16,46 +16,21 @@ export function parseToolArguments(
 /** Extract session-level fields from an AI SDK GenerateTextResult. */
 export function normalizeLLMResponse(raw: LLMResult): {
     textContent: string
-    toolUseBlocks: Array<{ id: string; name: string; input: unknown }>
+    /** Tool calls (AI SDK ToolCallPart[]; inputs are already parsed objects). */
+    toolUseBlocks: ToolCallPart[]
     reasoningContent?: string
     usage?: Partial<LanguageModelUsage>
     /** Executed tool results (AI SDK executed the tools inside streamText). */
     toolResults: ToolResultPart[]
 } {
-    let textContent = raw.text
-    const toolUseBlocks: Array<{ id: string; name: string; input: unknown }> = []
-    for (const call of raw.toolCalls) {
-        if (typeof call.input === 'string') {
-            const parsed = parseToolArguments(call.input)
-            if (parsed.ok) {
-                toolUseBlocks.push({ id: call.toolCallId, name: call.toolName, input: parsed.data })
-            } else {
-                textContent = `${textContent}\n[tool_use parse error] ${parsed.error}; raw: ${parsed.raw}`.trim()
-            }
-        } else {
-            toolUseBlocks.push({ id: call.toolCallId, name: call.toolName, input: call.input })
-        }
-    }
     return {
-        textContent,
-        toolUseBlocks,
+        textContent: raw.text,
+        toolUseBlocks: raw.toolCalls,
         reasoningContent:
             typeof raw.reasoning === 'string' && raw.reasoning.trim().length > 0 ? raw.reasoning : undefined,
         usage: raw.usage,
         toolResults: raw.toolResults,
     }
-}
-
-/** ToolUseBlock[] → AI SDK tool-call parts (for assistant history messages). */
-export function buildAssistantToolCalls(
-    toolUseBlocks: Array<{ id: string; name: string; input: unknown }>,
-): ToolCallPart[] {
-    return toolUseBlocks.map((block) => ({
-        type: 'tool-call',
-        toolCallId: block.id,
-        toolName: block.name,
-        input: block.input,
-    }))
 }
 
 /** Parse a plain-text tool call (legacy text protocol fallback). */

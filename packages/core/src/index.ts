@@ -1,6 +1,7 @@
 /** @file Core package entry point, aggregates domain modules (config/llm/session/history/...). */
 export * from './types'
-export * from './tools'
+// ToolRegistry/MCPServerConfig are exported from types/config; the router re-export is skipped to avoid ambiguity.
+export { TOOLKIT, TOOL_LIST, NATIVE_TOOLS, type McpTool } from './tools'
 export * from './tools/approval'
 export * from './tools/orchestrator'
 export * from './prompt/prompt'
