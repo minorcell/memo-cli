@@ -6,5 +6,6 @@ describe('task prompt loader', () => {
     test('loads init prompt markdown', async () => {
         const prompt = await loadTaskPrompt('init_agents')
         assert.ok(prompt.includes('Generate a file named AGENTS.md'))
+        assert.ok(prompt.includes('If it does, do not overwrite or modify it'))
     })
 })

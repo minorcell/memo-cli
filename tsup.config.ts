@@ -8,6 +8,7 @@ export default defineConfig({
     entry: {
         index: 'packages/tui/src/cli.tsx',
         'commands/index': 'packages/tui/src/commands/index.tsx',
+        'commands/init': 'packages/tui/src/commands/init.tsx',
         'commands/mcp/list': 'packages/tui/src/commands/mcp/list.tsx',
         'commands/mcp/get': 'packages/tui/src/commands/mcp/get.tsx',
         'commands/mcp/add': 'packages/tui/src/commands/mcp/add.tsx',
