@@ -14,7 +14,7 @@ Core should stay UI-agnostic: do not add Ink/UI rendering details into `packages
 - `config/`: config and paths
     - `config.ts`: reads/writes `~/.memo/config.toml`, provider selection (`name/env_api_key/model/base_url`), session path generation (`sessions/-<project_abs_path_flattened>/<YYYY-MM-DDTHH-MM-SS>-<sessionId>.jsonl`), and session ID generation.
 - `runtime/`: runtime and logging
-    - `prompt.md/prompt.ts`: system prompt loading (integrates Claude Code best practices + SOUL/AGENTS/skills composition).
+    - `prompt.md/prompt.ts`: system prompt loading (integrates Claude Code best practices + AGENTS/skills composition).
     - `history.ts`: JSONL sink and event builders.
     - `defaults.ts`: fills tools, LLM, prompt, history sink, tokenizer from config.
     - `session.ts`: Session/Turn state machine; runs ReAct loop, writes events, tracks tokens, fires hooks; **supports concurrent tool calls**.
@@ -210,7 +210,7 @@ Incorporates Claude Code best practices:
 4. **Engineering quality**: run lint/typecheck after completion
 5. **Precise references**: use `file:line` format for code references
 6. **Concise refusal**: 1-2 sentence refusal, no verbosity
-7. **Layered context composition**: base template (+ optional `SOUL.md` soft preference section) -> startup root `AGENTS.md` -> discovered skills -> tool descriptions
+7. **Layered context composition**: base template -> startup root `AGENTS.md` -> discovered skills -> tool descriptions
 
 ## Compatibility Guarantees
 

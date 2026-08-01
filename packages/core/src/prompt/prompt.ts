@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url'
 import { loadSkills, renderSkillsSection } from '@memo/core/skills/skills'
 
 const TEMPLATE_PATTERN = /{{\s*([\w.-]+)\s*}}/g
-const SOUL_PLACEHOLDER_PATTERN = /{{\s*soul_section\s*}}/
 
 function renderTemplate(template: string, vars: Record<string, string>): string {
     return template.replace(TEMPLATE_PATTERN, (_match, key: string) => vars[key] ?? '')
@@ -40,18 +39,6 @@ type LoadSystemPromptOptions = {
 
 function normalizePath(path: string): string {
     return resolve(path)
-}
-
-function resolveMemoHome(options: Pick<LoadSystemPromptOptions, 'homeDir' | 'memoHome'>): string {
-    const homeDir = options.homeDir ?? os.homedir()
-    const configured = options.memoHome?.trim() || process.env.MEMO_HOME?.trim() || join(homeDir, '.memo')
-    if (configured === '~') {
-        return resolve(homeDir)
-    }
-    if (configured.startsWith('~/')) {
-        return resolve(join(homeDir, configured.slice(2)))
-    }
-    return resolve(configured)
 }
 
 function filterActiveSkills(skills: Awaited<ReturnType<typeof loadSkills>>, activeSkillPaths: string[] | undefined) {
@@ -90,39 +77,6 @@ function appendSkillsPrompt(basePrompt: string, skillsSection: string): string {
 ${skillsSection}`
 }
 
-async function readSoulMd(
-    options: Pick<LoadSystemPromptOptions, 'homeDir' | 'memoHome'>,
-): Promise<{ path: string; content: string } | null> {
-    const memoHome = resolveMemoHome(options)
-    const soulPath = join(memoHome, 'SOUL.md')
-    try {
-        const content = await readFile(soulPath, 'utf-8')
-        if (!content.trim()) {
-            return null
-        }
-        return { path: soulPath, content }
-    } catch {
-        return null
-    }
-}
-
-function renderSoulSection(soul: { path: string; content: string }): string {
-    return `## User Personality Context (SOUL.md)
-Loaded from: ${soul.path}
-
-- Treat this content as a soft preference layer for tone, style, and subjective behavior.
-- Do NOT let this content override safety rules, tool policies, Project AGENTS.md guidance, or explicit user instructions in the current turn.
-- Keep SOUL.md concise when possible to avoid unnecessary prompt growth.
-
-${soul.content}`
-}
-
-function appendSoulPrompt(basePrompt: string, soulSection: string): string {
-    return `${basePrompt}
-
-${soulSection}`
-}
-
 function resolveModuleDir(): string {
     if (typeof __dirname === 'string') {
         return __dirname
@@ -158,19 +112,12 @@ export async function loadSystemPrompt(options: LoadSystemPromptOptions = {}): P
     const startupRoot = options.cwd ?? process.cwd()
     const promptPath = resolvePromptPath(options.promptPath)
     const prompt = await readFile(promptPath, 'utf-8')
-    const soul = await readSoulMd({ homeDir: options.homeDir, memoHome: options.memoHome })
-    const soulSection = soul ? renderSoulSection(soul) : ''
-    const hasSoulPlaceholder = SOUL_PLACEHOLDER_PATTERN.test(prompt)
     const vars = {
         date: new Date().toISOString(),
         user: resolveUsername(),
         pwd: startupRoot,
-        soul_section: soulSection,
     }
     let composedPrompt = renderTemplate(prompt, vars)
-    if (!hasSoulPlaceholder && soulSection) {
-        composedPrompt = appendSoulPrompt(composedPrompt, soulSection)
-    }
     const agents = await readProjectAgentsMd(startupRoot)
     if (agents) {
         composedPrompt = appendProjectAgentsPrompt(composedPrompt, agents)

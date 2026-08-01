@@ -28,7 +28,7 @@ Core provides the central capabilities of **Memo Code**: the ReAct loop, session
     - `file_suggestions/`: File suggestion helpers for the composer.
     - `history/`: Complete session-history module — JSONL sink (write side, injected by the composition root), parser and index (read side for resume/viewing).
 - `prompt/`
-    - `prompt.ts` + `prompt.md`: System prompt loading (runtime context, AGENTS.md/SOUL.md/skills injection).
+    - `prompt.ts` + `prompt.md`: System prompt loading (runtime context, AGENTS.md/skills injection).
 - `skills/` / `mcp/`
     - Skill management and MCP server admin.
 - `types.ts`: Shared types (`AgentDeps`, `Session/Turn`, `LanguageModelUsage`, `HistoryEvent`, etc.).
