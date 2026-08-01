@@ -21,11 +21,6 @@ export function calculateContextPercent(currentTokens: number, contextLimit: num
     return Math.min(100, (currentTokens / contextLimit) * 100)
 }
 
-export function truncate(input: string, max = 80): string {
-    if (input.length <= max) return input
-    return `${input.slice(0, Math.max(0, max - 3))}...`
-}
-
 export function safeStringify(value: unknown): string {
     if (typeof value === 'string') return value
     try {
