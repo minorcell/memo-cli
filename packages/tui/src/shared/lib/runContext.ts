@@ -67,6 +67,8 @@ export async function buildRunContext(
     const sessionOptions: AgentSessionOptions = {
         sessionId: randomUUID(),
         mode: 'interactive',
+        providerName: provider.name,
+        modelName: provider.model,
         contextWindow,
         autoCompactThresholdPercent: loaded.config.auto_compact_threshold_percent,
         activeMcpServers: loaded.config.active_mcp_servers,

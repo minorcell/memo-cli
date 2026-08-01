@@ -283,6 +283,20 @@ describe('withDefaultDeps (default path)', () => {
         expect(call.factory).toBe(state.factory)
     })
 
+    test('uses the session model override for resumed sessions', async () => {
+        process.env.MOCK_API_KEY = 'test-key'
+        const { withDefaultDeps } = await import('@memo/core/agent/defaults')
+        const resolved = await withDefaultDeps(
+            {},
+            { providerName: 'mock', modelName: 'historic-model' },
+            'session-resume',
+        )
+
+        await resolved.callLLM([{ role: 'user', content: 'continue' } as ChatMessage])
+
+        expect((state.streamCalls[0] as { provider: { model: string } }).provider.model).toBe('historic-model')
+    })
+
     test('passes call options (tools/signal) and forwards structured LLM response', async () => {
         process.env.MOCK_API_KEY = 'test-key'
         const { withDefaultDeps } = await import('@memo/core/agent/defaults')

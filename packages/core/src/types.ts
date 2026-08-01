@@ -146,6 +146,8 @@ export type AgentSessionOptions = {
     historyDir?: string
     /** Specify provider name to use. */
     providerName?: string
+    /** Model name override (resolved from the provider when omitted). */
+    modelName?: string
     /** Working directory used by prompt/tool runtime for this session. */
     cwd?: string
     /** Prompt warning threshold. */

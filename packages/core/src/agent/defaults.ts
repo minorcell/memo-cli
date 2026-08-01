@@ -117,7 +117,9 @@ export async function withDefaultDeps(
         callLLM:
             deps.callLLM ??
             (async (messages, onChunk, callOptions) => {
-                const provider = selectProvider(config, options.providerName)
+                const selectedProvider = selectProvider(config, options.providerName)
+                const modelName = options.modelName?.trim()
+                const provider = modelName ? { ...selectedProvider, model: modelName } : selectedProvider
                 const apiKey =
                     process.env[provider.env_api_key] ?? process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY
                 if (!apiKey) {
