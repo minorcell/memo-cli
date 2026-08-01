@@ -175,7 +175,8 @@ export class AgentSessionImpl implements AgentSession {
     }
 
     private calculateUsagePercent(promptTokens: number, contextWindow: number): number {
-        if (promptTokens <= 0 || contextWindow <= 0) return 0
+        // contextWindow 可被外部配置解析为 0（Math.floor(0 < n < 1)），此时避免 Infinity。
+        if (contextWindow <= 0) return 0
         return Math.round((promptTokens / contextWindow) * 10_000) / 100
     }
 
@@ -680,12 +681,13 @@ export class AgentSessionImpl implements AgentSession {
                     accumulateUsage(turnUsage, stepUsage)
                     accumulateUsage(this.sessionUsage, stepUsage)
 
-                    steps.push({
+                    const stepTrace: AgentStepTrace = {
                         index: step,
                         assistantText,
                         parsed,
                         tokenUsage: stepUsage,
-                    })
+                    }
+                    steps.push(stepTrace)
 
                     await this.emitEvent('assistant', {
                         turn,
@@ -842,10 +844,7 @@ export class AgentSessionImpl implements AgentSession {
                             .map((obs, i) => `[${toolResults[i]?.toolName ?? ''}]: ${obs}`)
                             .join('\n\n')
                         const hookObservation = toolResults.length > 1 ? combinedObservation : (observations[0] ?? '')
-                        const lastStep = steps[steps.length - 1]
-                        if (lastStep) {
-                            lastStep.observation = hookObservation
-                        }
+                        stepTrace.observation = hookObservation
                         const resultStatus =
                             resultStatuses.find((candidate) => candidate !== TOOL_ACTION_SUCCESS_STATUS) ??
                             TOOL_ACTION_SUCCESS_STATUS
@@ -892,8 +891,8 @@ export class AgentSessionImpl implements AgentSession {
                         continue
                     }
 
-                    // 检查是否是最终回复（无工具调用或有 final 字段）
-                    if (toolUseBlocks.length === 0 || parsed.final) {
+                    // 无工具调用：文本即最终回复
+                    if (toolUseBlocks.length === 0) {
                         this.resetActionRepetition()
                         const shouldFallbackFromPreviousText =
                             toolUseBlocks.length === 0 &&
@@ -932,10 +931,6 @@ export class AgentSessionImpl implements AgentSession {
                         })
                         break
                     }
-
-                    // 无动作且未结束时，重置重复计数（保持“连续”语义）
-                    this.resetActionRepetition()
-                    break
                 }
 
                 if (!finalText && status !== 'cancelled') {
@@ -1006,24 +1001,24 @@ export class AgentSessionImpl implements AgentSession {
     async close() {
         if (this.closed) return
         this.closed = true
-        const hasContent = this.sessionStartEmitted || this.turnIndex >= 0
-        if (hasContent) {
+        // 空会话（从未 runTurn）不写 session_end，避免空会话落盘；sink 清理始终执行。
+        if (this.sessionStartEmitted) {
             await this.emitEvent('session_end', {
                 meta: {
                     durationMs: Date.now() - this.startedAt,
                     tokens: this.sessionUsage,
                 },
             })
-            for (const sink of this.sinks) {
-                try {
-                    if (sink.close) {
-                        await sink.close()
-                    } else if (sink.flush) {
-                        await sink.flush()
-                    }
-                } catch (err) {
-                    console.error(`History flush failed: ${(err as Error).message}`)
+        }
+        for (const sink of this.sinks) {
+            try {
+                if (sink.close) {
+                    await sink.close()
+                } else if (sink.flush) {
+                    await sink.flush()
                 }
+            } catch (err) {
+                console.error(`History flush failed: ${(err as Error).message}`)
             }
         }
         // 清理所有授权
