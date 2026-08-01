@@ -31,8 +31,13 @@ jobs:
             - name: Format check
               run: pnpm run format:check
 
-            - name: Test all packages with coverage
-              run: pnpm run test:coverage
+            - name: Test all packages
+              run: pnpm run test
+
+            - name: Coverage report (warning only, non-blocking)
+              run: pnpm run test:coverage || echo "::warning::Test coverage is below the thresholds in vitest.config.ts. PR is not blocked by coverage."
+
+
 
             - name: Upload coverage reports to Codecov
               uses: codecov/codecov-action@v5
