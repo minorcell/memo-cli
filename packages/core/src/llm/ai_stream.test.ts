@@ -92,6 +92,34 @@ describe('streamCallLLM', () => {
         expect(result.toolCalls).toEqual([])
     })
 
+    test('streams reasoning deltas through onReasoningChunk', async () => {
+        state.parts = [
+            { type: 'reasoning-delta', id: 'r', text: 'think ' },
+            { type: 'reasoning-delta', id: 'r', text: 'more' },
+            textDelta('answer'),
+        ]
+        state.final = {
+            text: 'answer',
+            reasoning: 'think more',
+            toolCalls: [],
+            toolResults: [],
+            usage: state.final.usage,
+            finishReason: 'stop',
+        }
+        const reasoningChunks: string[] = []
+        const textChunks: string[] = []
+        const result = await streamCallLLM(
+            baseParams({
+                onChunk: (chunk: string) => textChunks.push(chunk),
+                onReasoningChunk: (chunk: string) => reasoningChunks.push(chunk),
+            }),
+        )
+
+        expect(reasoningChunks).toEqual(['think ', 'more'])
+        expect(textChunks).toEqual(['answer'])
+        expect(result.reasoning).toBe('think more')
+    })
+
     test('returns reasoningText as reasoning', async () => {
         state.parts = []
         state.final = {

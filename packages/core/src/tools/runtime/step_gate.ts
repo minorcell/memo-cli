@@ -23,63 +23,64 @@ export interface StepGate {
 export function createStepGate(): StepGate {
     let denied = false
     let runningShared = 0
-    let exclusivePending = false
-    let exclusiveChain: Promise<void> = Promise.resolve()
-    let idleWaiters: Array<() => void> = []
+    let runningExclusive = false
+    let queue: Array<{ exclusive: boolean; resolve: (permit: StepPermit) => void }> = []
 
-    function isIdle() {
-        return runningShared === 0 && !exclusivePending
-    }
+    function drain() {
+        if (denied) {
+            const pending = queue
+            queue = []
+            for (const waiter of pending) waiter.resolve({ skipped: true })
+            return
+        }
+        if (runningExclusive || queue.length === 0) return
 
-    function notifyIdle() {
-        if (!isIdle()) return
-        const waiters = idleWaiters
-        idleWaiters = []
-        for (const wake of waiters) wake()
-    }
+        const first = queue[0]
+        if (first?.exclusive) {
+            if (runningShared > 0) return
+            queue.shift()
+            runningExclusive = true
+            let released = false
+            first.resolve({
+                skipped: false,
+                release: () => {
+                    if (released) return
+                    released = true
+                    runningExclusive = false
+                    drain()
+                },
+            })
+            return
+        }
 
-    function waitForIdle(): Promise<void> {
-        if (isIdle()) return Promise.resolve()
-        return new Promise((resolve) => idleWaiters.push(resolve))
+        while (queue[0] && !queue[0].exclusive) {
+            const waiter = queue.shift()
+            if (!waiter) break
+            runningShared += 1
+            let released = false
+            waiter.resolve({
+                skipped: false,
+                release: () => {
+                    if (released) return
+                    released = true
+                    runningShared -= 1
+                    drain()
+                },
+            })
+        }
     }
 
     return {
         async acquire(exclusive) {
             if (denied) return { skipped: true }
-            if (exclusive) {
-                exclusivePending = true
-                await exclusiveChain
-                await waitForIdle()
-                if (denied) return { skipped: true }
-                let releaseExclusive!: () => void
-                exclusiveChain = new Promise((resolve) => (releaseExclusive = resolve))
-                return {
-                    skipped: false,
-                    release: () => {
-                        exclusivePending = false
-                        releaseExclusive()
-                        notifyIdle()
-                    },
-                }
-            }
-            // shared tool: wait for queued/running exclusive tools.
-            await exclusiveChain
-            if (exclusivePending) {
-                await waitForIdle()
-                if (denied) return { skipped: true }
-            }
-            runningShared += 1
-            return {
-                skipped: false,
-                release: () => {
-                    runningShared -= 1
-                    notifyIdle()
-                },
-            }
+            return new Promise<StepPermit>((resolve) => {
+                queue.push({ exclusive, resolve })
+                drain()
+            })
         },
         markDenied() {
             denied = true
-            notifyIdle()
+            drain()
         },
     }
 }

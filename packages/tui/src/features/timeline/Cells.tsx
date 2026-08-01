@@ -59,10 +59,10 @@ const StepCell = memo(function StepCell({
 
     return (
         <Box flexDirection="column">
-            {step.thinking ? (
+            {step.thinking || step.streamingThinking ? (
                 <Box>
                     <Text color="gray">● </Text>
-                    <Text color="gray">{step.thinking}</Text>
+                    <Text color="gray">{step.thinking ?? step.streamingThinking}</Text>
                 </Box>
             ) : null}
 

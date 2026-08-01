@@ -20,6 +20,7 @@ export type ChatTimelineAction =
           phase: ContextUsagePhase
       }
     | { type: 'assistant_chunk'; turn: number; step: number; chunk: string }
+    | { type: 'reasoning_chunk'; turn: number; step: number; chunk: string }
     | {
           type: 'tool_action'
           turn: number
@@ -203,6 +204,28 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
             }
         }
 
+        case 'reasoning_chunk': {
+            const updated = upsertTurn(state, action.turn, (turnView) => {
+                const steps = ensureStep(turnView.steps, action.step)
+                const currentStep = steps[action.step]
+                if (!currentStep) return turnView
+                const newThinking = `${currentStep.streamingThinking ?? ''}${action.chunk}`
+                if (newThinking === currentStep.streamingThinking) {
+                    return turnView
+                }
+                steps[action.step] = {
+                    ...currentStep,
+                    streamingThinking: newThinking,
+                }
+                return { ...turnView, steps }
+            })
+            return {
+                ...state,
+                turns: updated.turns,
+                sequence: updated.sequence,
+            }
+        }
+
         case 'tool_action': {
             const updated = upsertTurn(state, action.turn, (turnView) => {
                 const steps = ensureStep(turnView.steps, action.step)
@@ -211,7 +234,9 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
                 steps[action.step] = {
                     ...currentStep,
                     action: action.action,
+                    // Full thinking arrived with the action; drop the live stream to avoid duplication.
                     thinking: action.thinking,
+                    streamingThinking: action.thinking ? undefined : currentStep.streamingThinking,
                     parallelActions:
                         action.parallelActions && action.parallelActions.length > 1
                             ? action.parallelActions
@@ -253,9 +278,13 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
                 const durationMs = Math.max(0, Date.now() - startedAt)
                 const promptTokens = action.tokenUsage?.inputTokens ?? turnView.contextPromptTokens
                 const steps = [...turnView.steps]
-                if (action.thinking && steps.length > 0) {
+                if (steps.length > 0) {
                     const last = steps[steps.length - 1]
-                    if (last) steps[steps.length - 1] = { ...last, thinking: action.thinking }
+                    if (last) {
+                        // Complete thinking wins; otherwise promote the live stream.
+                        const thinking = action.thinking ?? last.streamingThinking
+                        steps[steps.length - 1] = { ...last, thinking, streamingThinking: undefined }
+                    }
                 }
                 return {
                     ...turnView,

@@ -87,6 +87,8 @@ export type CallLLMOptions = {
     toolContext?: ToolExecutionContext
     /** Thinking toggle for this call; undefined falls back to the provider model profile. */
     thinking?: boolean
+    /** Streaming reasoning deltas for UI display. */
+    onReasoningChunk?: (chunk: string) => void
 }
 
 export type CallLLM = (
@@ -111,6 +113,8 @@ export type AgentDeps = {
     loadPrompt?: () => Promise<string>
     /** Callback for each assistant output. */
     onAssistantStep?: (content: string, step: number) => void
+    /** Callback for each streaming reasoning chunk (thinking trace). */
+    onReasoningChunk?: (content: string, step: number) => void
     /** Hook collection: inject one-time lifecycle listeners. */
     hooks?: AgentHooks
     /** Middleware list: can register multiple Hook implementations. */

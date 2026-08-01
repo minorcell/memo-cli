@@ -117,6 +117,7 @@ export async function withDefaultDeps(
                     toolContext: callOptions?.toolContext,
                     thinking: callOptions?.thinking,
                     onChunk,
+                    onReasoningChunk: callOptions?.onReasoningChunk,
                     signal: callOptions?.signal,
                 })
             }),

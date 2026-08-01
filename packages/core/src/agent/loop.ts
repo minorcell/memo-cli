@@ -565,7 +565,12 @@ export class AgentSessionImpl implements AgentSession {
                                 }
                                 this.deps.onAssistantStep?.(chunk, step)
                             },
-                            { signal: abortController.signal, toolContext, thinking: this.thinkingOverride },
+                            {
+                                signal: abortController.signal,
+                                toolContext,
+                                thinking: this.thinkingOverride,
+                                onReasoningChunk: (chunk) => this.deps.onReasoningChunk?.(chunk, step),
+                            },
                         )
                         const normalized = normalizeLLMResponse(llmResult)
                         assistantText = normalized.textContent

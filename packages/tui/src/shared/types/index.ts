@@ -18,6 +18,8 @@ export type StepView = {
     index: number
     assistantText: string
     contextPromptTokens?: number
+    /** Live thinking trace accumulated from streaming reasoning deltas. */
+    streamingThinking?: string
     thinking?: string
     action?: ToolAction
     parallelActions?: ToolAction[]

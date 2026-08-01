@@ -19,6 +19,8 @@ export type StreamCallLLMParams = {
     /** Thinking override; undefined follows profile.supportsReasoningContent. */
     thinking?: boolean
     onChunk?: (chunk: string) => void
+    /** Streaming reasoning deltas (thinking trace); previously dropped silently. */
+    onReasoningChunk?: (chunk: string) => void
     signal?: AbortSignal
 }
 
@@ -40,7 +42,19 @@ export function normalizeStreamError(err: unknown, signal?: AbortSignal): Error 
 
 /** Default callLLM implementation: stream via AI SDK, tools execute inside streamText. */
 export async function streamCallLLM(params: StreamCallLLMParams): Promise<LLMResult> {
-    const { provider, apiKey, messages, tools, profile, factory, toolContext, thinking, onChunk, signal } = params
+    const {
+        provider,
+        apiKey,
+        messages,
+        tools,
+        profile,
+        factory,
+        toolContext,
+        thinking,
+        onChunk,
+        onReasoningChunk,
+        signal,
+    } = params
     const activeTools = tools && toolContext ? tools : undefined
     const model = factory.build(provider, apiKey)(provider.model)
     const requestProviderOptions = factory.buildProviderOptions(profile, thinking)
@@ -63,6 +77,7 @@ export async function streamCallLLM(params: StreamCallLLMParams): Promise<LLMRes
     try {
         for await (const part of result.fullStream) {
             if (part.type === 'text-delta') onChunk?.(part.text)
+            else if (part.type === 'reasoning-delta') onReasoningChunk?.(part.text)
             else if (part.type === 'error') throw part.error
         }
     } catch (err) {

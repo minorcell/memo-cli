@@ -204,6 +204,11 @@ export function App({
                 if (!turn) return
                 dispatchTimeline({ type: 'assistant_chunk', turn, step, chunk })
             },
+            onReasoningChunk: (chunk: string, step: number) => {
+                const turn = currentTurnRef.current
+                if (!turn) return
+                dispatchTimeline({ type: 'reasoning_chunk', turn, step, chunk })
+            },
             requestApproval:
                 toolPermissionMode === TOOL_PERMISSION_MODES.FULL || toolPermissionMode === TOOL_PERMISSION_MODES.NONE
                     ? undefined
