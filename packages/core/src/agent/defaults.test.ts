@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { filterMcpServersBySelection } from '@memo/core/session/defaults'
+import { filterMcpServersBySelection } from '@memo/core/agent/defaults'
 
 describe('filterMcpServersBySelection', () => {
     const servers = {

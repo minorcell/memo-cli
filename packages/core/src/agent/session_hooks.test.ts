@@ -4,8 +4,8 @@ import { describe, test } from 'vitest'
 import { createAgentSession, createTokenCounter } from '@memo/core'
 import type { ChatMessage, HistoryEvent, LLMResult, TokenCounter } from '@memo/core'
 import type { Tool } from '@memo/tools/router'
-import { CONTEXT_COMPACTION_SYSTEM_PROMPT, CONTEXT_SUMMARY_PREFIX } from '@memo/core/session/compact_prompt'
-import { emptyUsage } from '@memo/core/session/session_runtime_helpers'
+import { CONTEXT_COMPACTION_SYSTEM_PROMPT, CONTEXT_SUMMARY_PREFIX } from '@memo/core/agent/compact_prompt'
+import { emptyUsage } from '@memo/core/agent/loop'
 
 const echoTool: Tool = {
     name: 'echo',

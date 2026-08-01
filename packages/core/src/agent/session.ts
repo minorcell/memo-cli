@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { withDefaultDeps } from '@memo/core/session/defaults'
-import { DEFAULT_SESSION_MODE } from '@memo/core/session/session_runtime_helpers'
-import { AgentSessionImpl } from '@memo/core/session/session_runtime'
+import { withDefaultDeps } from '@memo/core/agent/defaults'
+import { DEFAULT_SESSION_MODE } from '@memo/core/agent/loop'
+import { AgentSessionImpl } from '@memo/core/agent/loop'
 import type { AgentSession, AgentSessionDeps, AgentSessionOptions } from '@memo/core/types'
 
 /**

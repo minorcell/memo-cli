@@ -2,17 +2,15 @@ import { describe, expect, test, vi } from 'vitest'
 import type { HistorySink } from '@memo/core/types'
 import {
     accumulateUsage,
-    completeToolResultsForProtocol,
     emitEventToSinks,
     emptyUsage,
     fallbackSessionTitleFromPrompt,
     isAbortError,
     normalizeSessionTitle,
-    parseTextToolCall,
     stableStringify,
-    toToolHistoryMessage,
     truncateSessionTitle,
-} from '@memo/core/session/session_runtime_helpers'
+} from '@memo/core/agent/loop'
+import { completeToolResultsForProtocol, parseTextToolCall, toToolHistoryMessage } from '@memo/core/agent/messages'
 
 describe('accumulateUsage', () => {
     test('uses explicit total when provided', () => {

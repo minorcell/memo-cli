@@ -9,7 +9,7 @@ import type {
 } from '@memo/core/types'
 import type { MCPServerConfig } from '@memo/core/config/config'
 import type { AIProviderFactory } from '@memo/core/llm/ai_provider'
-import { emptyUsage } from '@memo/core/session/session_runtime_helpers'
+import { emptyUsage } from '@memo/core/agent/loop'
 import type { Tool } from '@memo/tools/router'
 
 const state = vi.hoisted(() => ({
@@ -196,7 +196,7 @@ describe('withDefaultDeps (default path)', () => {
     })
 
     test('builds default deps with injected tool descriptions and default sinks', async () => {
-        const { withDefaultDeps } = await import('@memo/core/session/defaults')
+        const { withDefaultDeps } = await import('@memo/core/agent/defaults')
 
         const resolved = await withDefaultDeps(
             {},
@@ -215,7 +215,7 @@ describe('withDefaultDeps (default path)', () => {
     })
 
     test('respects provided deps overrides (callLLM/historySinks/tokenCounter/loadPrompt/dispose)', async () => {
-        const { withDefaultDeps } = await import('@memo/core/session/defaults')
+        const { withDefaultDeps } = await import('@memo/core/agent/defaults')
         const callLLM = vi.fn(async () => ({
             content: [{ type: 'text' as const, text: 'override' }],
             stop_reason: 'end_turn' as const,
@@ -253,7 +253,7 @@ describe('withDefaultDeps (default path)', () => {
     })
 
     test('throws when provider api key is missing', async () => {
-        const { withDefaultDeps } = await import('@memo/core/session/defaults')
+        const { withDefaultDeps } = await import('@memo/core/agent/defaults')
         const resolved = await withDefaultDeps({}, {} as AgentSessionOptions, 'session-3')
 
         await expect(resolved.callLLM([{ role: 'user', content: 'hello' } as ChatMessage])).rejects.toThrow(
@@ -263,7 +263,7 @@ describe('withDefaultDeps (default path)', () => {
 
     test('falls back to OPENAI_API_KEY and delegates to streamCallLLM', async () => {
         process.env.OPENAI_API_KEY = 'openai-fallback-key'
-        const { withDefaultDeps } = await import('@memo/core/session/defaults')
+        const { withDefaultDeps } = await import('@memo/core/agent/defaults')
         const resolved = await withDefaultDeps({}, {} as AgentSessionOptions, 'session-3b')
         const messages = [{ role: 'user', content: 'hello' } as ChatMessage]
 
@@ -291,7 +291,7 @@ describe('withDefaultDeps (default path)', () => {
 
     test('passes call options (tools/signal) and forwards structured LLM response', async () => {
         process.env.MOCK_API_KEY = 'test-key'
-        const { withDefaultDeps } = await import('@memo/core/session/defaults')
+        const { withDefaultDeps } = await import('@memo/core/agent/defaults')
         const callOptionsTools: ToolDefinition[] = [
             { name: 'override', description: 'override tool', input_schema: { type: 'object' } },
         ]
@@ -372,7 +372,7 @@ describe('withDefaultDeps (default path)', () => {
 
     test('forwards plain text response with usage', async () => {
         process.env.MOCK_API_KEY = 'test-key'
-        const { withDefaultDeps } = await import('@memo/core/session/defaults')
+        const { withDefaultDeps } = await import('@memo/core/agent/defaults')
 
         state.llmResponse = {
             text: 'plain assistant answer',
@@ -394,7 +394,7 @@ describe('withDefaultDeps (default path)', () => {
 
     test('propagates streamCallLLM errors (e.g. empty content)', async () => {
         process.env.MOCK_API_KEY = 'test-key'
-        const { withDefaultDeps } = await import('@memo/core/session/defaults')
+        const { withDefaultDeps } = await import('@memo/core/agent/defaults')
         const { streamCallLLM } = await import('@memo/core/llm/ai_stream')
         vi.mocked(streamCallLLM).mockRejectedValueOnce(new Error('OpenAI-compatible API returned empty content'))
 

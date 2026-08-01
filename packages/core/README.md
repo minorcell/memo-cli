@@ -10,14 +10,15 @@ Core provides the central capabilities of **Memo Code**: the ReAct loop, session
     - `ai_provider.ts`: AI SDK provider factory registry (dispatch by provider name; openai-compatible default).
     - `ai_stream.ts`: Default streaming LLM call via AI SDK `streamText`.
     - `model_profile.ts`: Model capability resolution (parallel tool calls, reasoning, context window).
-- `session/`
-    - `session_runtime.ts`: Session/Turn runtime, executes ReAct loop, writes events, tracks token usage.
-    - `session_runtime_helpers.ts`: Usage accumulation, LLM result normalization, message helpers.
-    - `defaults.ts`: Default dependency completion (toolset, LLM, prompt, history sink, tokenizer).
+- `agent/` — the agent loop kernel (minimal, readable, replaceable)
+    - `loop.ts`: ReAct loop (observe → think → act → record), session state, token usage, permissions, abort handling.
+    - `messages.ts`: Message construction and LLM result normalization (AI SDK `ModelMessage`/`GenerateTextResult`).
+    - `session.ts`: `createAgentSession` factory.
+    - `defaults.ts`: Composition root — default dependency completion (toolset, LLM, prompt, history sink, tokenizer).
     - `hooks.ts`: Hook/middleware runners and history snapshotting.
     - `compact_prompt.ts`: Context compaction prompt building.
-    - `file_suggestions.ts`: File suggestion helpers for the composer.
     - `slash/`: Slash command specs and registry.
+    - `file_suggestions.ts`: File suggestion helpers for the composer.
 - `history/`
     - `history.ts`: JSONL history sink and event construction.
     - `history_parser.ts` / `history_index.ts`: Session log parsing and indexing.

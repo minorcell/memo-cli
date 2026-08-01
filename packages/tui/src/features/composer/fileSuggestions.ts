@@ -4,7 +4,7 @@ import {
     normalizePath as normalizeCorePath,
     type FileSuggestion as CoreFileSuggestion,
     type FileSuggestionRequest as CoreFileSuggestionRequest,
-} from '@memo/core/session/file_suggestions'
+} from '@memo/core/agent/file_suggestions'
 import type { FileSuggestion, FileSuggestionRequest } from '../../shared/types'
 
 export function normalizePath(input: string): string {

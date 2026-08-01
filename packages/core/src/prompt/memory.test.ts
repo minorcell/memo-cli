@@ -6,7 +6,7 @@ import { describe, test, beforeAll, afterAll } from 'vitest'
 import { writeFile, rm, mkdir } from 'node:fs/promises'
 import { createAgentSession, createTokenCounter, type ChatMessage } from '@memo/core'
 import { loadSystemPrompt } from '@memo/core/prompt/prompt'
-import { emptyUsage } from '@memo/core/session/session_runtime_helpers'
+import { emptyUsage } from '@memo/core/agent/loop'
 
 /** System messages carry string content; parts arrays (assistant/tool) are not expected here. */
 function systemPromptOf(history: ChatMessage[]): string {
