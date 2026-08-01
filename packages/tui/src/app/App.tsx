@@ -8,6 +8,7 @@ import {
     resolveContextWindowForProvider,
     selectProvider,
     writeMemoConfig,
+    type ApprovalDecision,
     type AgentSession,
     type AgentSessionDeps,
     type AgentSessionOptions,
@@ -16,7 +17,14 @@ import {
     type ModelProfileOverride,
     type ProviderConfig,
 } from '@memo/core'
-import { useApproval } from './hooks/useApproval'
+import { ApprovalQueue } from './approvalQueue'
+import {
+    createInitialRuntimeState,
+    pendingRuntimeApproval,
+    runtimeReducer,
+    runtimeStatus,
+    type TurnRequest,
+} from './runtimeState'
 import { ChatWidget } from '../features/timeline/ChatWidget'
 import { Composer } from '../features/composer/Composer'
 import { Footer } from '../shared/ui/Footer'
@@ -109,6 +117,7 @@ export function App({
         sessionOptions.toolPermissionMode ?? (dangerous ? TOOL_PERMISSION_MODES.FULL : TOOL_PERMISSION_MODES.ONCE)
 
     const [timeline, dispatchTimeline] = useReducer(chatTimelineReducer, undefined, createInitialTimelineState)
+    const [runtime, dispatchRuntime] = useReducer(runtimeReducer, undefined, createInitialRuntimeState)
 
     const [currentProvider, setCurrentProvider] = useState(providerName)
     const [currentModel, setCurrentModel] = useState(model)
@@ -144,15 +153,29 @@ export function App({
     const [activeMcpServerNames, setActiveMcpServerNames] = useState<string[]>(initialActiveMcpServers)
     const [exitMessage, setExitMessage] = useState<string | null>(null)
 
-    const [busy, setBusy] = useState(false)
     const [sessionLogPath, setSessionLogPath] = useState<string | null>(null)
     const [pendingHistoryMessages, setPendingHistoryMessages] = useState<ChatMessage[] | null>(null)
     const [session, setSession] = useState<AgentSession | null>(null)
     const sessionRef = useRef<AgentSession | null>(null)
     const currentTurnRef = useRef<number | null>(null)
     const nextUserInputOverrideRef = useRef<string | null>(null)
+    const startedOperationRef = useRef<number | null>(null)
 
-    const { pendingApproval, setPendingApproval, approvalResolverRef, handleApprovalDecision } = useApproval()
+    const operationStatus = runtimeStatus(runtime)
+    const pendingApproval = pendingRuntimeApproval(runtime)
+    const approvalQueueRef = useRef<ApprovalQueue | null>(null)
+    if (!approvalQueueRef.current) {
+        approvalQueueRef.current = new ApprovalQueue((request) => {
+            dispatchRuntime(request ? { type: 'approval_requested', request } : { type: 'approval_resolved' })
+        })
+    }
+    const approvalQueue = approvalQueueRef.current
+    const handleApprovalDecision = useCallback(
+        (decision: ApprovalDecision) => {
+            approvalQueue.decide(decision)
+        },
+        [approvalQueue],
+    )
 
     const handleToggleThinking = useCallback(() => {
         setThinkingOn((prev) => {
@@ -211,12 +234,10 @@ export function App({
             requestApproval:
                 toolPermissionMode === TOOL_PERMISSION_MODES.FULL || toolPermissionMode === TOOL_PERMISSION_MODES.NONE
                     ? undefined
-                    : (request) =>
-                          new Promise((resolve) => {
-                              void notifyApprovalRequested(request)
-                              setPendingApproval(request)
-                              approvalResolverRef.current = resolve
-                          }),
+                    : (request) => {
+                          void notifyApprovalRequested(request)
+                          return approvalQueue.request(request)
+                      },
             hooks: {
                 onTurnStart: ({ turn, input, promptTokens }) => {
                     currentTurnRef.current = turn
@@ -283,7 +304,7 @@ export function App({
                         parallelActions,
                     })
                 },
-                onObservation: ({ turn, step, observation, resultStatus, parallelResultStatuses }) => {
+                onObservation: ({ turn, step, observation, resultStatus, parallelResultStatuses, results }) => {
                     dispatchTimeline({
                         type: 'tool_observation',
                         turn,
@@ -291,6 +312,12 @@ export function App({
                         observation,
                         toolStatus: inferToolStatus(resultStatus),
                         parallelToolStatuses: inferParallelToolStatuses(parallelResultStatuses),
+                        toolResults: results.map((result) => ({
+                            toolCallId: result.toolCallId,
+                            tool: result.tool,
+                            observation: result.observation,
+                            status: inferToolStatus(result.status),
+                        })),
                     })
                 },
                 onFinal: ({ turn, finalText, status, errorMessage, turnUsage, tokenUsage, thinking }) => {
@@ -304,11 +331,10 @@ export function App({
                         tokenUsage,
                         thinking,
                     })
-                    setBusy(false)
                 },
             },
         }),
-        [appendSystemMessage, dispatchTimeline, toolPermissionMode],
+        [appendSystemMessage, approvalQueue, dispatchTimeline, toolPermissionMode],
     )
 
     useEffect(() => {
@@ -336,7 +362,7 @@ export function App({
                 sessionRef.current = null
                 setSession(null)
                 setSessionLogPath(null)
-                setBusy(false)
+                dispatchRuntime({ type: 'reset' })
                 appendSystemMessage('Session', `Failed to create session: ${(err as Error).message}`, 'error')
             }
         })()
@@ -371,19 +397,15 @@ export function App({
     }, [appendSystemMessage])
 
     const handleExit = useCallback(async () => {
-        const resolver = approvalResolverRef.current
-        if (resolver) {
-            resolver('deny')
-            approvalResolverRef.current = null
-        }
-        if (pendingApproval) {
-            setPendingApproval(null)
+        approvalQueue.denyAll()
+        if (runtime.active?.kind === 'turn') {
+            dispatchRuntime({ type: 'cancel_requested' })
         }
         if (sessionRef.current) {
             await sessionRef.current.close()
         }
         setExitMessage('Bye!')
-    }, [pendingApproval])
+    }, [approvalQueue, runtime.active])
 
     // Render the farewell message first, then unmount.
     useEffect(() => {
@@ -392,32 +414,35 @@ export function App({
         }
     }, [exit, exitMessage])
 
-    const guardBusyOrApproval = useCallback(
+    const guardActiveOperation = useCallback(
         (action: string): boolean => {
-            if (busy) {
-                appendSystemMessage(action, 'Cancel current run before proceeding.', 'warning')
-                return true
-            }
-            if (pendingApproval) {
-                appendSystemMessage(action, 'Resolve current approval request before proceeding.', 'warning')
-                return true
-            }
-            return false
+            if (!runtime.active) return false
+            const message =
+                operationStatus === 'awaiting_approval'
+                    ? 'Resolve the current approval request before proceeding.'
+                    : operationStatus === 'compacting'
+                      ? 'Wait for context compaction to finish before proceeding.'
+                      : operationStatus === 'cancelling'
+                        ? 'Wait for cancellation to finish before proceeding.'
+                        : 'Cancel the current run before proceeding.'
+            appendSystemMessage(action, message, 'warning')
+            return true
         },
-        [appendSystemMessage, busy, pendingApproval],
+        [appendSystemMessage, operationStatus, runtime.active],
     )
 
     const handleClear = useCallback(() => {
-        if (guardBusyOrApproval('Clear')) return
+        if (guardActiveOperation('Clear')) return
         dispatchTimeline({ type: 'clear_current_timeline' })
         setPendingHistoryMessages(null)
         setCurrentContextTokens(0)
         clearTerminalScreen()
-    }, [dispatchTimeline, guardBusyOrApproval])
+    }, [dispatchTimeline, guardActiveOperation])
 
     const handleNewSession = useCallback(() => {
-        if (guardBusyOrApproval('New Session')) return
+        if (guardActiveOperation('New Session')) return
         dispatchTimeline({ type: 'reset_all' })
+        dispatchRuntime({ type: 'reset' })
         setPendingHistoryMessages(null)
         setCurrentContextTokens(0)
         currentTurnRef.current = null
@@ -426,7 +451,7 @@ export function App({
             sessionId: randomUUID(),
         }))
         appendSystemMessage('New Session', 'Started a fresh session.')
-    }, [appendSystemMessage, dispatchTimeline, guardBusyOrApproval])
+    }, [appendSystemMessage, dispatchTimeline, guardActiveOperation])
 
     const persistCurrentProvider = useCallback(
         async (name: string) => {
@@ -445,7 +470,7 @@ export function App({
 
     const handleModelSelect = useCallback(
         async (provider: ProviderConfig) => {
-            if (guardBusyOrApproval('Model switch')) return
+            if (guardActiveOperation('Model switch')) return
 
             if (provider.name === currentProvider && provider.model === currentModel) {
                 appendSystemMessage('Model switch', `Already using ${provider.name} (${provider.model}).`)
@@ -453,6 +478,7 @@ export function App({
             }
 
             dispatchTimeline({ type: 'reset_all' })
+            dispatchRuntime({ type: 'reset' })
             setCurrentContextTokens(0)
             currentTurnRef.current = null
 
@@ -475,7 +501,7 @@ export function App({
             currentModel,
             currentProvider,
             dispatchTimeline,
-            guardBusyOrApproval,
+            guardActiveOperation,
             persistCurrentProvider,
             resolveContextLimit,
         ],
@@ -489,7 +515,7 @@ export function App({
 
     const handleSetToolPermission = useCallback(
         (mode: ToolPermissionMode) => {
-            if (guardBusyOrApproval('Tools')) return
+            if (guardActiveOperation('Tools')) return
 
             if (mode === toolPermissionMode) {
                 appendSystemMessage('Tools', `Already using ${toolPermissionLabel(mode)}.`)
@@ -501,6 +527,7 @@ export function App({
             // to match the fresh session's (empty) history.
             setToolPermissionMode(mode)
             dispatchTimeline({ type: 'reset_all' })
+            dispatchRuntime({ type: 'reset' })
             setCurrentContextTokens(0)
             currentTurnRef.current = null
             setSessionOptionsState((prev) => ({
@@ -511,7 +538,7 @@ export function App({
             }))
             appendSystemMessage('Tools', `Tool permission set to ${toolPermissionLabel(mode)}. Conversation reset.`)
         },
-        [appendSystemMessage, dispatchTimeline, guardBusyOrApproval, toolPermissionLabel, toolPermissionMode],
+        [appendSystemMessage, dispatchTimeline, guardActiveOperation, toolPermissionLabel, toolPermissionMode],
     )
 
     const persistActiveMcpServers = useCallback(
@@ -549,7 +576,7 @@ export function App({
 
     const handleHistorySelect = useCallback(
         async (entry: SessionHistoryEntry) => {
-            if (guardBusyOrApproval('History')) return
+            if (guardActiveOperation('History')) return
             try {
                 const raw = await readFile(entry.sessionFile, 'utf8')
                 const parsed = parseHistoryLog(raw)
@@ -560,7 +587,7 @@ export function App({
                     maxSequence: parsed.maxSequence,
                 })
                 setPendingHistoryMessages(parsed.messages)
-                setBusy(false)
+                dispatchRuntime({ type: 'reset' })
                 setSession(null)
                 setSessionLogPath(null)
                 setCurrentContextTokens(0)
@@ -575,41 +602,57 @@ export function App({
                 )
             }
         },
-        [appendSystemMessage, dispatchTimeline, guardBusyOrApproval],
+        [appendSystemMessage, dispatchTimeline, guardActiveOperation],
     )
 
     const handleCancelRun = useCallback(() => {
-        if (!busy) return
+        if (runtime.active?.kind !== 'turn') return
+        approvalQueue.denyAll()
+        dispatchRuntime({ type: 'cancel_requested' })
         session?.cancelCurrentTurn?.()
-    }, [busy, session])
+    }, [approvalQueue, runtime.active, session])
 
-    const runCompactCommand = useCallback(async () => {
-        if (guardBusyOrApproval('Compact')) return
+    const runCompactCommand = useCallback(() => {
         if (!session) return
-
-        try {
-            const result = await session.compactHistory('manual')
-            setCurrentContextTokens(result.afterTokens)
-        } catch (err) {
-            appendSystemMessage('Compact', `Failed to compact context: ${(err as Error).message}`, 'error')
+        if (runtime.active) {
+            const message =
+                runtime.active.kind === 'compact'
+                    ? 'Context compaction is already running.'
+                    : 'Compact is unavailable while a turn is running.'
+            appendSystemMessage('Compact', message, 'warning')
+            return
         }
-    }, [appendSystemMessage, guardBusyOrApproval, session])
+        dispatchRuntime({ type: 'start_compact' })
+    }, [appendSystemMessage, runtime.active, session])
 
     const runInitCommand = useCallback(async () => {
-        if (!session || busy) return
+        if (!session) return
+        if (runtime.active) {
+            appendSystemMessage('Init', 'Init is unavailable while a turn is running.', 'warning')
+            return
+        }
 
         const initCommand = formatSlashCommand(SLASH_COMMANDS.INIT)
+        const targetSessionId = session.id
         try {
             const prompt = await loadTaskPrompt('init_agents')
+            if (sessionRef.current?.id !== targetSessionId) {
+                appendSystemMessage('Init', 'Session changed before the init task could start.', 'warning')
+                return
+            }
             setInputHistory((prev) => [...prev, initCommand])
-            setBusy(true)
-            nextUserInputOverrideRef.current = initCommand
-            await session.runTurn(prompt)
+            dispatchRuntime({
+                type: 'submit_turn',
+                request: {
+                    id: randomUUID(),
+                    input: prompt,
+                    displayInput: initCommand,
+                },
+            })
         } catch (err) {
-            setBusy(false)
             appendSystemMessage('Init', `Failed to run init task: ${(err as Error).message}`, 'error')
         }
-    }, [appendSystemMessage, busy, session])
+    }, [appendSystemMessage, runtime.active, session])
 
     const handleSubmit = useCallback(
         async (value: string) => {
@@ -626,19 +669,47 @@ export function App({
                 return
             }
 
-            if (!session || busy) return
+            if (!session) return
 
             setInputHistory((prev) => [...prev, trimmed])
-            setBusy(true)
-            try {
-                await session.runTurn(trimmed)
-            } catch (err) {
-                setBusy(false)
-                appendSystemMessage('Run', `Turn failed: ${(err as Error).message}`, 'error')
+            const request: TurnRequest = {
+                id: randomUUID(),
+                input: trimmed,
+                displayInput: trimmed,
             }
+            dispatchRuntime({ type: 'submit_turn', request })
         },
-        [appendSystemMessage, busy, handleExit, runInitCommand, session],
+        [handleExit, runInitCommand, session],
     )
+
+    useEffect(() => {
+        const active = runtime.active
+        if (!active || !session || startedOperationRef.current === active.id) return
+        startedOperationRef.current = active.id
+
+        void (async () => {
+            try {
+                if (active.kind === 'compact') {
+                    const result = await session.compactHistory('manual')
+                    setCurrentContextTokens(result.afterTokens)
+                    return
+                }
+
+                const override =
+                    active.request.displayInput !== active.request.input ? active.request.displayInput : null
+                nextUserInputOverrideRef.current = override
+                await session.runTurn(active.request.input)
+            } catch (err) {
+                const title = active.kind === 'compact' ? 'Compact' : 'Run'
+                appendSystemMessage(title, `${title} failed: ${(err as Error).message}`, 'error')
+            } finally {
+                if (active.kind === 'turn' && nextUserInputOverrideRef.current === active.request.displayInput) {
+                    nextUserInputOverrideRef.current = null
+                }
+                dispatchRuntime({ type: 'operation_finished', operationId: active.id })
+            }
+        })()
+    }, [appendSystemMessage, runtime.active, session])
 
     const handleSetupComplete = useCallback(async () => {
         try {
@@ -724,8 +795,8 @@ export function App({
             />
 
             <Composer
-                disabled={!session || !!pendingApproval}
-                busy={busy}
+                disabled={!session || operationStatus === 'awaiting_approval'}
+                operationStatus={operationStatus}
                 history={inputHistory}
                 cwd={cwd}
                 sessionsDir={sessionsDir}
@@ -762,8 +833,8 @@ export function App({
             {pendingApproval ? <ApprovalOverlay request={pendingApproval} onDecision={handleApprovalDecision} /> : null}
 
             <Footer
-                busy={busy}
-                pendingApproval={Boolean(pendingApproval)}
+                operationStatus={operationStatus}
+                queuedCount={runtime.queuedTurns.length}
                 contextPercent={contextPercent}
                 thinkingOn={thinkingOn}
             />

@@ -32,7 +32,7 @@ describe('parseHistoryLog', () => {
                 turn: 1,
                 step: 0,
                 content: 'loaded',
-                meta: { status: 'success' },
+                meta: { tool: 'read_file', action_id: 'call-read', status: 'success' },
             }),
             line({
                 type: 'final',
@@ -60,5 +60,13 @@ describe('parseHistoryLog', () => {
         assert.strictEqual(turn?.steps[0]?.thinking, 'need context')
         assert.strictEqual(turn?.steps[0]?.observation, 'loaded')
         assert.strictEqual(turn?.steps[0]?.toolStatus, TOOL_STATUS.SUCCESS)
+        assert.deepStrictEqual(turn?.steps[0]?.toolResults, [
+            {
+                toolCallId: 'call-read',
+                tool: 'read_file',
+                observation: 'loaded',
+                status: TOOL_STATUS.SUCCESS,
+            },
+        ])
     })
 })

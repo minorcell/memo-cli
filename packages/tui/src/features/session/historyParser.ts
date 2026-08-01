@@ -31,6 +31,11 @@ function toToolStatus(step: SessionTurnStep): StepView['toolStatus'] {
     return step.resultStatus === 'success' ? TOOL_STATUS.SUCCESS : TOOL_STATUS.ERROR
 }
 
+function normalizeToolResultStatus(value: string | undefined): NonNullable<StepView['toolStatus']> {
+    if (!value) return TOOL_STATUS.PENDING
+    return value === 'success' ? TOOL_STATUS.SUCCESS : TOOL_STATUS.ERROR
+}
+
 function toTurnView(turn: SessionTurnDetail, sequence: number, turnIndex: number): TurnView {
     return {
         index: -(turnIndex + 1),
@@ -41,6 +46,12 @@ function toTurnView(turn: SessionTurnDetail, sequence: number, turnIndex: number
             thinking: step.thinking,
             action: step.action,
             parallelActions: step.parallelActions,
+            toolResults: step.toolResults?.map((result) => ({
+                toolCallId: result.toolCallId,
+                tool: result.tool,
+                observation: result.observation,
+                status: normalizeToolResultStatus(result.resultStatus),
+            })),
             observation: step.observation,
             toolStatus: toToolStatus(step),
         })),

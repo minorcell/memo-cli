@@ -9,9 +9,19 @@ export const TOOL_STATUS = {
 
 export type ToolStatus = (typeof TOOL_STATUS)[keyof typeof TOOL_STATUS]
 
+export type RuntimeStatus = 'idle' | 'running' | 'awaiting_approval' | 'cancelling' | 'compacting'
+
 export type ToolAction = {
+    toolCallId?: string
     tool: string
     input: unknown
+}
+
+export type ToolResultView = {
+    toolCallId?: string
+    tool: string
+    observation: string
+    status: ToolStatus
 }
 
 export type StepView = {
@@ -23,6 +33,7 @@ export type StepView = {
     thinking?: string
     action?: ToolAction
     parallelActions?: ToolAction[]
+    toolResults?: ToolResultView[]
     parallelToolStatuses?: ToolStatus[]
     observation?: string
     toolStatus?: ToolStatus

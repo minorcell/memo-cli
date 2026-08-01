@@ -93,6 +93,48 @@ describe('chatTimelineReducer', () => {
         assert.strictEqual(step?.streamingThinking, undefined)
     })
 
+    test('keeps structured parallel tool results associated by call id', () => {
+        let state = createInitialTimelineState()
+
+        state = chatTimelineReducer(state, { type: 'turn_start', turn: 1, input: 'inspect' })
+        state = chatTimelineReducer(state, {
+            type: 'tool_action',
+            turn: 1,
+            step: 0,
+            action: { toolCallId: 'call-list', tool: 'list_directory', input: { path: '.' } },
+            parallelActions: [
+                { toolCallId: 'call-list', tool: 'list_directory', input: { path: '.' } },
+                { toolCallId: 'call-search', tool: 'search_files', input: { path: '.', pattern: '*.md' } },
+            ],
+        })
+        state = chatTimelineReducer(state, {
+            type: 'tool_observation',
+            turn: 1,
+            step: 0,
+            observation: 'combined legacy value',
+            toolStatus: 'success',
+            toolResults: [
+                {
+                    toolCallId: 'call-list',
+                    tool: 'list_directory',
+                    observation: '[DIR] packages',
+                    status: 'success',
+                },
+                {
+                    toolCallId: 'call-search',
+                    tool: 'search_files',
+                    observation: 'README.md',
+                    status: 'success',
+                },
+            ],
+        })
+
+        assert.deepStrictEqual(
+            state.turns[0]?.steps[0]?.toolResults?.map((result) => result.toolCallId),
+            ['call-list', 'call-search'],
+        )
+    })
+
     test('turn_final promotes the live stream when no complete thinking is provided', () => {
         let state = createInitialTimelineState()
 

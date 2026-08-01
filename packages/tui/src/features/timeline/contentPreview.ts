@@ -13,27 +13,40 @@ type PreviewOptions = {
 
 function wrapText(input: string, columns: number): string[] {
     const lines: string[] = []
-    let line = ''
+    let chars: string[] = []
     let width = 0
+    let lastWhitespaceIndex = -1
+
+    const flush = () => {
+        lines.push(chars.join(''))
+        chars = []
+        width = 0
+        lastWhitespaceIndex = -1
+    }
 
     for (const char of input) {
         if (char === '\n') {
-            lines.push(line)
-            line = ''
-            width = 0
+            flush()
             continue
         }
 
         const charWidth = Math.max(0, stringWidth(char))
-        if (line && width + charWidth > columns) {
-            lines.push(line)
-            line = ''
-            width = 0
+        if (chars.length > 0 && width + charWidth > columns) {
+            if (lastWhitespaceIndex >= 0) {
+                lines.push(chars.slice(0, lastWhitespaceIndex).join('').trimEnd())
+                chars = chars.slice(lastWhitespaceIndex + 1)
+                while (chars[0] && /\s/.test(chars[0])) chars.shift()
+                width = stringWidth(chars.join(''))
+                lastWhitespaceIndex = chars.findLastIndex((value) => /\s/.test(value))
+            } else {
+                flush()
+            }
         }
-        line += char
+        chars.push(char)
         width += charWidth
+        if (/\s/.test(char)) lastWhitespaceIndex = chars.length - 1
     }
-    lines.push(line)
+    lines.push(chars.join(''))
     return lines
 }
 
@@ -52,6 +65,21 @@ function addEndEllipsis(line: string, columns: number): string {
     return `${text}${suffix}`
 }
 
+function addStartEllipsis(line: string, columns: number): string {
+    const prefix = '…'
+    const available = Math.max(0, columns - stringWidth(prefix))
+    let text = ''
+    let width = 0
+
+    for (const char of Array.from(line).reverse()) {
+        const charWidth = Math.max(0, stringWidth(char))
+        if (width + charWidth > available) break
+        text = `${char}${text}`
+        width += charWidth
+    }
+    return `${prefix}${text}`
+}
+
 export function previewText(input: string, options: PreviewOptions): TextPreview {
     const value = input.replace(/\r\n?/g, '\n').trim()
     if (!value) return { text: '', truncated: false }
@@ -61,7 +89,14 @@ export function previewText(input: string, options: PreviewOptions): TextPreview
     const lines = wrapText(value, columns)
     if (lines.length <= maxLines) return { text: value, truncated: false }
 
-    if (options.from === 'end' && maxLines > 1) {
+    if (options.from === 'end' && maxLines === 1) {
+        return {
+            text: addStartEllipsis(value.replace(/\s+/g, ' '), columns),
+            truncated: true,
+        }
+    }
+
+    if (options.from === 'end') {
         return {
             text: ['…', ...lines.slice(-(maxLines - 1))].join('\n'),
             truncated: true,

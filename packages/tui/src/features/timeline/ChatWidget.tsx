@@ -66,19 +66,19 @@ export const ChatWidget = memo(function ChatWidget({
                 {(item) => {
                     if (isHeaderItem(item)) {
                         return (
-                            <Box
-                                key={`header-${item.data.sessionId}`}
-                                borderStyle="round"
-                                borderColor="blue"
-                                paddingX={1}
-                                flexDirection="column"
-                            >
-                                <Text bold>Memo Code</Text>
-                                <Text color="gray">
-                                    {item.data.providerName} / {item.data.model} • v{item.data.version}
+                            <Box key={`header-${item.data.sessionId}`} flexDirection="column">
+                                <Box justifyContent="space-between">
+                                    <Text bold color="cyan">
+                                        Memo Code
+                                    </Text>
+                                    <Text color="gray">v{item.data.version}</Text>
+                                </Box>
+                                <Text color="gray" wrap="truncate-end">
+                                    {item.data.providerName} / {item.data.model} · {item.data.cwd}
                                 </Text>
-                                <Text color="gray">cwd: {item.data.cwd}</Text>
-                                <Text color="gray">mcp: {item.data.mcpNames.join(', ') || 'none'}</Text>
+                                <Text color="gray" wrap="truncate-end">
+                                    MCP {item.data.mcpNames.join(', ') || 'none'}
+                                </Text>
                             </Box>
                         )
                     }

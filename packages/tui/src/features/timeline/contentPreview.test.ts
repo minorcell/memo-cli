@@ -24,9 +24,23 @@ describe('previewText', () => {
         })
     })
 
+    test('keeps the latest columns for a one-line streaming preview', () => {
+        assert.deepStrictEqual(previewText('1234567890', { columns: 5, maxLines: 1, from: 'end' }), {
+            text: '…7890',
+            truncated: true,
+        })
+    })
+
     test('measures wide characters using terminal column width', () => {
         assert.deepStrictEqual(previewText('你好世界', { columns: 4, maxLines: 1 }), {
             text: '你…',
+            truncated: true,
+        })
+    })
+
+    test('prefers word boundaries when wrapping prose', () => {
+        assert.deepStrictEqual(previewText('one two three four', { columns: 8, maxLines: 2 }), {
+            text: 'one two\nthree…',
             truncated: true,
         })
     })

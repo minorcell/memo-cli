@@ -61,11 +61,11 @@ function InlineSegment({ node }: { node: InlineNode }) {
 function InlineLine({ content }: { content: string }) {
     const inlineNodes = parseInlineNodes(content)
     return (
-        <Box flexWrap="wrap">
+        <Text wrap="wrap">
             {inlineNodes.map((node, index) => (
                 <InlineSegment key={index} node={node} />
             ))}
-        </Box>
+        </Text>
     )
 }
 

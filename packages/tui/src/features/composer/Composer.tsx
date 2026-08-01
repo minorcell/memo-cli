@@ -28,6 +28,7 @@ import {
     TOOL_PERMISSION_MODES,
     type ToolPermissionMode,
 } from '../../shared/lib/constants'
+import type { RuntimeStatus } from '../../shared/types'
 
 const DOUBLE_ESC_WINDOW_MS = 400
 const CTRL_D_EXIT_WINDOW_MS = 1500
@@ -42,7 +43,7 @@ const TOOL_MODE_OPTIONS: Array<{ mode: ToolPermissionMode; description: string }
 
 type ComposerProps = {
     disabled: boolean
-    busy: boolean
+    operationStatus: RuntimeStatus
     history: string[]
     cwd: string
     sessionsDir: string
@@ -293,7 +294,7 @@ async function buildSuggestionsForTrigger({
 
 export const Composer = memo(function Composer({
     disabled,
-    busy,
+    operationStatus,
     history,
     cwd,
     sessionsDir,
@@ -630,7 +631,7 @@ export const Composer = memo(function Composer({
             if (key.escape) {
                 if (now - lastEscTimeRef.current <= DOUBLE_ESC_WINDOW_MS) {
                     lastEscTimeRef.current = 0
-                    if (busy) {
+                    if (operationStatus === 'running' || operationStatus === 'cancelling') {
                         onCancelRun()
                     } else {
                         preferredColumnRef.current = null
@@ -742,7 +743,7 @@ export const Composer = memo(function Composer({
             }
 
             // Empty input + Tab toggles thinking mode (opencode-style shortcut).
-            if (key.tab && !canNavigate && editorRef.current.value === '') {
+            if (key.tab && !canNavigate && editorRef.current.value === '' && operationStatus === 'idle') {
                 onToggleThinking()
                 return
             }
@@ -907,25 +908,42 @@ export const Composer = memo(function Composer({
     )
 
     const terminalWidth = stdout?.columns ?? process.stdout?.columns ?? 80
-    // Reserve prompt prefix width (2) and one cell for the synthetic cursor block.
-    const composerContentWidth = Math.max(1, terminalWidth - 3)
+    // Reserve border, horizontal padding, prompt prefix, and the synthetic cursor block.
+    const composerContentWidth = Math.max(1, terminalWidth - 7)
     const wrappedLayout = getWrappedCursorLayout(editor.value, editor.cursor, composerContentWidth)
     const lines = wrappedLayout.lines
+    const composerColor = disabled ? 'gray' : operationStatus === 'idle' ? 'cyan' : 'yellow'
+    const placeholder = disabled
+        ? operationStatus === 'awaiting_approval'
+            ? 'Resolve tool approval to continue'
+            : 'Starting session...'
+        : operationStatus === 'idle'
+          ? 'Ask Memo Code...'
+          : 'Type a follow-up to queue'
 
     return (
-        <Box flexDirection="column" gap={1}>
-            <Box flexDirection="column" paddingY={1}>
+        <Box flexDirection="column" marginTop={1}>
+            <Box flexDirection="column" borderStyle="round" borderColor={composerColor} paddingX={1}>
                 {lines.map((line, index) => {
                     const lineText = line.text
                     const isCursorRow = !disabled && index === wrappedLayout.row
+                    const showPlaceholder = editor.value.length === 0 && index === 0
                     const before = isCursorRow ? lineText.slice(0, wrappedLayout.cursorInRow) : lineText
                     const after = isCursorRow ? lineText.slice(wrappedLayout.cursorInRow) : ''
 
                     return (
                         <Box key={`line-${index}`}>
-                            <Text color="gray">{index === 0 ? '› ' : '  '}</Text>
+                            <Text bold color={composerColor}>
+                                {index === 0 ? '› ' : '  '}
+                            </Text>
                             <Text>{before}</Text>
-                            {isCursorRow ? <Text color="cyan">▊</Text> : null}
+                            {isCursorRow ? <Text color={composerColor}>▊</Text> : null}
+                            {showPlaceholder ? (
+                                <Text color="gray" dimColor>
+                                    {' '}
+                                    {placeholder}
+                                </Text>
+                            ) : null}
                             {isCursorRow ? <Text>{after}</Text> : null}
                         </Box>
                     )

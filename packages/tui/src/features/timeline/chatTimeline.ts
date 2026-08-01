@@ -1,5 +1,13 @@
 import type { ContextUsagePhase, LanguageModelUsage, TurnStatus } from '@memo/core'
-import type { StepView, SystemMessage, SystemMessageTone, ToolAction, ToolStatus, TurnView } from '../../shared/types'
+import type {
+    StepView,
+    SystemMessage,
+    SystemMessageTone,
+    ToolAction,
+    ToolResultView,
+    ToolStatus,
+    TurnView,
+} from '../../shared/types'
 import { TOOL_STATUS } from '../../shared/types'
 
 export type ChatTimelineState = {
@@ -36,6 +44,7 @@ export type ChatTimelineAction =
           observation: string
           toolStatus: ToolStatus
           parallelToolStatuses?: ToolStatus[]
+          toolResults: ToolResultView[]
       }
     | {
           type: 'turn_final'
@@ -262,6 +271,7 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
                     observation: action.observation,
                     toolStatus: action.toolStatus,
                     parallelToolStatuses: action.parallelToolStatuses,
+                    toolResults: action.toolResults,
                 }
                 return { ...turnView, steps }
             })
