@@ -35,6 +35,10 @@ export default defineConfig({
         cpSync(join('packages/tui/src/task-prompts'), join('dist/task-prompts'), {
             recursive: true,
         })
-        console.log('✓ Copied prompt.md and task prompts to dist/')
+        mkdirSync(join('dist/skills/builtin'), { recursive: true })
+        cpSync(join('packages/core/src/skills/builtin/skill-creator'), join('dist/skills/builtin/skill-creator'), {
+            recursive: true,
+        })
+        console.log('✓ Copied prompt.md, task prompts, and builtin skills to dist/')
     },
 })

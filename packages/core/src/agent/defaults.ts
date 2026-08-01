@@ -12,6 +12,7 @@ import { McpToolRegistry } from '@memo/core/tools/router'
 import { wrapToolSetWithRuntime } from '@memo/core/tools/sdk_tools'
 import { buildSkillIndex, filterActiveSkills, loadSkills } from '@memo/core/skills/skills'
 import type { SkillIndex } from '@memo/core/skills/skills'
+import { installBuiltinSkills } from '@memo/core/skills/builtin_skills'
 import type { AgentSessionDeps, AgentSessionOptions, CallLLM, HistorySink, TokenCounter } from '@memo/core/types'
 import type { MCPServerConfig } from '@memo/core/config/config'
 
@@ -76,6 +77,13 @@ export async function withDefaultDeps(
     // 3. Wrap every tool execute with the runtime gate (approval / skip / truncation).
     // Context flows in per call via streamText experimental_context.
     const runtimeTools = wrapToolSetWithRuntime(combinedTools) ?? combinedTools
+
+    // 4.5 Built-in skills: idempotent install into $MEMO_HOME/skills before the
+    // scan, so a fresh install is picked up by this very session. Failure is
+    // non-fatal - memo still works, just without builtin skills.
+    await installBuiltinSkills({ memoHome: loaded.home }).catch((error: unknown) => {
+        console.warn(`[memo] failed to install builtin skills: ${(error as Error).message}`)
+    })
 
     // 5. Skills: one scan per session, shared by the system prompt directory
     // and the read_skill tool (keeps both consistent).

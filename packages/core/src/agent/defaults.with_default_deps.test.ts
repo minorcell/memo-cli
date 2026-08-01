@@ -73,6 +73,12 @@ vi.mock('@memo/core/tools', () => ({
     NATIVE_TOOLS: [],
 }))
 
+// Builtin skill installation writes into the mocked home (/tmp/memo-home);
+// tests here don't need real files on disk.
+vi.mock('@memo/core/skills/builtin_skills', () => ({
+    installBuiltinSkills: vi.fn(async () => {}),
+}))
+
 vi.mock('@memo/core/config/config', () => ({
     loadMemoConfig: vi.fn(async () => state.loadedConfig),
     selectProvider: vi.fn(() => state.selectedProvider),

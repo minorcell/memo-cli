@@ -71,6 +71,23 @@ only the highest-priority copy is kept, in this order:
 
 The remaining copies still resolve as aliases — see [Configuring Default Active Skills](#configuring-default-active-skills).
 
+### Built-in Skills
+
+Memo ships with a built-in `skill-creator` skill. At the start of each session, Memo
+idempotently installs it into `$MEMO_HOME/skills` (default: `~/.memo/skills`) if it is not
+already there, so it is available out of the box.
+
+The install is non-destructive:
+
+- A copy that is untouched and matches the built-in tree is silently upgraded when a newer
+  Memo release changes it.
+- A copy you have modified (or one installed by something else) is never overwritten. Delete
+  it if you want Memo to reinstall the built-in version.
+
+Note that if you also use Claude Code, its own `~/.claude/skills/skill-creator` is a different
+skill (different content, so no deduplication applies) and both copies will appear in the
+skills list. Use `memo skills read /absolute/path/to/SKILL.md` to disambiguate.
+
 ### Excluded Directories
 
 - `.git/` and `node_modules/`

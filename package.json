@@ -12,6 +12,7 @@
         "dist/prompt.md",
         "dist/commands/**",
         "dist/task-prompts/*.md",
+        "dist/skills/builtin/**",
         "README.md",
         "LICENSE"
     ],
