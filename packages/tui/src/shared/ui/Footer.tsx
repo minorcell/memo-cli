@@ -34,7 +34,7 @@ export const Footer = memo(function Footer({
                       : 'Compacting context...'
                   : compact
                     ? 'Enter send • /help'
-                    : 'Enter send • Shift+Enter newline • Tab thinking • Esc Esc cancel • /help'
+                    : 'Enter send • Shift+Enter newline • Tab thinking • Esc×2 cancel • /help'
     const metrics =
         compact && queuedCount > 0
             ? `ctx:${Math.round(contextPercent)}%`

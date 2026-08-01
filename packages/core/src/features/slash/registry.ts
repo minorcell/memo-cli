@@ -62,7 +62,7 @@ export function buildHelpText(): string {
         '  Up/Down     Browse local input history',
         '  Tab         Accept active suggestion',
         '  Ctrl+L      Clear screen and start new session',
-        '  Esc Esc     Interrupt running turn / clear input',
+        '  Esc×2       Interrupt running turn / clear input',
     ].join('\n')
 }
 
