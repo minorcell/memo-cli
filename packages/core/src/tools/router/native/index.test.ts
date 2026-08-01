@@ -9,7 +9,7 @@ describe('NativeToolRegistry', () => {
             description: 'Test',
             source: 'native',
             inputSchema: { type: 'object' },
-            execute: async () => ({ content: [] }),
+            execute: async () => ({ type: 'text', value: '' }),
         })
 
         expect(registry.has('test_tool')).toBe(true)
@@ -24,14 +24,14 @@ describe('NativeToolRegistry', () => {
                 description: '1',
                 source: 'native',
                 inputSchema: {},
-                execute: async () => ({ content: [] }),
+                execute: async () => ({ type: 'text', value: '' }),
             },
             {
                 name: 'tool2',
                 description: '2',
                 source: 'native',
                 inputSchema: {},
-                execute: async () => ({ content: [] }),
+                execute: async () => ({ type: 'text', value: '' }),
             },
         ])
 
@@ -46,7 +46,7 @@ describe('NativeToolRegistry', () => {
             description: 'Test',
             source: 'native',
             inputSchema: { type: 'object' },
-            execute: async () => ({ content: [] }),
+            execute: async () => ({ type: 'text', value: '' }),
         })
 
         expect(registry.getAll().length).toBe(1)
@@ -59,7 +59,7 @@ describe('NativeToolRegistry', () => {
             description: 'Test',
             source: 'native',
             inputSchema: { type: 'object' },
-            execute: async () => ({ content: [] }),
+            execute: async () => ({ type: 'text', value: '' }),
         })
 
         const reg = registry.toRegistry()
@@ -75,7 +75,7 @@ describe('NativeToolRegistry', () => {
             description: 'Test',
             source: 'native',
             inputSchema: { type: 'object' },
-            execute: async () => ({ content: [] }),
+            execute: async () => ({ type: 'text', value: '' }),
         })
 
         expect(registry.size).toBe(1)

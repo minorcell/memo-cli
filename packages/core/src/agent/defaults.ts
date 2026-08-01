@@ -129,13 +129,17 @@ export async function withDefaultDeps(
                     throw new Error(`Missing env var ${provider.env_api_key} (or OPENAI_API_KEY/DEEPSEEK_API_KEY)`)
                 }
                 const { profile: modelProfile } = resolveModelProfile(provider, config.model_profiles)
+                // Compaction passes { tools: [] } to disable tools; the main turn uses the full registry.
+                const toolsEnabled = callOptions?.tools ? callOptions.tools.length > 0 : true
                 return streamCallLLM({
                     provider,
                     apiKey,
                     messages,
+                    tools: toolsEnabled ? combinedTools : undefined,
                     toolDefinitions: callOptions?.tools ?? toolDefinitions,
                     profile: modelProfile,
                     factory: getProviderFactory(provider),
+                    toolContext: callOptions?.toolContext,
                     onChunk,
                     signal: callOptions?.signal,
                 })

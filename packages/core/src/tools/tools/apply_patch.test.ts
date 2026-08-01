@@ -1,4 +1,5 @@
 import assert from 'node:assert'
+import type { MemoToolOutput } from '@memo/core/tools/router/types'
 import { access, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -24,21 +25,18 @@ async function readText(path: string) {
     }
 }
 
-function textPayload(result: { content?: Array<{ type: string; text?: string }> }) {
-    const first = result.content?.find((item) => item.type === 'text')
-    return first?.text ?? ''
+function textPayload(result: MemoToolOutput) {
+    if (result.type === 'text' || result.type === 'error-text') return result.value ?? ''
+    return ''
 }
 
-function assertPatchOk(result: { isError?: boolean; content?: Array<{ type: string; text?: string }> }) {
+function assertPatchOk(result: MemoToolOutput) {
     const payload = textPayload(result)
-    assert.ok(!result.isError, payload)
+    assert.ok(result.type !== 'error-text', payload)
 }
 
-function assertPatchError(
-    result: { isError?: boolean; content?: Array<{ type: string; text?: string }> },
-    includes?: string,
-) {
-    assert.strictEqual(result.isError, true)
+function assertPatchError(result: MemoToolOutput, includes?: string) {
+    assert.strictEqual(result.type, 'error-text')
     if (includes) {
         assert.ok(textPayload(result).includes(includes), textPayload(result))
     }

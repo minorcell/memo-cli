@@ -1,6 +1,5 @@
 /** @file MCP tool registry */
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types'
-import type { McpTool, ToolRegistry, MCPServerConfig } from '../types'
+import type { McpTool, MemoToolOutput, ToolRegistry, MCPServerConfig } from '../types'
 import { McpClientPool } from './pool'
 import { getGlobalMcpCacheStore, type CachedMcpToolDescriptor } from './cache_store'
 import { setActiveMcpCacheStore, setActiveMcpPool } from './context'
@@ -30,12 +29,21 @@ export class McpToolRegistry {
             serverName,
             originalName: descriptor.originalName,
             inputSchema: (descriptor.inputSchema as any) ?? {},
-            execute: async (input: unknown): Promise<CallToolResult> => {
+            execute: async (input: unknown): Promise<MemoToolOutput> => {
                 const connection = await this.pool.connect(serverName, config)
-                return connection.client.callTool({
+                const result = await connection.client.callTool({
                     name: descriptor.originalName,
                     arguments: input as Record<string, unknown>,
-                }) as Promise<CallToolResult>
+                })
+                const callResult = result as unknown as {
+                    content?: Array<{ type?: string; text?: string }>
+                    isError?: boolean
+                }
+                const texts =
+                    callResult.content?.flatMap((item) => (item.type === 'text' ? [item.text ?? ''] : [])) ?? []
+                return result.isError
+                    ? { type: 'error-text', value: texts.join('\n') || `Tool ${descriptor.originalName} failed` }
+                    : { type: 'text', value: texts.join('\n') }
             },
         }
     }

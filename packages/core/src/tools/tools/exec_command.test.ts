@@ -28,7 +28,7 @@ describe('exec_command tool', () => {
 
             const result = await execCommandTool.execute({ cmd: 'echo hello' })
 
-            assert.strictEqual(result.isError, false)
+            assert.strictEqual(result.type, 'text')
             assert.strictEqual(flattenText(result), 'test output')
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -44,7 +44,7 @@ describe('exec_command tool', () => {
 
             const result = await execCommandTool.execute({ cmd: 'printf "Line 1\nLine 2\nLine 3"' })
 
-            assert.strictEqual(result.isError, false)
+            assert.strictEqual(result.type, 'text')
             assert.strictEqual(flattenText(result), multiLineOutput)
         })
 
@@ -53,7 +53,7 @@ describe('exec_command tool', () => {
 
             const result = await execCommandTool.execute({ cmd: 'true' })
 
-            assert.strictEqual(result.isError, false)
+            assert.strictEqual(result.type, 'text')
             assert.strictEqual(flattenText(result), '')
         })
 
@@ -63,7 +63,7 @@ describe('exec_command tool', () => {
 
             const result = await execCommandTool.execute({ cmd: 'echo "你好世界 🌍 Привет мир"' })
 
-            assert.strictEqual(result.isError, false)
+            assert.strictEqual(result.type, 'text')
             assert.strictEqual(flattenText(result), unicodeOutput)
         })
     })
@@ -199,7 +199,7 @@ describe('exec_command tool', () => {
 
             const result = await execCommandTool.execute({ cmd: 'invalid-command' })
 
-            assert.strictEqual(result.isError, true)
+            assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('exec_command failed'))
             assert.ok(flattenText(result).includes('command failed'))
         })
@@ -209,7 +209,7 @@ describe('exec_command tool', () => {
 
             const result = await execCommandTool.execute({ cmd: 'definitely-not-a-command' })
 
-            assert.strictEqual(result.isError, true)
+            assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('exec_command failed'))
         })
 
@@ -218,7 +218,7 @@ describe('exec_command tool', () => {
 
             const result = await execCommandTool.execute({ cmd: '/root/protected' })
 
-            assert.strictEqual(result.isError, true)
+            assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('exec_command failed'))
         })
 
@@ -227,7 +227,7 @@ describe('exec_command tool', () => {
 
             const result = await execCommandTool.execute({ cmd: 'sleep 60', timeout_ms: 1000 })
 
-            assert.strictEqual(result.isError, true)
+            assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('exec_command failed'))
         })
     })

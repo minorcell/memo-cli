@@ -10,7 +10,7 @@ import {
     stableStringify,
     truncateSessionTitle,
 } from '@memo/core/agent/loop'
-import { completeToolResultsForProtocol, parseTextToolCall, toToolHistoryMessage } from '@memo/core/agent/messages'
+import { parseTextToolCall, toToolHistoryMessage } from '@memo/core/agent/messages'
 
 describe('accumulateUsage', () => {
     test('uses explicit total when provided', () => {
@@ -145,14 +145,12 @@ describe('session title helpers', () => {
 })
 
 describe('tool result helpers', () => {
-    test('toToolHistoryMessage maps tool action result into tool chat message', () => {
+    test('toToolHistoryMessage maps tool result part into tool chat message', () => {
         const message = toToolHistoryMessage({
-            actionId: 'call-1',
-            tool: 'read_file',
-            status: 'success',
-            observation: 'content',
-            success: true,
-            durationMs: 12,
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            toolName: 'read_file',
+            output: { type: 'text', value: 'content' },
         })
         expect(message).toEqual({
             role: 'tool',
@@ -165,43 +163,6 @@ describe('tool result helpers', () => {
                 },
             ],
         })
-    })
-
-    test('completeToolResultsForProtocol fills missing results', () => {
-        const requested = [
-            { id: 'call-1', name: 'read_file' },
-            { id: 'call-2', name: 'exec_command' },
-        ]
-        const actual = [
-            {
-                actionId: 'call-1',
-                tool: 'read_file',
-                status: 'success' as const,
-                observation: 'ok',
-                success: true,
-                durationMs: 5,
-            },
-        ]
-
-        const failureFilled = completeToolResultsForProtocol(requested, actual, false)
-        expect(failureFilled).toHaveLength(2)
-        expect(failureFilled[0]).toMatchObject({ actionId: 'call-1', status: 'success' })
-        expect(failureFilled[1]).toMatchObject({
-            actionId: 'call-2',
-            status: 'execution_failed',
-            errorType: 'execution_failed',
-            rejected: undefined,
-        })
-        expect(failureFilled[1]?.observation).toContain('Tool result missing for exec_command')
-
-        const rejectionFilled = completeToolResultsForProtocol(requested, actual, true)
-        expect(rejectionFilled[1]).toMatchObject({
-            actionId: 'call-2',
-            status: 'approval_denied',
-            errorType: 'approval_denied',
-            rejected: true,
-        })
-        expect(rejectionFilled[1]?.observation).toContain('Skipped tool execution after previous rejection')
     })
 })
 

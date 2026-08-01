@@ -1,4 +1,5 @@
 import assert from 'node:assert'
+import type { MemoToolOutput } from '@memo/core/tools/router/types'
 import { afterEach, beforeEach, describe, test, vi } from 'vitest'
 
 vi.mock('node:dns/promises', () => ({
@@ -17,10 +18,10 @@ const WEBFETCH_ENV_KEYS = [
     'MEMO_WEBFETCH_BLOCK_PRIVATE_NET',
 ]
 
-type ToolResult = { isError?: boolean; content?: Array<{ type: string; text?: string }> }
+type ToolResult = MemoToolOutput
 
 function textPayload(result: ToolResult) {
-    return result.content?.find((item) => item.type === 'text')?.text ?? ''
+    return result.type === 'text' || result.type === 'error-text' ? result.value : ''
 }
 
 function installFetchMock(
@@ -70,7 +71,7 @@ describe('webfetch tool', () => {
 
     test('rejects unsupported protocol', async () => {
         const res = await webfetchTool.execute({ url: 'file:///etc/hosts' })
-        assert.strictEqual(res.isError, true)
+        assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('Unsupported protocol'))
     })
 
@@ -79,7 +80,7 @@ describe('webfetch tool', () => {
             url: 'https://example.com',
             proxy_url: 'socks5://127.0.0.1:1080',
         })
-        assert.strictEqual(res.isError, true)
+        assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('Unsupported proxy protocol'))
     })
 
@@ -93,7 +94,7 @@ describe('webfetch tool', () => {
         ])
         const res = await webfetchTool.execute({ url: 'https://example.com' })
         const text = textPayload(res)
-        assert.strictEqual(res.isError, false)
+        assert.strictEqual(res.type, 'text')
         assert.ok(text.includes('Contents of https://example.com/'))
         assert.ok(text.includes('Hello'))
         assert.ok(text.includes('World'))
@@ -110,7 +111,7 @@ describe('webfetch tool', () => {
         ])
         const res = await webfetchTool.execute({ url: 'https://example.com', raw: true })
         const text = textPayload(res)
-        assert.strictEqual(res.isError, false)
+        assert.strictEqual(res.type, 'text')
         assert.ok(text.includes('cannot be simplified to markdown'))
         assert.ok(text.includes('<h1>Hello</h1>'))
     })
@@ -125,7 +126,7 @@ describe('webfetch tool', () => {
         ])
         const res = await webfetchTool.execute({ url: 'https://example.com/data' })
         const text = textPayload(res)
-        assert.strictEqual(res.isError, false)
+        assert.strictEqual(res.type, 'text')
         assert.ok(text.includes('cannot be simplified to markdown'))
         assert.ok(text.includes('{"key":"value"}'))
     })
@@ -144,7 +145,7 @@ describe('webfetch tool', () => {
             max_length: 4,
         })
         const text = textPayload(res)
-        assert.strictEqual(res.isError, false)
+        assert.strictEqual(res.type, 'text')
         assert.ok(text.includes('cdef'))
         assert.ok(text.includes('start_index of 6'))
     })
@@ -161,7 +162,7 @@ describe('webfetch tool', () => {
             url: 'https://example.com/data',
             start_index: 99,
         })
-        assert.strictEqual(res.isError, false)
+        assert.strictEqual(res.type, 'text')
         assert.ok(textPayload(res).includes('<error>No more content available.</error>'))
     })
 
@@ -171,21 +172,21 @@ describe('webfetch tool', () => {
             new Response('ok', { status: 200, headers: { 'content-type': 'text/plain' } }),
         ])
         const res = await webfetchTool.execute({ url: 'https://example.com/data' })
-        assert.strictEqual(res.isError, false)
+        assert.strictEqual(res.type, 'text')
         assert.ok(textPayload(res).includes('Contents of https://example.com/data'))
     })
 
     test('robots 403 blocks autonomous fetching', async () => {
         installFetchMock([new Response('blocked', { status: 403 })])
         const res = await webfetchTool.execute({ url: 'https://example.com/data' })
-        assert.strictEqual(res.isError, true)
+        assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('autonomous fetching is not allowed'))
     })
 
     test('robots disallow blocks autonomous fetching', async () => {
         installFetchMock([new Response('User-agent: *\nDisallow: /', { status: 200 })])
         const res = await webfetchTool.execute({ url: 'https://example.com/data' })
-        assert.strictEqual(res.isError, true)
+        assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes("site's robots.txt"))
     })
 
@@ -198,7 +199,7 @@ describe('webfetch tool', () => {
             }),
         ])
         const res = await webfetchTool.execute({ url: 'https://example.com/data' })
-        assert.strictEqual(res.isError, false)
+        assert.strictEqual(res.type, 'text')
         assert.strictEqual(fetchMock.mock.calls.length, 1)
     })
 
@@ -206,7 +207,7 @@ describe('webfetch tool', () => {
         const fetchMock = vi.fn()
         Object.assign(globalThis, { fetch: fetchMock as unknown as typeof globalThis.fetch })
         const res = await webfetchTool.execute({ url: 'http://localhost:8080/private' })
-        assert.strictEqual(res.isError, true)
+        assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('Blocked private or local network host'))
         assert.strictEqual(fetchMock.mock.calls.length, 0)
     })
@@ -216,7 +217,7 @@ describe('webfetch tool', () => {
         const fetchMock = vi.fn()
         Object.assign(globalThis, { fetch: fetchMock as unknown as typeof globalThis.fetch })
         const res = await webfetchTool.execute({ url: 'https://example.com/private' })
-        assert.strictEqual(res.isError, true)
+        assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('resolved to 10.0.0.12'))
         assert.strictEqual(fetchMock.mock.calls.length, 0)
     })
@@ -232,7 +233,7 @@ describe('webfetch tool', () => {
             }),
         ])
         const res = await webfetchTool.execute({ url: 'https://example.com/data' })
-        assert.strictEqual(res.isError, false)
+        assert.strictEqual(res.type, 'text')
     })
 
     test('returns timeout error when request aborts', async () => {
@@ -251,7 +252,7 @@ describe('webfetch tool', () => {
                 }),
         ])
         const res = await webfetchTool.execute({ url: 'https://example.com/slow' })
-        assert.strictEqual(res.isError, true)
+        assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('timeout or aborted'))
     })
 
@@ -268,7 +269,7 @@ describe('webfetch tool', () => {
             }),
         ])
         const res = await webfetchTool.execute({ url: 'https://example.com/large' })
-        assert.strictEqual(res.isError, true)
+        assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('response body too large'))
     })
 
@@ -278,7 +279,7 @@ describe('webfetch tool', () => {
             new Response('not found', { status: 404, headers: { 'content-type': 'text/plain' } }),
         ])
         const res = await webfetchTool.execute({ url: 'https://example.com/missing' })
-        assert.strictEqual(res.isError, true)
+        assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('status code 404'))
     })
 
@@ -291,7 +292,7 @@ describe('webfetch tool', () => {
             url: 'https://example.com/data',
             proxy_url: 'http://proxy.example.com:8080',
         })
-        assert.strictEqual(res.isError, false)
+        assert.strictEqual(res.type, 'text')
         assert.strictEqual(fetchMock.mock.calls.length, 2)
         const firstInit = fetchMock.mock.calls[0]?.[1] as RequestInit & { dispatcher?: unknown }
         const secondInit = fetchMock.mock.calls[1]?.[1] as RequestInit & { dispatcher?: unknown }

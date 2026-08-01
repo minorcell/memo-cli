@@ -1,5 +1,4 @@
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types'
-import type { NativeTool } from '@memo/core/tools/router/types'
+import type { MemoToolOutput, NativeTool } from '@memo/core/tools/router/types'
 import type { ZodTypeAny } from 'zod'
 
 // Tool-related type declarations
@@ -18,7 +17,7 @@ export function defineMcpTool<Input>(tool: {
     inputSchema: ZodTypeAny
     supportsParallelToolCalls?: boolean
     isMutating?: boolean
-    execute: (input: Input) => Promise<CallToolResult>
+    execute: (input: Input) => Promise<MemoToolOutput>
 }): McpTool {
     const { inputSchema, execute, ...rest } = tool
     const jsonSchema = (inputSchema as any).toJSONSchema?.()
@@ -37,6 +36,6 @@ export function defineMcpTool<Input>(tool: {
             }
             return { ok: true, data: parsed.data }
         },
-        execute: execute as (input: unknown) => Promise<CallToolResult>,
+        execute: execute as (input: unknown) => Promise<MemoToolOutput>,
     }
 }

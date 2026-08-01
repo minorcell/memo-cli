@@ -54,6 +54,7 @@ describe('runtime prompt injection', () => {
                     toolCalls: [],
                     usage: emptyUsage(),
                     finishReason: 'stop',
+                    toolResults: [],
                 }),
                 historySinks: [],
                 tokenCounter: createTokenCounter('cl100k_base'),
@@ -77,6 +78,7 @@ describe('runtime prompt injection', () => {
                     toolCalls: [],
                     usage: emptyUsage(),
                     finishReason: 'stop',
+                    toolResults: [],
                 }),
                 historySinks: [],
                 tokenCounter: createTokenCounter('cl100k_base'),
@@ -107,6 +109,7 @@ describe('runtime prompt injection', () => {
                     toolCalls: [],
                     usage: emptyUsage(),
                     finishReason: 'stop',
+                    toolResults: [],
                 }),
                 loadPrompt: () => loadSystemPrompt({ cwd: projectRoot }),
                 historySinks: [],
@@ -142,6 +145,7 @@ describe('runtime prompt injection', () => {
                     toolCalls: [],
                     usage: emptyUsage(),
                     finishReason: 'stop',
+                    toolResults: [],
                 }),
                 loadPrompt: () => loadSystemPrompt({ cwd: projectRoot, memoHome: tempHome }),
                 historySinks: [],
@@ -192,6 +196,7 @@ description: ${marker}
                     toolCalls: [],
                     usage: emptyUsage(),
                     finishReason: 'stop',
+                    toolResults: [],
                 }),
                 loadPrompt: () =>
                     loadSystemPrompt({
@@ -255,6 +260,7 @@ description: disabled marker
                     toolCalls: [],
                     usage: emptyUsage(),
                     finishReason: 'stop',
+                    toolResults: [],
                 }),
                 loadPrompt: () =>
                     loadSystemPrompt({
@@ -303,6 +309,7 @@ name: broken-skill
                     toolCalls: [],
                     usage: emptyUsage(),
                     finishReason: 'stop',
+                    toolResults: [],
                 }),
                 loadPrompt: () =>
                     loadSystemPrompt({

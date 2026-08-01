@@ -28,7 +28,7 @@ describe('shell_command tool', () => {
 
             const result = await shellCommandTool.execute({ command: 'echo hello' })
 
-            assert.strictEqual(result.isError, false)
+            assert.strictEqual(result.type, 'text')
             assert.strictEqual(flattenText(result), 'test output')
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -46,7 +46,7 @@ describe('shell_command tool', () => {
                 command: 'printf "line1\nline2\nline3"',
             })
 
-            assert.strictEqual(result.isError, false)
+            assert.strictEqual(result.type, 'text')
             assert.strictEqual(flattenText(result), multiLineOutput)
         })
 
@@ -55,7 +55,7 @@ describe('shell_command tool', () => {
 
             const result = await shellCommandTool.execute({ command: 'true' })
 
-            assert.strictEqual(result.isError, false)
+            assert.strictEqual(result.type, 'text')
             assert.strictEqual(flattenText(result), '')
         })
     })
@@ -125,7 +125,7 @@ describe('shell_command tool', () => {
 
             const result = await shellCommandTool.execute({ command: 'invalid-command' })
 
-            assert.strictEqual(result.isError, true)
+            assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('shell_command failed'))
         })
 
@@ -134,7 +134,7 @@ describe('shell_command tool', () => {
 
             const result = await shellCommandTool.execute({ command: 'nonexistent-cmd' })
 
-            assert.strictEqual(result.isError, true)
+            assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('ENOENT'))
         })
 
@@ -143,7 +143,7 @@ describe('shell_command tool', () => {
 
             const result = await shellCommandTool.execute({ command: 'sleep 10', timeout_ms: 1000 })
 
-            assert.strictEqual(result.isError, true)
+            assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('shell_command failed'))
         })
     })

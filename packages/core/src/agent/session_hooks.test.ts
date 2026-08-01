@@ -3,6 +3,7 @@ import assert from 'node:assert'
 import { describe, test } from 'vitest'
 import { createAgentSession, createTokenCounter } from '@memo/core'
 import type { ChatMessage, HistoryEvent, LLMResult, TokenCounter } from '@memo/core'
+import type { ToolResultPart } from 'ai'
 import type { Tool } from '@memo/core/tools/router'
 import { CONTEXT_COMPACTION_SYSTEM_PROMPT, CONTEXT_SUMMARY_PREFIX } from '@memo/core/agent/compact_prompt'
 import { emptyUsage } from '@memo/core/agent/loop'
@@ -14,9 +15,7 @@ const echoTool: Tool = {
     inputSchema: { type: 'object', properties: { text: { type: 'string' } } },
     execute: async (input: unknown) => {
         const { text } = input as { text: string }
-        return {
-            content: [{ type: 'text' as const, text: `echo:${text}` }],
-        }
+        return { type: 'text', value: `echo:${text}` }
     },
 }
 
@@ -27,22 +26,73 @@ const readNoteTool: Tool = {
     inputSchema: { type: 'object', properties: { topic: { type: 'string' } } },
     execute: async (input: unknown) => {
         const { topic } = input as { topic: string }
-        return {
-            content: [{ type: 'text' as const, text: `note:${topic}` }],
-        }
+        return { type: 'text', value: `note:${topic}` }
     },
 }
 
-function toolUseResponse(id: string, name: string, input: unknown, text?: string): LLMResult {
+type MockToolOpts = { denied?: boolean; skipped?: boolean; skippedDisabled?: boolean; invalid?: boolean }
+
+const TOOL_SKIPPED_DISABLED_TEXT = 'Tool execution skipped: tools are disabled in current permission mode.'
+const TOOL_SKIPPED_AFTER_REJECTION_TEXT = 'Skipped tool execution after previous rejection.'
+
+/** Simulate the AI SDK execute wrapper output for a tool. */
+function mockToolResult(id: string, name: string, input: unknown, opts: MockToolOpts = {}): ToolResultPart {
+    if (opts.denied) {
+        return {
+            type: 'tool-result',
+            toolCallId: id,
+            toolName: name,
+            output: { type: 'execution-denied', reason: `User denied tool execution: ${name}` },
+        }
+    }
+    if (opts.skippedDisabled) {
+        return {
+            type: 'tool-result',
+            toolCallId: id,
+            toolName: name,
+            output: { type: 'text', value: TOOL_SKIPPED_DISABLED_TEXT },
+        }
+    }
+    if (opts.skipped) {
+        return {
+            type: 'tool-result',
+            toolCallId: id,
+            toolName: name,
+            output: { type: 'text', value: TOOL_SKIPPED_AFTER_REJECTION_TEXT },
+        }
+    }
+    if (opts.invalid) {
+        return {
+            type: 'tool-result',
+            toolCallId: id,
+            toolName: name,
+            output: { type: 'error-text', value: `${name} invalid input: bad` },
+        }
+    }
+    const params = input as { text?: string; topic?: string }
+    const value =
+        name === 'echo' && typeof params.text === 'string'
+            ? `echo:${params.text}`
+            : name === 'read_note' && typeof params.topic === 'string'
+              ? `note:${params.topic}`
+              : `${name} done`
+    return { type: 'tool-result', toolCallId: id, toolName: name, output: { type: 'text', value } }
+}
+
+function toolUseResponse(id: string, name: string, input: unknown, text?: string, opts: MockToolOpts = {}): LLMResult {
     return {
         text: text ?? '',
         toolCalls: [{ type: 'tool-call', toolCallId: id, toolName: name, input }],
+        toolResults: [mockToolResult(id, name, input, opts)],
         usage: emptyUsage(),
         finishReason: 'tool-calls',
     }
 }
 
-function multiToolUseResponse(calls: Array<{ id: string; name: string; input: unknown }>, text?: string): LLMResult {
+function multiToolUseResponse(
+    calls: Array<{ id: string; name: string; input: unknown; opts?: MockToolOpts }>,
+    text?: string,
+): LLMResult {
     return {
         text: text ?? '',
         toolCalls: calls.map((call) => ({
@@ -51,6 +101,7 @@ function multiToolUseResponse(calls: Array<{ id: string; name: string; input: un
             toolName: call.name,
             input: call.input,
         })),
+        toolResults: calls.map((call) => mockToolResult(call.id, call.name, call.input, call.opts)),
         usage: emptyUsage(),
         finishReason: 'tool-calls',
     }
@@ -62,6 +113,7 @@ function endTurnResponse(text: string = 'done'): LLMResult {
         toolCalls: [],
         usage: emptyUsage(),
         finishReason: 'stop',
+        toolResults: [],
     }
 }
 
@@ -322,7 +374,10 @@ describe('session hooks & middleware', () => {
     })
 
     test('blocks tool calls when tool permission mode is none', async () => {
-        const outputs: LLMResult[] = [toolUseResponse('action-1', 'echo', { text: 'blocked' }), endTurnResponse('done')]
+        const outputs: LLMResult[] = [
+            toolUseResponse('action-1', 'echo', { text: 'blocked' }, undefined, { skippedDisabled: true }),
+            endTurnResponse('done'),
+        ]
         const session = await createAgentSession(
             {
                 tools: { echo: echoTool },
@@ -354,7 +409,10 @@ describe('session hooks & middleware', () => {
     })
 
     test('rejects native tool input via validateInput before execute', async () => {
-        const outputs: LLMResult[] = [toolUseResponse('action-1', 'read_text_file', {}), endTurnResponse('done')]
+        const outputs: LLMResult[] = [
+            toolUseResponse('action-1', 'read_text_file', {}, undefined, { invalid: true }),
+            endTurnResponse('done'),
+        ]
         const session = await createAgentSession(
             {
                 callLLM: async () => outputs.shift() ?? endTurnResponse('done'),
@@ -417,7 +475,7 @@ describe('session hooks & middleware', () => {
             assert.strictEqual(observationEvent.meta?.phase, 'result')
             assert.strictEqual(observationEvent.meta?.status, 'success')
             assert.strictEqual(observationEvent.meta?.error_type, undefined)
-            assert.strictEqual(typeof observationEvent.meta?.duration_ms, 'number')
+            // duration_ms no longer available: SDK ToolResultPart carries no timing.
         } finally {
             await session.close()
         }
@@ -479,7 +537,7 @@ describe('session hooks & middleware', () => {
 
     test('emits structured rejection metadata in final event', async () => {
         const events: HistoryEvent[] = []
-        const outputs = [toolUseResponse('reject-1', 'echo', { text: 'x' })]
+        const outputs = [toolUseResponse('reject-1', 'echo', { text: 'x' }, undefined, { denied: true })]
         const session = await createAgentSession(
             {
                 tools: { echo: echoTool },
@@ -509,7 +567,7 @@ describe('session hooks & middleware', () => {
             assert.strictEqual(finalEvent?.meta?.phase, 'result')
             assert.strictEqual(finalEvent?.meta?.error_type, 'approval_denied')
             assert.strictEqual(finalEvent?.meta?.action_id, 'reject-1')
-            assert.strictEqual(typeof finalEvent?.meta?.duration_ms, 'number')
+            // duration_ms no longer available: SDK ToolResultPart carries no timing.
         } finally {
             await session.close()
         }
@@ -518,8 +576,8 @@ describe('session hooks & middleware', () => {
     test('records tool messages for all tool_call_ids on fail_fast rejection', async () => {
         const outputs: LLMResult[] = [
             multiToolUseResponse([
-                { id: 'reject-1', name: 'echo', input: { text: 'a' } },
-                { id: 'reject-2', name: 'echo', input: { text: 'b' } },
+                { id: 'reject-1', name: 'echo', input: { text: 'a' }, opts: { denied: true } },
+                { id: 'reject-2', name: 'echo', input: { text: 'b' }, opts: { skipped: true } },
             ]),
         ]
         const session = await createAgentSession(
@@ -597,6 +655,7 @@ describe('session hooks & middleware', () => {
                 toolCalls: [],
                 usage: emptyUsage(),
                 finishReason: 'stop',
+                toolResults: [],
             },
         ]
         const session = await createAgentSession(

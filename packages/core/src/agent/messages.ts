@@ -1,9 +1,7 @@
 /** @file Message construction and LLM result normalization for the agent loop. */
-import type { LanguageModelUsage, ToolCallPart } from 'ai'
+import type { LanguageModelUsage, ToolCallPart, ToolResultPart } from 'ai'
 import type { ChatMessage, LLMResult, ToolRegistry } from '@memo/core/types'
-import type { ToolActionResult } from '@memo/core/tools/orchestrator'
-
-const TOOL_SKIPPED_AFTER_REJECTION_MESSAGE = 'Skipped tool execution after previous rejection.'
+import type { ToolActionStatus } from '@memo/core/tools/orchestrator'
 
 export function parseToolArguments(
     raw: string,
@@ -21,6 +19,8 @@ export function normalizeLLMResponse(raw: LLMResult): {
     toolUseBlocks: Array<{ id: string; name: string; input: unknown }>
     reasoningContent?: string
     usage?: Partial<LanguageModelUsage>
+    /** Executed tool results (AI SDK executed the tools inside streamText). */
+    toolResults: ToolResultPart[]
 } {
     let textContent = raw.text
     const toolUseBlocks: Array<{ id: string; name: string; input: unknown }> = []
@@ -42,6 +42,7 @@ export function normalizeLLMResponse(raw: LLMResult): {
         reasoningContent:
             typeof raw.reasoning === 'string' && raw.reasoning.trim().length > 0 ? raw.reasoning : undefined,
         usage: raw.usage,
+        toolResults: raw.toolResults,
     }
 }
 
@@ -85,44 +86,26 @@ export function parseTextToolCall(text: string, tools: ToolRegistry): { tool: st
     return null
 }
 
-/** Tool action result → tool history message (CoreMessage shape). */
-export function toToolHistoryMessage(result: ToolActionResult): ChatMessage {
+/** AI SDK ToolResultPart → tool history message (CoreMessage shape, passthrough). */
+export function toToolHistoryMessage(result: ToolResultPart): ChatMessage {
     return {
         role: 'tool',
-        content: [
-            {
-                type: 'tool-result',
-                toolCallId: result.actionId,
-                toolName: result.tool,
-                output: { type: 'text', value: result.observation },
-            },
-        ],
+        content: [result],
     }
 }
 
-/** Fill missing tool results (rejection/abort) so every requested call has a protocol-complete result. */
-export function completeToolResultsForProtocol(
-    requested: Array<{ id: string; name: string }>,
-    actual: ToolActionResult[],
-    hasRejection: boolean,
-): ToolActionResult[] {
-    const byActionId = new Map(actual.map((result) => [result.actionId, result]))
-    return requested.map((block) => {
-        const found = byActionId.get(block.id)
-        if (found) {
-            return found
-        }
-        return {
-            actionId: block.id,
-            tool: block.name,
-            status: hasRejection ? 'approval_denied' : 'execution_failed',
-            errorType: hasRejection ? 'approval_denied' : 'execution_failed',
-            success: false,
-            observation: hasRejection
-                ? `${TOOL_SKIPPED_AFTER_REJECTION_MESSAGE} ${block.name}`
-                : `Tool result missing for ${block.name}; execution aborted before producing output.`,
-            durationMs: 0,
-            rejected: hasRejection ? true : undefined,
-        }
-    })
+/** ToolResultPart → observation display text. */
+export function outputToObservation(result: ToolResultPart): string {
+    const output = result.output
+    if (output.type === 'text' || output.type === 'error-text') return output.value
+    if (output.type === 'json') return JSON.stringify(output.value)
+    if (output.type === 'execution-denied') return output.reason ?? 'User denied tool execution'
+    return '(no tool output)'
+}
+
+/** ToolResultPart → memo status ('success' | error type). */
+export function mapOutputStatus(result: ToolResultPart): ToolActionStatus {
+    if (result.output.type === 'execution-denied') return 'approval_denied'
+    if (result.output.type === 'error-text') return 'execution_failed'
+    return 'success'
 }

@@ -1,4 +1,5 @@
 import assert from 'node:assert'
+import type { MemoToolOutput } from '@memo/core/tools/router/types'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
@@ -11,9 +12,9 @@ import {
     readMcpResourceTool,
 } from '@memo/core/tools/tools/mcp_resources'
 
-function textPayload(result: { content?: Array<{ type: string; text?: string }> }) {
-    const first = result.content?.find((item) => item.type === 'text')
-    return first?.text ?? ''
+function textPayload(result: MemoToolOutput) {
+    if (result.type === 'text' || result.type === 'error-text') return result.value ?? ''
+    return ''
 }
 
 afterEach(() => {
@@ -27,7 +28,7 @@ describe('mcp resource tools', () => {
     test('returns error when MCP pool is missing', async () => {
         setActiveMcpPool(null)
         const result = await listMcpResourcesTool.execute({})
-        assert.strictEqual(result.isError, true)
+        assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('not initialized'))
     })
 
@@ -57,7 +58,7 @@ describe('mcp resource tools', () => {
         const first = await listMcpResourcesTool.execute({ server: 'alpha', cursor: 'c1' })
         const second = await listMcpResourcesTool.execute({ server: 'alpha', cursor: 'c1' })
 
-        assert.ok(!first.isError)
+        assert.ok(first.type === 'text')
         assert.deepStrictEqual(capturedCursor, { cursor: 'c1' })
         assert.strictEqual(callCount, 1)
 
@@ -192,7 +193,7 @@ describe('mcp resource tools', () => {
         setActiveMcpPool(pool as any)
 
         const result = await listMcpResourcesTool.execute({})
-        assert.ok(!result.isError)
+        assert.ok(result.type === 'text')
 
         const parsed = JSON.parse(textPayload(result))
         assert.strictEqual(parsed.resources.length, 1)
@@ -209,10 +210,10 @@ describe('mcp resource tools', () => {
         setActiveMcpPool(pool as any)
 
         const resourcesResult = await listMcpResourcesTool.execute({ cursor: 'x' })
-        assert.strictEqual(resourcesResult.isError, true)
+        assert.strictEqual(resourcesResult.type, 'error-text')
 
         const templatesResult = await listMcpResourceTemplatesTool.execute({ cursor: 'x' })
-        assert.strictEqual(templatesResult.isError, true)
+        assert.strictEqual(templatesResult.type, 'error-text')
     })
 
     test('caches list resource templates for same key', async () => {
@@ -264,7 +265,7 @@ describe('mcp resource tools', () => {
 
         const first = await readMcpResourceTool.execute({ server: 'alpha', uri: 'memo://a' })
         const second = await readMcpResourceTool.execute({ server: 'alpha', uri: 'memo://a' })
-        assert.ok(!first.isError)
+        assert.ok(first.type === 'text')
         assert.strictEqual(callCount, 1)
         assert.deepStrictEqual(capturedUri, { uri: 'memo://a' })
         const parsed = JSON.parse(textPayload(first))
@@ -281,7 +282,7 @@ describe('mcp resource tools', () => {
         setActiveMcpPool(pool as any)
 
         const result = await readMcpResourceTool.execute({ server: 'none', uri: 'memo://x' })
-        assert.strictEqual(result.isError, true)
+        assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('MCP server not found'))
     })
 

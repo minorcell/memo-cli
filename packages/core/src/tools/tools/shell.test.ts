@@ -28,7 +28,7 @@ describe('shell tool', () => {
 
             const result = await shellTool.execute({ command: ['echo', 'hello'] })
 
-            assert.strictEqual(result.isError, false)
+            assert.strictEqual(result.type, 'text')
             assert.strictEqual(flattenText(result), 'test output')
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -268,7 +268,7 @@ describe('shell tool', () => {
 
             const result = await shellTool.execute({ command: ['invalid-command'] })
 
-            assert.strictEqual(result.isError, true)
+            assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('shell failed'))
         })
 
@@ -277,7 +277,7 @@ describe('shell tool', () => {
 
             const result = await shellTool.execute({ command: ['definitely-not-real'] })
 
-            assert.strictEqual(result.isError, true)
+            assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('shell failed'))
         })
 
@@ -286,7 +286,7 @@ describe('shell tool', () => {
 
             const result = await shellTool.execute({ command: ['/protected/path'] })
 
-            assert.strictEqual(result.isError, true)
+            assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('shell failed'))
         })
 
@@ -295,7 +295,7 @@ describe('shell tool', () => {
 
             const result = await shellTool.execute({ command: ['sleep', '100'], timeout_ms: 100 })
 
-            assert.strictEqual(result.isError, true)
+            assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('shell failed'))
         })
     })

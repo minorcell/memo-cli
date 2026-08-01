@@ -174,7 +174,7 @@ export class McpClientPool {
                         originalName: t.name,
                         inputSchema: t.inputSchema as any,
                         // execute 会在 registry 中绑定
-                        execute: async () => ({ content: [] }),
+                        execute: async () => ({ type: 'text', value: '' }),
                     })),
                 }
 

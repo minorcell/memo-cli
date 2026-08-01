@@ -233,14 +233,7 @@ describe('createTokenCounter', () => {
             const messages: ChatMessage[] = [
                 {
                     role: 'assistant',
-                    content: '',
-                    tool_calls: [
-                        {
-                            id: 'call-1',
-                            type: 'function',
-                            function: { name: 'test', arguments: '{}' },
-                        },
-                    ],
+                    content: [{ type: 'tool-call', toolCallId: 'call-1', toolName: 'test', input: {} }],
                 },
             ]
             const count = counter.countMessages(messages)
@@ -261,26 +254,29 @@ describe('createTokenCounter', () => {
                 { role: 'user', content: 'Write a function that adds two numbers.' },
                 {
                     role: 'assistant',
-                    content: 'I will create a simple add function for you.',
-                    tool_calls: [
+                    content: [
+                        { type: 'text', text: 'I will create a simple add function for you.' },
                         {
-                            id: 'call-1',
-                            type: 'function',
-                            function: {
-                                name: 'write_file',
-                                arguments: JSON.stringify({
-                                    path: 'add.js',
-                                    content: 'function add(a, b) { return a + b; }',
-                                }),
+                            type: 'tool-call',
+                            toolCallId: 'call-1',
+                            toolName: 'write_file',
+                            input: {
+                                path: 'add.js',
+                                content: 'function add(a, b) { return a + b; }',
                             },
                         },
                     ],
                 },
                 {
                     role: 'tool',
-                    content: 'File written successfully',
-                    tool_call_id: 'call-1',
-                    name: 'write_file',
+                    content: [
+                        {
+                            type: 'tool-result',
+                            toolCallId: 'call-1',
+                            toolName: 'write_file',
+                            output: { type: 'text', value: 'File written successfully' },
+                        },
+                    ],
                 },
                 {
                     role: 'assistant',

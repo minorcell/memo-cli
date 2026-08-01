@@ -1,7 +1,8 @@
 /** @file Common type declarations shared between Core and Runtime (reused by UI/Tools). */
-import type { FinishReason, LanguageModelUsage, ModelMessage, ToolCallPart } from 'ai'
+import type { FinishReason, LanguageModelUsage, ModelMessage, ToolCallPart, ToolResultPart } from 'ai'
 import type { ApprovalRequest, ApprovalDecision } from '@memo/core/tools/approval'
 import type { ToolActionStatus } from '@memo/core/tools/orchestrator'
+import type { ToolExecutionContext } from '@memo/core/agent/sdk_tools'
 export type { ApprovalDecision, ApprovalRequest } from '@memo/core/tools/approval'
 export type { ToolActionStatus } from '@memo/core/tools/orchestrator'
 export type { FinishReason, LanguageModelUsage } from 'ai'
@@ -14,6 +15,8 @@ export type LLMResult = {
     reasoning?: string
     /** Tool calls made during generation. */
     toolCalls: ToolCallPart[]
+    /** Executed tool results (AI SDK executed tools with execute functions). */
+    toolResults: ToolResultPart[]
     /** Token usage. */
     usage: LanguageModelUsage
     /** Finish reason. */
@@ -106,6 +109,8 @@ export type CallLLMOptions = {
     signal?: AbortSignal
     /** Available tools list (Tool Use API mode) */
     tools?: ToolDefinition[]
+    /** Tool execution context (approval/gate/hooks) captured by the loop. */
+    toolContext?: ToolExecutionContext
 }
 
 export type CallLLM = (

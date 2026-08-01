@@ -1,4 +1,5 @@
 import assert from 'node:assert'
+import type { MemoToolOutput } from '@memo/core/tools/router/types'
 import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -34,9 +35,9 @@ async function readText(path: string) {
     }
 }
 
-function textPayload(result: { content?: Array<{ type: string; text?: string }> }) {
-    const first = result.content?.find((item) => item.type === 'text')
-    return first?.text ?? ''
+function textPayload(result: MemoToolOutput) {
+    if (result.type === 'text' || result.type === 'error-text') return result.value ?? ''
+    return ''
 }
 
 function outputPayload(text: string) {
@@ -181,7 +182,7 @@ describe('codex shell family', () => {
             results.push(await execCommandTool.execute({ cmd: 'sleep 2', yield_time_ms: 0 }))
         }
         const overflow = results.find(
-            (result) => result.isError && textPayload(result).includes('too many active sessions'),
+            (result) => result.type === 'error-text' && textPayload(result).includes('too many active sessions'),
         )
         assert.ok(overflow, 'expected active-session cap error')
 
@@ -207,7 +208,7 @@ describe('codex file/search family', () => {
                 ].join('\n'),
             }),
         )
-        assert.ok(!singleRes.isError)
+        assert.ok(singleRes.type === 'text')
         assert.strictEqual(await readText(target), 'A beta alpha\n')
 
         const batchRes = await runWithRuntimeContext({ cwd: tempDir }, () =>
@@ -222,13 +223,13 @@ describe('codex file/search family', () => {
                 ].join('\n'),
             }),
         )
-        assert.ok(!batchRes.isError)
+        assert.ok(batchRes.type === 'text')
         assert.strictEqual(await readText(target), 'A B A\n')
     })
 
     test('read_text_file requires valid path in allowed roots', async () => {
         const result = await readTextFileTool.execute({ path: '/tmp/not-allowed.txt' })
-        assert.strictEqual(result.isError, true)
+        assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('Access denied'))
     })
 
@@ -277,7 +278,7 @@ describe('codex workflow/context tools', () => {
                 { step: 'b', status: 'in_progress' },
             ],
         })
-        assert.strictEqual(result.isError, true)
+        assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('in_progress'))
     })
 

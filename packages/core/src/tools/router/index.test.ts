@@ -61,7 +61,7 @@ describe('ToolRouter', () => {
             description: 'Test tool',
             source: 'native',
             inputSchema: { type: 'object' },
-            execute: async () => ({ content: [] }),
+            execute: async () => ({ type: 'text', value: '' }),
         })
 
         expect(router.hasTool('test_tool')).toBe(true)
@@ -76,14 +76,14 @@ describe('ToolRouter', () => {
                 description: 'Tool 1',
                 source: 'native',
                 inputSchema: { type: 'object' },
-                execute: async () => ({ content: [] }),
+                execute: async () => ({ type: 'text', value: '' }),
             },
             {
                 name: 'tool2',
                 description: 'Tool 2',
                 source: 'native',
                 inputSchema: { type: 'object' },
-                execute: async () => ({ content: [] }),
+                execute: async () => ({ type: 'text', value: '' }),
             },
         ])
 
@@ -98,7 +98,7 @@ describe('ToolRouter', () => {
             description: 'Native',
             source: 'native',
             inputSchema: { type: 'object' },
-            execute: async () => ({ content: [] }),
+            execute: async () => ({ type: 'text', value: '' }),
         })
 
         const tools = router.getAllTools()
@@ -113,7 +113,7 @@ describe('ToolRouter', () => {
             description: 'Test',
             source: 'native',
             inputSchema: { type: 'object' },
-            execute: async () => ({ content: [] }),
+            execute: async () => ({ type: 'text', value: '' }),
         })
 
         const registry = router.toRegistry()
@@ -127,7 +127,7 @@ describe('ToolRouter', () => {
             description: 'Test',
             source: 'native',
             inputSchema: { type: 'object' },
-            execute: async () => ({ content: [] }),
+            execute: async () => ({ type: 'text', value: '' }),
         })
 
         const counts = router.getToolCount()
@@ -147,13 +147,11 @@ describe('ToolRouter', () => {
             description: 'Echo input',
             source: 'native',
             inputSchema: { type: 'object' },
-            execute: async (input) => ({
-                content: [{ type: 'text', text: JSON.stringify(input) }],
-            }),
+            execute: async (input) => ({ type: 'text', value: JSON.stringify(input) }),
         })
 
         const result = await router.execute('echo', { test: true })
-        expect(result.content[0]).toEqual({ type: 'text', text: '{"test":true}' })
+        expect(result).toEqual({ type: 'text', value: '{"test":true}' })
     })
 
     test('generateToolDefinitions returns all tools', () => {
@@ -163,7 +161,7 @@ describe('ToolRouter', () => {
             description: 'Test tool',
             source: 'native',
             inputSchema: { type: 'object', properties: { foo: { type: 'string' } } },
-            execute: async () => ({ content: [] }),
+            execute: async () => ({ type: 'text', value: '' }),
         })
 
         const defs = router.generateToolDefinitions()
@@ -185,7 +183,7 @@ describe('ToolRouter', () => {
             description: 'My tool description',
             source: 'native',
             inputSchema: { type: 'object' },
-            execute: async () => ({ content: [] }),
+            execute: async () => ({ type: 'text', value: '' }),
         })
 
         const desc = router.generateToolDescriptions()
@@ -202,7 +200,7 @@ describe('ToolRouter', () => {
             description: 'Test',
             source: 'native',
             inputSchema: { type: 'object' },
-            execute: async () => ({ content: [] }),
+            execute: async () => ({ type: 'text', value: '' }),
         })
 
         const descs = router.getToolDescriptions()
@@ -219,7 +217,7 @@ describe('ToolRouter', () => {
                     description: 'Custom',
                     source: 'native',
                     inputSchema: { type: 'object' },
-                    execute: async () => ({ content: [] }),
+                    execute: async () => ({ type: 'text', value: '' }),
                 },
             ],
         })

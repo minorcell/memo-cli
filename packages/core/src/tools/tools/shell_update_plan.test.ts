@@ -1,13 +1,14 @@
 import assert from 'node:assert'
+import type { MemoToolOutput } from '@memo/core/tools/router/types'
 import { describe, test } from 'vitest'
 import { shellTool } from '@memo/core/tools/tools/shell'
 import { shellCommandTool } from '@memo/core/tools/tools/shell_command'
 import { writeStdinTool } from '@memo/core/tools/tools/write_stdin'
 import { updatePlanTool } from '@memo/core/tools/tools/update_plan'
 
-function textPayload(result: { content?: Array<{ type: string; text?: string }> }) {
-    const first = result.content?.find((item) => item.type === 'text')
-    return first?.text ?? ''
+function textPayload(result: MemoToolOutput) {
+    if (result.type === 'text' || result.type === 'error-text') return result.value ?? ''
+    return ''
 }
 
 describe('shell wrappers and update_plan', () => {
@@ -17,7 +18,7 @@ describe('shell wrappers and update_plan', () => {
         })
 
         const text = textPayload(result)
-        assert.ok(!result.isError)
+        assert.ok(result.type === 'text')
         assert.ok(text.includes('shell-wrapper-ok'))
     })
 
@@ -28,7 +29,7 @@ describe('shell wrappers and update_plan', () => {
         })
 
         const text = textPayload(result)
-        assert.ok(!result.isError)
+        assert.ok(result.type === 'text')
         assert.ok(text.includes(literal))
         assert.ok(text.includes('$(echo hacked)'))
         assert.ok(text.includes('`date`'))
@@ -54,7 +55,7 @@ describe('shell wrappers and update_plan', () => {
 
         const elapsedMs = Date.now() - startedAt
         const text = textPayload(result)
-        assert.strictEqual(result.isError, true)
+        assert.strictEqual(result.type, 'error-text')
         assert.ok(text.includes('timed out'))
         assert.ok(elapsedMs < 1_500)
     })
@@ -67,7 +68,7 @@ describe('shell wrappers and update_plan', () => {
         })
 
         const text = textPayload(result)
-        assert.ok(!result.isError)
+        assert.ok(result.type === 'text')
         assert.ok(text.includes('shell-command-ok'))
     })
 
@@ -94,14 +95,14 @@ describe('shell wrappers and update_plan', () => {
 
         const elapsedMs = Date.now() - startedAt
         const text = textPayload(result)
-        assert.strictEqual(result.isError, true)
+        assert.strictEqual(result.type, 'error-text')
         assert.ok(text.includes('timed out'))
         assert.ok(elapsedMs < 1_500)
     })
 
     test('write_stdin fails for unknown session id', async () => {
         const result = await writeStdinTool.execute({ session_id: 999999, chars: 'noop' })
-        assert.strictEqual(result.isError, true)
+        assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('session_id 999999 not found'))
     })
 
@@ -156,7 +157,7 @@ describe('shell wrappers and update_plan', () => {
             ],
         })
 
-        assert.ok(!result.isError)
+        assert.ok(result.type === 'text')
         const parsed = JSON.parse(textPayload(result))
         assert.strictEqual(parsed.message, 'Plan updated')
     })
@@ -170,7 +171,7 @@ describe('shell wrappers and update_plan', () => {
             ],
         })
 
-        assert.ok(result.isError)
+        assert.ok(result.type === 'error-text')
         assert.ok(textPayload(result).includes('At most one step can be in_progress'))
     })
 })

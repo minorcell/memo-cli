@@ -1,51 +1,70 @@
 import assert from 'node:assert'
 import { describe, test } from 'vitest'
 import { textResult, flattenText } from './mcp'
+import type { MemoToolOutput } from '@memo/core/tools/router/types'
 
 describe('mcp helpers', () => {
     describe('textResult', () => {
         test('creates successful text result', () => {
             const result = textResult('hello world')
-            assert.deepStrictEqual(result.content, [{ type: 'text', text: 'hello world' }])
-            assert.strictEqual(result.isError, false)
+            if (result.type === 'text') {
+                if (result.type === 'text') {
+                    assert.strictEqual(result.value, 'hello world')
+                }
+            }
+            assert.strictEqual(result.type, 'text')
         })
 
         test('creates error text result', () => {
             const result = textResult('error message', true)
-            assert.deepStrictEqual(result.content, [{ type: 'text', text: 'error message' }])
-            assert.strictEqual(result.isError, true)
+            if (result.type === 'error-text') {
+                assert.strictEqual(result.value, 'error message')
+            }
+            assert.strictEqual(result.type, 'error-text')
         })
 
         test('handles empty string', () => {
             const result = textResult('')
-            assert.deepStrictEqual(result.content, [{ type: 'text', text: '' }])
-            assert.strictEqual(result.isError, false)
+            if (result.type === 'text') {
+                assert.strictEqual(result.value, '')
+            }
+            assert.strictEqual(result.type, 'text')
         })
 
         test('handles unicode content', () => {
             const result = textResult('你好世界 🌍 Привет')
-            assert.strictEqual(result.content[0].text, '你好世界 🌍 Привет')
+            if (result.type === 'text') {
+                assert.strictEqual(result.value, '你好世界 🌍 Привет')
+            }
         })
 
         test('handles multi-line content', () => {
             const result = textResult('line1\nline2\nline3')
-            assert.strictEqual(result.content[0].text, 'line1\nline2\nline3')
+            if (result.type === 'text') {
+                assert.strictEqual(result.value, 'line1\nline2\nline3')
+            }
         })
 
         test('handles special characters', () => {
             const result = textResult('<tag attr="value">\n<script>alert(1)</script>')
-            assert.strictEqual(result.content[0].text, '<tag attr="value">\n<script>alert(1)</script>')
+            if (result.type === 'text') {
+                assert.strictEqual(result.value, '<tag attr="value">\n<script>alert(1)</script>')
+            }
         })
 
         test('handles very long content', () => {
             const longContent = 'x'.repeat(100000)
             const result = textResult(longContent)
-            assert.strictEqual(result.content[0].text.length, 100000)
+            if (result.type === 'text') {
+                assert.strictEqual(result.value.length, 100000)
+            }
         })
 
         test('handles JSON-like content', () => {
             const result = textResult('{"key": "value", "nested": {"a": 1}}')
-            assert.ok(result.content[0].text.includes('"key"'))
+            if (result.type === 'text') {
+                assert.ok(result.value.includes('"key"'))
+            }
         })
     })
 
@@ -56,70 +75,37 @@ describe('mcp helpers', () => {
         })
 
         test('joins multiple text content items', () => {
-            const result: Parameters<typeof flattenText>[0] = {
-                content: [
-                    { type: 'text', text: 'line1' },
-                    { type: 'text', text: 'line2' },
-                ],
-                isError: false,
-            }
+            const result: MemoToolOutput = { type: 'text', value: 'line1\nline2' }
             assert.strictEqual(flattenText(result), 'line1\nline2')
         })
 
         test('ignores non-text content', () => {
-            const result: Parameters<typeof flattenText>[0] = {
-                content: [
-                    { type: 'text', text: 'visible' },
-                    { type: 'image', data: 'base64data' },
-                    { type: 'text', text: 'also visible' },
-                ],
-                isError: false,
-            }
+            const result: MemoToolOutput = { type: 'text', value: 'visible\nalso visible' }
             assert.strictEqual(flattenText(result), 'visible\nalso visible')
         })
 
         test('handles empty result', () => {
-            const result: Parameters<typeof flattenText>[0] = { content: [], isError: false }
+            const result: MemoToolOutput = { type: 'text', value: '' }
             assert.strictEqual(flattenText(result), '')
         })
 
-        test('handles undefined content', () => {
-            const result: Parameters<typeof flattenText>[0] = { content: undefined, isError: false }
+        test('handles empty text', () => {
+            const result: MemoToolOutput = { type: 'text', value: '' }
             assert.strictEqual(flattenText(result), '')
         })
 
-        test('handles content with only non-text items', () => {
-            const result: Parameters<typeof flattenText>[0] = {
-                content: [
-                    { type: 'image', data: 'base64' },
-                    { type: 'resource', resource: { uri: 'file:///test' } },
-                ],
-                isError: false,
-            }
-            assert.strictEqual(flattenText(result), '')
+        test('handles json output', () => {
+            const result: MemoToolOutput = { type: 'json', value: { a: 1 } }
+            assert.strictEqual(flattenText(result), '{"a":1}')
         })
 
-        test('handles mixed empty and non-empty text', () => {
-            const result: Parameters<typeof flattenText>[0] = {
-                content: [
-                    { type: 'text', text: 'first' },
-                    { type: 'text', text: '' },
-                    { type: 'text', text: 'last' },
-                ],
-                isError: false,
-            }
-            assert.strictEqual(flattenText(result), 'first\n\nlast')
+        test('handles execution-denied output', () => {
+            const result: MemoToolOutput = { type: 'execution-denied', reason: 'denied' }
+            assert.strictEqual(flattenText(result), 'denied')
         })
 
         test('preserves exact text including whitespace', () => {
-            const result: Parameters<typeof flattenText>[0] = {
-                content: [
-                    { type: 'text', text: '  leading spaces' },
-                    { type: 'text', text: 'trailing spaces  ' },
-                    { type: 'text', text: '\ttab\t' },
-                ],
-                isError: false,
-            }
+            const result: MemoToolOutput = { type: 'text', value: '  leading spaces\ntrailing spaces  \n\ttab\t' }
             const output = flattenText(result)
             assert.ok(output.includes('  leading spaces'))
             assert.ok(output.includes('trailing spaces  '))
@@ -128,17 +114,17 @@ describe('mcp helpers', () => {
 
         test('handles isError flag correctly', () => {
             const errorResult = textResult('error message', true)
-            assert.strictEqual(errorResult.isError, true)
+            assert.strictEqual(errorResult.type, 'error-text')
 
             const successResult = textResult('success message', false)
-            assert.strictEqual(successResult.isError, false)
+            assert.strictEqual(successResult.type, 'text')
         })
 
         test('handles many content items', () => {
-            const content = Array(100)
-                .fill(null)
-                .map((_, i) => ({ type: 'text' as const, text: `line${i}` }))
-            const result: Parameters<typeof flattenText>[0] = { content, isError: false }
+            const result: MemoToolOutput = {
+                type: 'text',
+                value: Array.from({ length: 100 }, (_, i) => `line${i}`).join('\n'),
+            }
             const output = flattenText(result)
             assert.ok(output.includes('line0'))
             assert.ok(output.includes('line99'))

@@ -1,4 +1,5 @@
 import assert from 'node:assert'
+import type { MemoToolOutput } from '@memo/core/tools/router/types'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -14,9 +15,9 @@ async function makeTempDir(prefix: string) {
     return dir
 }
 
-function textPayload(result: { content?: Array<{ type: string; text?: string }> }) {
-    const first = result.content?.find((item) => item.type === 'text')
-    return first?.text ?? ''
+function textPayload(result: MemoToolOutput) {
+    if (result.type === 'text' || result.type === 'error-text') return result.value ?? ''
+    return ''
 }
 
 beforeAll(async () => {
@@ -37,7 +38,7 @@ afterAll(async () => {
 describe('get_memory tool', () => {
     test('returns missing error when Agents.md does not exist', async () => {
         const result = await getMemoryTool.execute({ memory_id: 'missing-thread' })
-        assert.strictEqual(result.isError, true)
+        assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('memory not found'))
     })
 
@@ -46,7 +47,7 @@ describe('get_memory tool', () => {
         await writeFile(memoryPath, '## Memo Added Memories\n\n- prefers concise output\n', 'utf8')
 
         const result = await getMemoryTool.execute({ memory_id: 'thread-1' })
-        assert.ok(!result.isError)
+        assert.ok(result.type === 'text')
 
         const parsed = JSON.parse(textPayload(result))
         assert.strictEqual(parsed.memory_id, 'thread-1')

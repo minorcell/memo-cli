@@ -1,16 +1,13 @@
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types'
+import type { MemoToolOutput } from '@memo/core/tools/router/types'
 
-/** Quick constructor for text-based CallToolResult. */
-export function textResult(text: string, isError = false): CallToolResult {
-    return { content: [{ type: 'text', text }], isError }
+/** Quick constructor for text-based tool output. */
+export function textResult(text: string, isError = false): MemoToolOutput {
+    return isError ? { type: 'error-text', value: text } : { type: 'text', value: text }
 }
 
-/** Flatten CallToolResult text content to string for observation. */
-export function flattenText(result: CallToolResult): string {
-    const texts =
-        result.content?.flatMap((item) => {
-            if (item.type === 'text') return [item.text]
-            return []
-        }) ?? []
-    return texts.join('\n')
+/** Flatten tool output to string for observation display. */
+export function flattenText(result: MemoToolOutput): string {
+    if (result.type === 'text' || result.type === 'error-text') return result.value
+    if (result.type === 'json') return JSON.stringify(result.value)
+    return result.reason ?? ''
 }

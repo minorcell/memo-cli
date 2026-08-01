@@ -6,8 +6,7 @@
  * 3. 提供统一的工具查询和执行接口
  * 4. 生成工具描述（用于 Prompt）
  */
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types'
-import type { Tool, ToolRegistry, MCPServerConfig, ToolDescription } from './types'
+import type { MemoToolOutput, Tool, ToolRegistry, MCPServerConfig, ToolDescription } from './types'
 import { NativeToolRegistry } from './native'
 import { McpToolRegistry } from './mcp'
 import type { McpOAuthSettings } from './mcp/oauth'
@@ -89,7 +88,7 @@ export class ToolRouter {
      * @returns 工具执行结果
      * @throws 如果工具不存在
      */
-    async execute(name: string, input: unknown): Promise<CallToolResult> {
+    async execute(name: string, input: unknown): Promise<MemoToolOutput> {
         const tool = this.getTool(name)
         if (!tool) {
             throw new Error(`Tool '${name}' not found`)

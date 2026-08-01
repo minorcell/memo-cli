@@ -1,5 +1,4 @@
 /** @file ToolRouter unified type definitions */
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types'
 
 /** Tool source type */
 export type ToolSource = 'native' | 'mcp'
@@ -12,6 +11,13 @@ export interface JSONSchema {
     description?: string
     [key: string]: unknown
 }
+
+/** Tool execution output (AI SDK ToolResultOutput-compatible subset). */
+export type MemoToolOutput =
+    | { type: 'text'; value: string }
+    | { type: 'json'; value: unknown }
+    | { type: 'error-text'; value: string }
+    | { type: 'execution-denied'; reason?: string }
 
 /** Unified tool interface */
 export interface Tool {
@@ -30,7 +36,7 @@ export interface Tool {
     /** Optional input validator (usually provided by native/zod adapter layer) */
     validateInput?: (input: unknown) => { ok: true; data: unknown } | { ok: false; error: string }
     /** Execute tool */
-    execute: (input: unknown) => Promise<CallToolResult>
+    execute: (input: unknown, options?: { abortSignal?: AbortSignal }) => Promise<MemoToolOutput>
 }
 
 /** Built-in tool */

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
-import { buildStreamTools, streamCallLLM } from '@memo/core/llm/ai_stream'
+import { streamCallLLM } from '@memo/core/llm/ai_stream'
 import type { AIProviderFactory } from '@memo/core/llm/ai_provider'
 import type { ModelProfile } from '@memo/core/llm/model_profile'
-import type { ChatMessage, ToolDefinition } from '@memo/core/types'
+import type { ChatMessage } from '@memo/core/types'
 
 const state = vi.hoisted(() => ({
     streamTextParams: [] as unknown[],
@@ -28,6 +28,7 @@ function makeStreamResult() {
         text: Promise.resolve(state.final.text ?? ''),
         reasoningText: Promise.resolve(state.final.reasoning),
         toolCalls: Promise.resolve(state.final.toolCalls ?? []),
+        toolResults: Promise.resolve(state.final.toolResults ?? []),
         usage: Promise.resolve(state.final.usage),
         finishReason: Promise.resolve(state.final.finishReason ?? 'stop'),
     }
@@ -51,7 +52,7 @@ function baseParams(overrides: Record<string, unknown> = {}) {
         provider: { name: 'mock', env_api_key: 'MOCK_API_KEY', model: 'mock-model', base_url: 'https://mock.local/v1' },
         apiKey: 'test-key',
         messages: [{ role: 'user', content: 'hi' }] as ChatMessage[],
-        toolDefinitions: [] as ToolDefinition[],
+        toolDefinitions: [],
         profile: PROFILE,
         factory: FACTORY,
         ...overrides,
@@ -62,26 +63,6 @@ function textDelta(text: string) {
     return { type: 'text-delta', id: 't', text }
 }
 
-describe('buildStreamTools', () => {
-    test('returns undefined for empty tool list', () => {
-        expect(buildStreamTools([])).toBeUndefined()
-    })
-
-    test('forces top-level type object on schemas', () => {
-        const tools = buildStreamTools([
-            { name: 't', description: 'd', input_schema: { properties: { a: { type: 'string' } } } },
-        ])
-        expect(tools?.t).toEqual({
-            description: 'd',
-            inputSchema: { properties: { a: { type: 'string' } }, type: 'object' },
-        })
-        const withObject = buildStreamTools([
-            { name: 't2', description: 'd2', input_schema: { type: 'object', properties: {} } },
-        ])
-        expect(withObject?.t2?.inputSchema).toEqual({ type: 'object', properties: {} })
-    })
-})
-
 describe('streamCallLLM', () => {
     beforeEach(() => {
         state.streamTextParams = []
@@ -89,6 +70,7 @@ describe('streamCallLLM', () => {
         state.final = {
             text: '',
             toolCalls: [],
+            toolResults: [],
             usage: { inputTokens: 11, outputTokens: 7, totalTokens: 18 },
             finishReason: 'stop',
         }
@@ -96,7 +78,13 @@ describe('streamCallLLM', () => {
 
     test('streams text deltas through onChunk and returns assembled result', async () => {
         state.parts = [textDelta('Hel'), textDelta('lo'), textDelta(' world')]
-        state.final = { text: 'Hello world', toolCalls: [], usage: state.final.usage, finishReason: 'stop' }
+        state.final = {
+            text: 'Hello world',
+            toolCalls: [],
+            toolResults: [],
+            usage: state.final.usage,
+            finishReason: 'stop',
+        }
         const chunks: string[] = []
         const result = await streamCallLLM(baseParams({ onChunk: (chunk: string) => chunks.push(chunk) }))
 
@@ -111,6 +99,7 @@ describe('streamCallLLM', () => {
             text: 'answer',
             reasoning: 'thinking',
             toolCalls: [],
+            toolResults: [],
             usage: state.final.usage,
             finishReason: 'stop',
         }
@@ -119,18 +108,27 @@ describe('streamCallLLM', () => {
         expect(result.reasoning).toBe('thinking')
     })
 
-    test('returns toolCalls and usage from the final result', async () => {
+    test('returns toolCalls, toolResults and usage from the final result', async () => {
         state.parts = []
         state.final = {
             text: 'using tools',
             toolCalls: [{ type: 'tool-call', toolCallId: 'call-1', toolName: 'echo', input: { value: 1 } }],
+            toolResults: [
+                {
+                    type: 'tool-result',
+                    toolCallId: 'call-1',
+                    toolName: 'echo',
+                    output: { type: 'text', value: 'ok' },
+                },
+            ],
             usage: { inputTokens: 3, outputTokens: 4, totalTokens: 7 },
             finishReason: 'tool-calls',
         }
         const result = await streamCallLLM(baseParams())
 
         expect(result.toolCalls).toHaveLength(1)
-        expect(result.toolCalls[0]).toMatchObject({ toolCallId: 'call-1', toolName: 'echo' })
+        expect(result.toolResults).toHaveLength(1)
+        expect(result.toolResults[0]).toMatchObject({ toolCallId: 'call-1', toolName: 'echo' })
         expect(result.usage).toEqual({ inputTokens: 3, outputTokens: 4, totalTokens: 7 })
         expect(result.finishReason).toBe('tool-calls')
     })
@@ -149,16 +147,16 @@ describe('streamCallLLM', () => {
         })
     })
 
-    test('omits tools and toolChoice when no tool definitions', async () => {
+    test('omits tools and toolChoice when no tool registry', async () => {
         state.parts = []
-        await streamCallLLM(baseParams())
+        await streamCallLLM(baseParams({ tools: undefined, toolContext: undefined }))
 
         const params = state.streamTextParams[0] as { tools?: unknown; toolChoice?: unknown }
         expect(params.tools).toBeUndefined()
         expect(params.toolChoice).toBeUndefined()
     })
 
-    test('passes tools, toolChoice auto, abortSignal and providerOptions', async () => {
+    test('passes tools with execute wrappers and toolChoice auto when registry provided', async () => {
         const signal = new AbortController().signal
         const factory: AIProviderFactory = {
             kind: 'openai-compatible',
@@ -166,21 +164,39 @@ describe('streamCallLLM', () => {
             buildProviderOptions: () => ({ parallel_tool_calls: true }),
         }
         state.parts = []
+        const registry = {
+            echo: {
+                name: 'echo',
+                description: 'echo',
+                source: 'native' as const,
+                inputSchema: { type: 'object' },
+                execute: async () => ({ type: 'text' as const, value: 'ok' }),
+            },
+        }
+        const toolContext = {
+            approvalManager: { check: () => ({ needApproval: false as const, decision: 'auto-execute' as const }) },
+            approvalHooks: {},
+            toolsDisabled: false,
+            onRepeatedAction: () => {},
+            gate: { acquire: async () => ({ skipped: false as const, release: () => {} }), markDenied: () => {} },
+        }
         await streamCallLLM(
             baseParams({
                 factory,
                 signal,
-                toolDefinitions: [{ name: 't', description: 'd', input_schema: { type: 'object' } }],
+                tools: registry,
+                toolContext,
             }),
         )
 
         const params = state.streamTextParams[0] as {
-            tools?: unknown
+            tools?: Record<string, unknown>
             toolChoice?: unknown
             abortSignal?: AbortSignal
             providerOptions?: unknown
         }
         expect(params.tools).toBeDefined()
+        expect(typeof params.tools?.echo).toBe('object')
         expect(params.toolChoice).toBe('auto')
         expect(params.abortSignal).toBe(signal)
         expect(params.providerOptions).toEqual({ mock: { parallel_tool_calls: true } })

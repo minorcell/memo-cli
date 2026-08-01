@@ -49,7 +49,7 @@ const state = vi.hoisted(() => ({
             description: 'mock tool',
             source: 'native',
             inputSchema: { type: 'object' },
-            execute: async () => ({ content: [{ type: 'text', text: 'ok' }] }),
+            execute: async () => ({ type: 'text', value: 'ok' }),
         } as Tool,
     } as ToolRegistry,
     loadMcpServersCalls: [] as unknown[],
@@ -68,7 +68,8 @@ const state = vi.hoisted(() => ({
     } as unknown as AIProviderFactory,
     llmResponse: {
         text: 'ok',
-        toolCalls: [],
+        toolCalls: [] as LLMResult['toolCalls'],
+        toolResults: [] as LLMResult['toolResults'],
         usage: {
             inputTokens: 11,
             outputTokens: 7,
@@ -180,7 +181,8 @@ describe('withDefaultDeps (default path)', () => {
         state.factoryLookups = []
         state.llmResponse = {
             text: 'ok',
-            toolCalls: [],
+            toolCalls: [] as LLMResult['toolCalls'],
+            toolResults: [] as LLMResult['toolResults'],
             usage: { ...emptyUsage(), inputTokens: 11, outputTokens: 7, totalTokens: 18 },
             finishReason: 'stop',
         } as LLMResult
@@ -217,8 +219,11 @@ describe('withDefaultDeps (default path)', () => {
     test('respects provided deps overrides (callLLM/historySinks/tokenCounter/loadPrompt/dispose)', async () => {
         const { withDefaultDeps } = await import('@memo/core/agent/defaults')
         const callLLM = vi.fn(async () => ({
-            content: [{ type: 'text' as const, text: 'override' }],
-            stop_reason: 'end_turn' as const,
+            text: 'override',
+            toolCalls: [] as LLMResult['toolCalls'],
+            toolResults: [] as LLMResult['toolResults'],
+            usage: emptyUsage(),
+            finishReason: 'stop' as const,
         }))
         const historySinks = [{ append: vi.fn() }]
         const tokenCounter = {
@@ -301,6 +306,7 @@ describe('withDefaultDeps (default path)', () => {
             text: 'assistant text',
             reasoning: 'reasoned',
             toolCalls: [{ type: 'tool-call', toolCallId: 'call-ok', toolName: 'echo', input: { value: 1 } }],
+            toolResults: [] as LLMResult['toolResults'],
             usage: { ...emptyUsage(), inputTokens: 10, outputTokens: 5, totalTokens: 15 },
             finishReason: 'tool-calls',
         }
@@ -377,7 +383,8 @@ describe('withDefaultDeps (default path)', () => {
         state.llmResponse = {
             text: 'plain assistant answer',
             reasoning: 'concise reason',
-            toolCalls: [],
+            toolCalls: [] as LLMResult['toolCalls'],
+            toolResults: [] as LLMResult['toolResults'],
             usage: { ...emptyUsage(), inputTokens: 3, outputTokens: 4, totalTokens: 7 },
             finishReason: 'stop',
         }

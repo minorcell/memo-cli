@@ -1,4 +1,5 @@
 import assert from 'node:assert'
+import type { MemoToolOutput } from '@memo/core/tools/router/types'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -22,9 +23,9 @@ async function makeTempDir(prefix: string) {
     return dir
 }
 
-function textPayload(result: { content?: Array<{ type: string; text?: string }> }) {
-    const first = result.content?.find((item) => item.type === 'text')
-    return first?.text ?? ''
+function textPayload(result: MemoToolOutput) {
+    if (result.type === 'text' || result.type === 'error-text') return result.value ?? ''
+    return ''
 }
 
 beforeAll(async () => {
@@ -94,13 +95,13 @@ afterAll(async () => {
 describe('collab tools', () => {
     test('spawn + wait reaches completed status and returns final map payload', async () => {
         const spawnResult = await spawnAgentTool.execute({ message: 'echo:hello' })
-        assert.strictEqual(spawnResult.isError, false)
+        assert.strictEqual(spawnResult.type, 'text')
         const spawned = JSON.parse(textPayload(spawnResult))
         assert.strictEqual(spawned.status, 'running')
         assert.ok(typeof spawned.agent_id === 'string' && spawned.agent_id.length > 0)
 
         const waitResult = await waitTool.execute({ ids: [spawned.agent_id], timeout_ms: 10_000 })
-        assert.strictEqual(waitResult.isError, false)
+        assert.strictEqual(waitResult.type, 'text')
         const waited = JSON.parse(textPayload(waitResult))
         assert.strictEqual(waited.timed_out, false)
         assert.strictEqual(waited.status[spawned.agent_id], 'completed')
@@ -126,7 +127,7 @@ describe('collab tools', () => {
             id: agentId,
             message: 'echo:second',
         })
-        assert.strictEqual(sendWhileClosed.isError, true)
+        assert.strictEqual(sendWhileClosed.type, 'error-text')
         assert.ok(textPayload(sendWhileClosed).includes('resume_agent'))
 
         const resumeResult = await resumeAgentTool.execute({ id: agentId })
@@ -137,7 +138,7 @@ describe('collab tools', () => {
             id: agentId,
             message: 'echo:second',
         })
-        assert.strictEqual(sendAfterResume.isError, false)
+        assert.strictEqual(sendAfterResume.type, 'text')
     })
 
     test('wait returns not_found immediately for unknown agents', async () => {
@@ -155,26 +156,26 @@ describe('collab tools', () => {
     test('spawn_agent respects MEMO_SUBAGENT_MAX_AGENTS limit', async () => {
         process.env.MEMO_SUBAGENT_MAX_AGENTS = '1'
         const first = await spawnAgentTool.execute({ message: 'sleep:5000' })
-        assert.strictEqual(first.isError, false)
+        assert.strictEqual(first.type, 'text')
 
         const second = await spawnAgentTool.execute({ message: 'echo:blocked' })
-        assert.strictEqual(second.isError, true)
+        assert.strictEqual(second.type, 'error-text')
         assert.ok(textPayload(second).includes('concurrency limit'))
     })
 
     test('wait validates timeout and mutating tools report missing agents', async () => {
         const invalidTimeout = await waitTool.execute({ ids: ['missing'], timeout_ms: 0 })
-        assert.strictEqual(invalidTimeout.isError, true)
+        assert.strictEqual(invalidTimeout.type, 'error-text')
         assert.ok(textPayload(invalidTimeout).includes('timeout_ms'))
 
         const sendResult = await sendInputTool.execute({ id: 'missing', message: 'x' })
-        assert.strictEqual(sendResult.isError, true)
+        assert.strictEqual(sendResult.type, 'error-text')
         assert.ok(textPayload(sendResult).includes('agent not found'))
 
         const closeResult = await closeAgentTool.execute({ id: 'missing' })
-        assert.strictEqual(closeResult.isError, true)
+        assert.strictEqual(closeResult.type, 'error-text')
 
         const resumeResult = await resumeAgentTool.execute({ id: 'missing' })
-        assert.strictEqual(resumeResult.isError, true)
+        assert.strictEqual(resumeResult.type, 'error-text')
     })
 })

@@ -26,19 +26,18 @@ import type {
     TurnResult,
     TurnStatus,
 } from '@memo/core/types'
-import type { LanguageModelUsage } from 'ai'
+import type { LanguageModelUsage, ToolResultPart } from 'ai'
 import { buildHookRunners, runHook, snapshotHistory, type HookRunnerMap } from '@memo/core/agent/hooks'
-import {
-    createToolOrchestrator,
-    type ToolApprovalHooks,
-    type ToolOrchestrator,
-    type ToolActionResult,
-} from '@memo/core/tools/orchestrator'
+import { createApprovalManager, type ApprovalManager } from '@memo/core/tools/approval'
+import type { ToolApprovalHooks } from '@memo/core/tools/orchestrator'
 import { runWithRuntimeContext } from '@memo/core/tools/runtime/context'
+import type { ToolExecutionContext } from './sdk_tools'
+import { createStepGate } from './step_gate'
 import {
     buildAssistantToolCalls,
-    completeToolResultsForProtocol,
+    mapOutputStatus,
     normalizeLLMResponse,
+    outputToObservation,
     parseTextToolCall,
     toToolHistoryMessage,
 } from './messages'
@@ -68,7 +67,7 @@ export class AgentSessionImpl implements AgentSession {
     private cancelling = false
     private lastActionSignature: string | null = null
     private repeatedActionCount = 0
-    private toolOrchestrator: ToolOrchestrator
+    private approvalManager: ApprovalManager
     private toolsDisabled = false
     private toolPermissionMode: ToolPermissionMode | 'auto' = 'auto'
 
@@ -92,12 +91,9 @@ export class AgentSessionImpl implements AgentSession {
         const resolvedPermission = resolveToolPermission(options)
         this.toolsDisabled = resolvedPermission.toolsDisabled
         this.toolPermissionMode = resolvedPermission.mode
-        this.toolOrchestrator = createToolOrchestrator({
-            tools: deps.tools,
-            approval: {
-                dangerous: resolvedPermission.dangerous,
-                mode: resolvedPermission.approvalMode,
-            },
+        this.approvalManager = createApprovalManager({
+            dangerous: resolvedPermission.dangerous,
+            mode: resolvedPermission.approvalMode,
         })
     }
 
@@ -389,20 +385,6 @@ export class AgentSessionImpl implements AgentSession {
         }
     }
 
-    /** 通过工具编排器执行工具调用。 */
-    private async executeToolAction(
-        actionId: string,
-        toolName: string,
-        toolInput: unknown,
-        turn: number,
-        step: number,
-    ): Promise<ToolActionResult> {
-        return this.toolOrchestrator.executeAction(
-            { id: actionId, name: toolName, input: toolInput },
-            this.buildToolApprovalHooks(turn, step),
-        )
-    }
-
     private async maybeGenerateSessionTitle(turn: number, originalPrompt: string) {
         if (turn !== 1 || this.title) return
 
@@ -542,9 +524,17 @@ export class AgentSessionImpl implements AgentSession {
 
                     let assistantText = ''
                     let toolUseBlocks: Array<{ id: string; name: string; input: unknown }> = []
+                    let toolResults: ToolResultPart[] = []
                     let usageFromLLM: Partial<LanguageModelUsage> | undefined
                     let reasoningContent: string | undefined
                     let receivedAssistantChunk = false
+                    const toolContext: ToolExecutionContext = {
+                        approvalManager: this.approvalManager,
+                        approvalHooks: this.buildToolApprovalHooks(turn, step),
+                        toolsDisabled: this.toolsDisabled,
+                        onRepeatedAction: (tool, input) => this.maybeWarnRepeatedAction(tool, input),
+                        gate: createStepGate(),
+                    }
                     try {
                         const llmResult = await this.deps.callLLM(
                             this.history,
@@ -554,11 +544,12 @@ export class AgentSessionImpl implements AgentSession {
                                 }
                                 this.deps.onAssistantStep?.(chunk, step)
                             },
-                            { signal: abortController.signal },
+                            { signal: abortController.signal, toolContext },
                         )
                         const normalized = normalizeLLMResponse(llmResult)
                         assistantText = normalized.textContent
                         toolUseBlocks = normalized.toolUseBlocks
+                        toolResults = normalized.toolResults
                         usageFromLLM = normalized.usage
                         reasoningContent = normalized.reasoningContent
                         if (assistantText.trim().length > 0) {
@@ -732,185 +723,33 @@ export class AgentSessionImpl implements AgentSession {
                         this.history.push(assistantHistoryMessage)
                     }
 
-                    if (toolUseBlocks.length > 0 && this.toolsDisabled) {
-                        for (const block of toolUseBlocks) {
+                    // 工具调用已由 AI SDK 在 streamText 内执行（execute 包装器：审批/截断/禁用跳过）。
+                    if (toolUseBlocks.length > 0) {
+                        // 工具禁用模式：全部跳过 → 按工具禁用错误终止
+                        const disabledSkipped = toolResults.some(
+                            (tr) => tr.output.type === 'text' && tr.output.value === TOOL_SKIPPED_DISABLED_MESSAGE,
+                        )
+                        if (disabledSkipped) {
+                            status = 'error'
+                            finalText = TOOL_DISABLED_ERROR_MESSAGE
+                            errorMessage = TOOL_DISABLED_ERROR_MESSAGE
+                            for (const tr of toolResults) {
+                                this.history.push(toToolHistoryMessage(tr))
+                            }
                             this.history.push({
-                                role: 'tool',
-                                content: [
-                                    {
-                                        type: 'tool-result',
-                                        toolCallId: block.id,
-                                        toolName: block.name,
-                                        output: { type: 'text', value: TOOL_SKIPPED_DISABLED_MESSAGE },
-                                    },
-                                ],
+                                role: 'assistant',
+                                content: TOOL_DISABLED_ERROR_MESSAGE,
                             })
-                        }
-                        status = 'error'
-                        finalText = TOOL_DISABLED_ERROR_MESSAGE
-                        errorMessage = TOOL_DISABLED_ERROR_MESSAGE
-                        this.history.push({
-                            role: 'assistant',
-                            content: TOOL_DISABLED_ERROR_MESSAGE,
-                        })
-                        await this.emitEvent('final', {
-                            turn,
-                            step,
-                            content: TOOL_DISABLED_ERROR_MESSAGE,
-                            role: 'assistant',
-                            meta: {
-                                error_type: 'tool_disabled',
-                                tool_count: toolUseBlocks.length,
-                                tools: toolUseBlocks.map((block) => block.name).join(','),
-                                tokens: stepUsage,
-                            },
-                        })
-                        await runHook(this.hooks, 'onFinal', {
-                            sessionId: this.id,
-                            turn,
-                            step,
-                            finalText: TOOL_DISABLED_ERROR_MESSAGE,
-                            status,
-                            errorMessage,
-                            tokenUsage: stepUsage,
-                            turnUsage: { ...turnUsage },
-                            steps,
-                        })
-                        break
-                    }
-
-                    // 处理工具调用（支持并发执行多个工具）
-                    if (toolUseBlocks.length > 1) {
-                        // 重复调用防呆：对每个工具调用记录签名
-                        for (const block of toolUseBlocks) {
-                            this.maybeWarnRepeatedAction(block.name, block.input)
-                        }
-
-                        // 触发 action hooks（action 字段取首个工具，parallelActions 包含全量）
-                        await this.emitEvent('action', {
-                            turn,
-                            step,
-                            meta: {
-                                tools: toolUseBlocks.map((b) => b.name),
-                                action_ids: toolUseBlocks.map((b) => b.id),
-                                action_id: toolUseBlocks[0]?.id,
-                                parallel: true,
-                                phase: 'dispatch',
-                                thinking: parsed.thinking,
-                                // 保存所有工具的完整信息
-                                toolBlocks: toolUseBlocks.map((b) => ({
-                                    id: b.id,
-                                    name: b.name,
-                                    input: b.input,
-                                })),
-                            },
-                        })
-                        const firstTool = toolUseBlocks[0]
-                        if (firstTool) {
-                            await runHook(this.hooks, 'onAction', {
-                                sessionId: this.id,
-                                turn,
-                                step,
-                                action: {
-                                    tool: firstTool.name,
-                                    input: firstTool.input,
-                                },
-                                parallelActions: toolUseBlocks.map((block) => ({
-                                    tool: block.name,
-                                    input: block.input,
-                                })),
-                                thinking: parsed.thinking,
-                                history: snapshotHistory(this.history),
-                            })
-                        }
-
-                        const allSupportParallel = toolUseBlocks.every((block) => {
-                            const tool = this.deps.tools[block.name]
-                            return Boolean(tool?.supportsParallelToolCalls)
-                        })
-                        const hasMutatingTool = toolUseBlocks.some((block) => {
-                            const tool = this.deps.tools[block.name]
-                            return Boolean(tool?.isMutating)
-                        })
-                        const executionMode = allSupportParallel && !hasMutatingTool ? 'parallel' : 'sequential'
-
-                        const execution = await this.toolOrchestrator.executeActions(
-                            toolUseBlocks.map((block) => ({
-                                id: block.id,
-                                name: block.name,
-                                input: block.input,
-                            })),
-                            {
-                                ...this.buildToolApprovalHooks(turn, step),
-                                executionMode,
-                                failurePolicy: 'fail_fast',
-                            },
-                        )
-
-                        const protocolResults = completeToolResultsForProtocol(
-                            toolUseBlocks,
-                            execution.results,
-                            execution.hasRejection,
-                        )
-
-                        for (const [idx, result] of protocolResults.entries()) {
-                            this.history.push(toToolHistoryMessage(result))
-                            await this.emitEvent('observation', {
-                                turn,
-                                step,
-                                content: result.observation,
-                                meta: {
-                                    tool: result.tool,
-                                    index: idx,
-                                    action_id: result.actionId,
-                                    phase: 'result',
-                                    status: result.status,
-                                    error_type: result.errorType,
-                                    duration_ms: result.durationMs,
-                                    execution_mode: executionMode,
-                                },
-                            })
-                        }
-
-                        const combinedObservation = protocolResults
-                            .map((result) => `[${result.tool}]: ${result.observation}`)
-                            .join('\n\n')
-                        const parallelResultStatuses = protocolResults.map((result) => result.status)
-                        const resultStatus =
-                            parallelResultStatuses.find((candidate) => candidate !== TOOL_ACTION_SUCCESS_STATUS) ??
-                            TOOL_ACTION_SUCCESS_STATUS
-                        const lastStep = steps[steps.length - 1]
-                        if (lastStep) {
-                            lastStep.observation = combinedObservation
-                        }
-                        // 触发 observation hook（使用合并后的结果）
-                        await runHook(this.hooks, 'onObservation', {
-                            sessionId: this.id,
-                            turn,
-                            step,
-                            tool: toolUseBlocks.map((b) => b.name).join(', '),
-                            observation: combinedObservation,
-                            resultStatus,
-                            parallelResultStatuses,
-                            history: snapshotHistory(this.history),
-                        })
-
-                        // 如果被拒绝，停止本轮次
-                        if (execution.hasRejection) {
-                            const rejectionResult = protocolResults.find((result) => result.rejected)
-                            status = 'cancelled'
-                            finalText = '用户拒绝了工具执行，已停止当前操作。'
                             await this.emitEvent('final', {
                                 turn,
                                 step,
-                                content: finalText,
+                                content: TOOL_DISABLED_ERROR_MESSAGE,
                                 role: 'assistant',
                                 meta: {
-                                    rejected: true,
-                                    phase: 'result',
-                                    action_id: rejectionResult?.actionId,
-                                    error_type: rejectionResult?.errorType ?? 'approval_denied',
-                                    duration_ms: rejectionResult?.durationMs,
+                                    error_type: 'tool_disabled',
+                                    tool_count: toolUseBlocks.length,
+                                    tools: toolUseBlocks.map((block) => block.name).join(','),
+                                    tokens: stepUsage,
                                 },
                             })
                             await runHook(this.hooks, 'onFinal', {
@@ -919,27 +758,28 @@ export class AgentSessionImpl implements AgentSession {
                                 step,
                                 finalText,
                                 status,
+                                errorMessage,
                                 tokenUsage: stepUsage,
                                 turnUsage: { ...turnUsage },
                                 steps,
                             })
                             break
                         }
-                        continue
-                    }
 
-                    // 单个工具调用
-                    // 注意：当 toolUseBlocks.length > 1 时，已在上面处理，这里跳过
-                    else if (parsed.action) {
-                        this.maybeWarnRepeatedAction(parsed.action.tool, parsed.action.input)
-                        const actionId = toolUseBlocks[0]?.id ?? `${turn}:${step}:single:${parsed.action.tool}`
+                        // 重复调用防呆
+                        for (const block of toolUseBlocks) {
+                            this.maybeWarnRepeatedAction(block.name, block.input)
+                        }
+
+                        // action 事件（批次级）
                         await this.emitEvent('action', {
                             turn,
                             step,
                             meta: {
-                                tool: parsed.action.tool,
-                                input: parsed.action.input,
-                                action_id: actionId,
+                                tools: toolUseBlocks.map((b) => b.name),
+                                action_ids: toolUseBlocks.map((b) => b.id),
+                                action_id: toolUseBlocks[0]?.id,
+                                parallel: toolUseBlocks.length > 1,
                                 phase: 'dispatch',
                                 thinking: parsed.thinking,
                             },
@@ -948,29 +788,62 @@ export class AgentSessionImpl implements AgentSession {
                             sessionId: this.id,
                             turn,
                             step,
-                            action: parsed.action,
+                            action: { tool: toolUseBlocks[0]?.name ?? '', input: toolUseBlocks[0]?.input },
+                            parallelActions: toolUseBlocks.map((b) => ({ tool: b.name, input: b.input })),
                             thinking: parsed.thinking,
                             history: snapshotHistory(this.history),
                         })
 
-                        // 使用审批流程执行工具
-                        const result = await this.executeToolAction(
-                            actionId,
-                            parsed.action.tool,
-                            parsed.action.input,
+                        // 逐结果回填历史 + observation 事件
+                        const observations: string[] = []
+                        const resultStatuses: ToolActionStatus[] = []
+                        let denied = false
+                        for (const [idx, tr] of toolResults.entries()) {
+                            const observation = outputToObservation(tr)
+                            const status = mapOutputStatus(tr)
+                            observations.push(observation)
+                            resultStatuses.push(status)
+                            this.history.push(toToolHistoryMessage(tr))
+                            await this.emitEvent('observation', {
+                                turn,
+                                step,
+                                content: observation,
+                                meta: {
+                                    tool: tr.toolName,
+                                    index: idx,
+                                    action_id: tr.toolCallId,
+                                    phase: 'result',
+                                    status,
+                                    error_type: status === 'success' ? undefined : status,
+                                },
+                            })
+                            if (tr.output.type === 'execution-denied') denied = true
+                        }
+                        const combinedObservation = observations
+                            .map((obs, i) => `[${toolResults[i]?.toolName ?? ''}]: ${obs}`)
+                            .join('\n\n')
+                        const hookObservation = toolResults.length > 1 ? combinedObservation : (observations[0] ?? '')
+                        const lastStep = steps[steps.length - 1]
+                        if (lastStep) {
+                            lastStep.observation = hookObservation
+                        }
+                        const resultStatus =
+                            resultStatuses.find((candidate) => candidate !== TOOL_ACTION_SUCCESS_STATUS) ??
+                            TOOL_ACTION_SUCCESS_STATUS
+                        await runHook(this.hooks, 'onObservation', {
+                            sessionId: this.id,
                             turn,
                             step,
-                        )
+                            tool: toolUseBlocks.map((b) => b.name).join(', '),
+                            observation: hookObservation,
+                            resultStatus,
+                            parallelResultStatuses: resultStatuses,
+                            history: snapshotHistory(this.history),
+                        })
 
-                        // 如果被拒绝，停止本轮次
-                        if (result.rejected) {
-                            this.history.push(
-                                toToolHistoryMessage({
-                                    ...result,
-                                    observation:
-                                        result.observation || `User denied tool execution: ${parsed.action.tool}`,
-                                }),
-                            )
+                        // 拒绝 → 终止本轮（保持现状语义）
+                        if (denied) {
+                            const deniedResult = toolResults.find((tr) => tr.output.type === 'execution-denied')
                             status = 'cancelled'
                             finalText = '用户拒绝了工具执行，已停止当前操作。'
                             await this.emitEvent('final', {
@@ -981,9 +854,8 @@ export class AgentSessionImpl implements AgentSession {
                                 meta: {
                                     rejected: true,
                                     phase: 'result',
-                                    action_id: result.actionId,
-                                    error_type: result.errorType ?? 'approval_denied',
-                                    duration_ms: result.durationMs,
+                                    action_id: deniedResult?.toolCallId,
+                                    error_type: 'approval_denied',
                                 },
                             })
                             await runHook(this.hooks, 'onFinal', {
@@ -998,46 +870,6 @@ export class AgentSessionImpl implements AgentSession {
                             })
                             break
                         }
-
-                        const observation = result.observation
-
-                        this.history.push({
-                            role: 'tool',
-                            content: [
-                                {
-                                    type: 'tool-result',
-                                    toolCallId: result.actionId,
-                                    toolName: parsed.action.tool,
-                                    output: { type: 'text', value: observation },
-                                },
-                            ],
-                        })
-                        const lastStep = steps[steps.length - 1]
-                        if (lastStep) {
-                            lastStep.observation = observation
-                        }
-                        await this.emitEvent('observation', {
-                            turn,
-                            step,
-                            content: observation,
-                            meta: {
-                                tool: parsed.action.tool,
-                                action_id: result.actionId,
-                                phase: 'result',
-                                status: result.status,
-                                error_type: result.errorType,
-                                duration_ms: result.durationMs,
-                            },
-                        })
-                        await runHook(this.hooks, 'onObservation', {
-                            sessionId: this.id,
-                            turn,
-                            step,
-                            tool: parsed.action.tool,
-                            observation,
-                            resultStatus: result.status,
-                            history: snapshotHistory(this.history),
-                        })
                         continue
                     }
 
@@ -1130,7 +962,7 @@ export class AgentSessionImpl implements AgentSession {
                 this.currentAbortController = null
                 this.cancelling = false
                 // 清除单次授权（每次 turn 结束后）
-                this.toolOrchestrator.clearOnceApprovals()
+                this.approvalManager.clearOnceApprovals()
             }
         })
     }
@@ -1175,7 +1007,7 @@ export class AgentSessionImpl implements AgentSession {
         }
         this.tokenCounter.dispose()
         // 清理所有授权
-        this.toolOrchestrator.dispose()
+        this.approvalManager.dispose()
         if (this.deps.dispose) {
             await this.deps.dispose()
         }

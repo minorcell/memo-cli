@@ -1,4 +1,4 @@
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types'
+import type { MemoToolOutput } from '@memo/core/tools/router/types'
 import type {
     ApprovalDecision,
     ApprovalManager,
@@ -13,7 +13,7 @@ export type OrchestratorTool = {
     supportsParallelToolCalls?: boolean
     isMutating?: boolean
     validateInput?: (input: unknown) => ToolValidateResult
-    execute: (input: unknown) => Promise<CallToolResult>
+    execute: (input: unknown) => Promise<MemoToolOutput>
 }
 
 export type OrchestratorToolRegistry = Record<string, OrchestratorTool>
