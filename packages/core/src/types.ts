@@ -1,10 +1,8 @@
 /** @file Common type declarations shared between Core and Runtime (reused by UI/Tools). */
 import type { FinishReason, LanguageModelUsage, ModelMessage, ToolCallPart, ToolResultPart } from 'ai'
-import type { ApprovalRequest, ApprovalDecision } from '@memo/core/tools/approval'
-import type { ToolActionStatus } from '@memo/core/tools/orchestrator'
+import type { ApprovalRequest, ApprovalDecision, ToolActionStatus } from '@memo/core/tools/approval'
 import type { ToolExecutionContext } from '@memo/core/tools/sdk_tools'
-export type { ApprovalDecision, ApprovalRequest } from '@memo/core/tools/approval'
-export type { ToolActionStatus } from '@memo/core/tools/orchestrator'
+export type { ApprovalDecision, ApprovalRequest, ToolActionStatus } from '@memo/core/tools/approval'
 export type { FinishReason, LanguageModelUsage } from 'ai'
 
 /** AI SDK generation result subset returned by CallLLM (all fields are AI SDK types). */
@@ -79,8 +77,8 @@ export type ParsedAssistant = {
     thinking?: string
 }
 
-/** Tool registry: keys are tool names, values are tool definitions. */
-export type ToolRegistry = Record<string, import('@memo/core/tools/router/types').Tool>
+/** Tool registry: keys are tool names, values are standard AI SDK Tool definitions. */
+export type ToolRegistry = Record<string, import('ai').Tool>
 
 /** LLM call interface: input history messages, return structured response, can stream text via onChunk. */
 export type CallLLMOptions = {

@@ -1,4 +1,6 @@
 import assert from 'node:assert'
+import type { Tool, ToolExecutionOptions } from 'ai'
+import type { ToolResultOutput } from '@ai-sdk/provider-utils'
 import { describe, test, vi, beforeEach, afterEach, expect } from 'vitest'
 import { shellTool } from './shell'
 import { flattenText } from './mcp'
@@ -13,6 +15,10 @@ vi.mock('./exec_runtime', async () => {
 
 import { startExecSession } from './exec_runtime'
 
+async function runTool(tool: Tool, input: unknown): Promise<ToolResultOutput> {
+    return (await tool.execute!(input, {} as ToolExecutionOptions)) as ToolResultOutput
+}
+
 describe('shell tool', () => {
     beforeEach(() => {
         vi.resetAllMocks()
@@ -26,7 +32,7 @@ describe('shell tool', () => {
         test('joins argv and executes command', async () => {
             vi.mocked(startExecSession).mockResolvedValue('test output')
 
-            const result = await shellTool.execute({ command: ['echo', 'hello'] })
+            const result = await runTool(shellTool, { command: ['echo', 'hello'] })
 
             assert.strictEqual(result.type, 'text')
             assert.strictEqual(flattenText(result), 'test output')
@@ -41,7 +47,7 @@ describe('shell tool', () => {
         test('handles single argument', async () => {
             vi.mocked(startExecSession).mockResolvedValue('single')
 
-            await shellTool.execute({ command: ['echo', 'single'] })
+            await runTool(shellTool, { command: ['echo', 'single'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -53,7 +59,7 @@ describe('shell tool', () => {
         test('handles many arguments', async () => {
             vi.mocked(startExecSession).mockResolvedValue('many')
 
-            await shellTool.execute({ command: ['echo', 'a', 'b', 'c', 'd', 'e'] })
+            await runTool(shellTool, { command: ['echo', 'a', 'b', 'c', 'd', 'e'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -67,7 +73,7 @@ describe('shell tool', () => {
         test('quotes arguments with spaces', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', 'hello world'] })
+            await runTool(shellTool, { command: ['echo', 'hello world'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -79,7 +85,7 @@ describe('shell tool', () => {
         test('quotes arguments with single quotes', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', "it's working"] })
+            await runTool(shellTool, { command: ['echo', "it's working"] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -91,7 +97,7 @@ describe('shell tool', () => {
         test('handles empty arguments', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', ''] })
+            await runTool(shellTool, { command: ['echo', ''] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -103,7 +109,7 @@ describe('shell tool', () => {
         test('quotes arguments with dollar signs', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', '$HOME'] })
+            await runTool(shellTool, { command: ['echo', '$HOME'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -115,7 +121,7 @@ describe('shell tool', () => {
         test('quotes arguments with backticks', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', '`date`'] })
+            await runTool(shellTool, { command: ['echo', '`date`'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -127,7 +133,7 @@ describe('shell tool', () => {
         test('quotes arguments with newlines', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', 'line1\nline2'] })
+            await runTool(shellTool, { command: ['echo', 'line1\nline2'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -139,7 +145,7 @@ describe('shell tool', () => {
         test('quotes arguments with backslashes', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', 'path\\to\\file'] })
+            await runTool(shellTool, { command: ['echo', 'path\\to\\file'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -151,7 +157,7 @@ describe('shell tool', () => {
         test('quotes arguments with semicolons', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', 'a;b;c'] })
+            await runTool(shellTool, { command: ['echo', 'a;b;c'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -163,7 +169,7 @@ describe('shell tool', () => {
         test('quotes arguments with pipes', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', 'a|b'] })
+            await runTool(shellTool, { command: ['echo', 'a|b'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -175,7 +181,7 @@ describe('shell tool', () => {
         test('quotes arguments with wildcards', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', '*.txt'] })
+            await runTool(shellTool, { command: ['echo', '*.txt'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -187,7 +193,7 @@ describe('shell tool', () => {
         test('quotes arguments with angle brackets', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', '<tag>'] })
+            await runTool(shellTool, { command: ['echo', '<tag>'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -199,7 +205,7 @@ describe('shell tool', () => {
         test('quotes arguments with ampersands', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', 'A&B'] })
+            await runTool(shellTool, { command: ['echo', 'A&B'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -211,7 +217,7 @@ describe('shell tool', () => {
         test('does not quote safe arguments', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({
+            await runTool(shellTool, {
                 command: ['echo', 'hello_world', 'file.txt', '/usr/local/bin'],
             })
 
@@ -225,7 +231,7 @@ describe('shell tool', () => {
         test('handles mixed safe and unsafe arguments', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', 'safe', 'hello world', 'unsafe'] })
+            await runTool(shellTool, { command: ['echo', 'safe', 'hello world', 'unsafe'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -239,7 +245,7 @@ describe('shell tool', () => {
         test('passes optional workdir parameter', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['pwd'], workdir: '/tmp' })
+            await runTool(shellTool, { command: ['pwd'], workdir: '/tmp' })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -251,7 +257,7 @@ describe('shell tool', () => {
         test('passes optional timeout_ms parameter', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['sleep', '1'], timeout_ms: 5000 })
+            await runTool(shellTool, { command: ['sleep', '1'], timeout_ms: 5000 })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -266,7 +272,7 @@ describe('shell tool', () => {
         test('handles execution errors gracefully', async () => {
             vi.mocked(startExecSession).mockRejectedValue(new Error('command failed'))
 
-            const result = await shellTool.execute({ command: ['invalid-command'] })
+            const result = await runTool(shellTool, { command: ['invalid-command'] })
 
             assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('shell failed'))
@@ -275,7 +281,7 @@ describe('shell tool', () => {
         test('handles command not found errors', async () => {
             vi.mocked(startExecSession).mockRejectedValue(new Error('ENOENT'))
 
-            const result = await shellTool.execute({ command: ['definitely-not-real'] })
+            const result = await runTool(shellTool, { command: ['definitely-not-real'] })
 
             assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('shell failed'))
@@ -284,7 +290,7 @@ describe('shell tool', () => {
         test('handles permission denied errors', async () => {
             vi.mocked(startExecSession).mockRejectedValue(new Error('EACCES: permission denied'))
 
-            const result = await shellTool.execute({ command: ['/protected/path'] })
+            const result = await runTool(shellTool, { command: ['/protected/path'] })
 
             assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('shell failed'))
@@ -293,7 +299,7 @@ describe('shell tool', () => {
         test('handles timeout errors', async () => {
             vi.mocked(startExecSession).mockRejectedValue(new Error('command timed out'))
 
-            const result = await shellTool.execute({ command: ['sleep', '100'], timeout_ms: 100 })
+            const result = await runTool(shellTool, { command: ['sleep', '100'], timeout_ms: 100 })
 
             assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('shell failed'))
@@ -304,7 +310,7 @@ describe('shell tool', () => {
         test('handles unicode arguments', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', '你好世界'] })
+            await runTool(shellTool, { command: ['echo', '你好世界'] })
 
             expect(startExecSession).toHaveBeenCalled()
         })
@@ -312,7 +318,7 @@ describe('shell tool', () => {
         test('handles emoji in arguments', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', '🌍🚀'] })
+            await runTool(shellTool, { command: ['echo', '🌍🚀'] })
 
             expect(startExecSession).toHaveBeenCalled()
         })
@@ -320,7 +326,7 @@ describe('shell tool', () => {
         test('handles unicode with spaces', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellTool.execute({ command: ['echo', '你好 世界'] })
+            await runTool(shellTool, { command: ['echo', '你好 世界'] })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({

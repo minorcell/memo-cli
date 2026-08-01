@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { validatePath, writeFileContent } from '@memo/core/tools/tools/filesystem/lib'
 import { resolveAllowedDirectories } from '@memo/core/tools/tools/filesystem/roots'
@@ -11,14 +11,11 @@ const WRITE_FILE_INPUT_SCHEMA = z
     })
     .strict()
 
-type WriteFileInput = z.infer<typeof WRITE_FILE_INPUT_SCHEMA>
-
-export const writeFileTool = defineMcpTool<WriteFileInput>({
-    name: 'write_file',
+export const writeFileTool = tool({
     description: 'Create or overwrite a file with UTF-8 content using atomic replace semantics.',
     inputSchema: WRITE_FILE_INPUT_SCHEMA,
-    supportsParallelToolCalls: false,
-    isMutating: true,
+    metadata: { memo: { supportsParallelToolCalls: false, isMutating: true } },
+
     execute: async (input) => {
         try {
             const allowedDirectories = await resolveAllowedDirectories()

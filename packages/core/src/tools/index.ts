@@ -1,4 +1,4 @@
-import type { McpTool, ToolName } from '@memo/core/tools/tools/types'
+import type { Tool } from 'ai'
 import { shellTool } from '@memo/core/tools/tools/shell'
 import { shellCommandTool } from '@memo/core/tools/tools/shell_command'
 import { execCommandTool } from '@memo/core/tools/tools/exec_command'
@@ -21,66 +21,62 @@ import { getMemoryTool } from '@memo/core/tools/tools/get_memory'
 import { webfetchTool } from '@memo/core/tools/tools/webfetch'
 import { closeAgentTool, resumeAgentTool, sendInputTool, spawnAgentTool, waitTool } from '@memo/core/tools/tools/collab'
 
-function buildCodexTools(): McpTool[] {
-    const tools: McpTool[] = []
+function buildCodexTools(): Record<string, Tool> {
+    const tools: Record<string, Tool> = {}
     const shellMode = process.env.MEMO_SHELL_TOOL_TYPE?.trim() || 'unified_exec'
     const collabEnabled = process.env.MEMO_ENABLE_COLLAB_TOOLS !== '0'
     const memoryToolEnabled = process.env.MEMO_ENABLE_MEMORY_TOOL !== '0'
 
     if (shellMode === 'shell') {
-        tools.push(shellTool)
+        tools.shell = shellTool
     } else if (shellMode === 'shell_command') {
-        tools.push(shellCommandTool)
+        tools.shell_command = shellCommandTool
     } else if (shellMode === 'unified_exec') {
-        tools.push(execCommandTool, writeStdinTool)
+        tools.exec_command = execCommandTool
+        tools.write_stdin = writeStdinTool
     } else if (shellMode !== 'disabled') {
-        tools.push(execCommandTool, writeStdinTool)
+        tools.exec_command = execCommandTool
+        tools.write_stdin = writeStdinTool
     }
 
-    tools.push(listMcpResourcesTool, listMcpResourceTemplatesTool, readMcpResourceTool)
-    tools.push(updatePlanTool)
-    tools.push(applyPatchTool)
-    tools.push(
-        readTextFileTool,
-        readMediaFileTool,
-        readFilesTool,
-        writeFileTool,
-        editFileTool,
-        listDirectoryTool,
-        searchFilesTool,
-    )
+    tools.list_mcp_resources = listMcpResourcesTool
+    tools.list_mcp_resource_templates = listMcpResourceTemplatesTool
+    tools.read_mcp_resource = readMcpResourceTool
+    tools.update_plan = updatePlanTool
+    tools.apply_patch = applyPatchTool
+    tools.read_text_file = readTextFileTool
+    tools.read_media_file = readMediaFileTool
+    tools.read_files = readFilesTool
+    tools.write_file = writeFileTool
+    tools.edit_file = editFileTool
+    tools.list_directory = listDirectoryTool
+    tools.search_files = searchFilesTool
 
     if (memoryToolEnabled) {
-        tools.push(getMemoryTool)
+        tools.get_memory = getMemoryTool
     }
 
-    tools.push(webfetchTool)
+    tools.webfetch = webfetchTool
 
     if (collabEnabled) {
-        tools.push(spawnAgentTool, sendInputTool, resumeAgentTool, waitTool, closeAgentTool)
+        tools.spawn_agent = spawnAgentTool
+        tools.send_input = sendInputTool
+        tools.resume_agent = resumeAgentTool
+        tools.wait = waitTool
+        tools.close_agent = closeAgentTool
     }
 
     return tools
 }
 
-function indexByName(tools: McpTool[]): Record<ToolName, McpTool> {
-    const toolkit: Record<ToolName, McpTool> = {}
-    for (const tool of tools) {
-        toolkit[tool.name] = tool
-    }
-    return toolkit
-}
+/** Exposed built-in tool collection (AI SDK ToolSet, keys are tool names). */
+export const TOOLKIT: Record<string, Tool> = buildCodexTools()
 
-/** Exposed tool collection for Agent lookup by tool name. */
-export const TOOLKIT: Record<ToolName, McpTool> = indexByName(buildCodexTools())
+/** Tool array form, convenient for direct registration. */
+export const TOOL_LIST: Tool[] = Object.values(TOOLKIT)
 
-/** Tool array form, convenient for direct registration to MCP Server etc. */
-export const TOOL_LIST: McpTool[] = Object.values(TOOLKIT)
+/** Built-in tools (already AI SDK Tool format, no adaptation needed). */
+export const NATIVE_TOOLS = TOOLKIT
 
-/** Built-in tools (already unified Tool format, no adaptation needed). */
-export const NATIVE_TOOLS = TOOL_LIST
-
-export type { McpTool }
 export * from '@memo/core/tools/approval'
-export * from '@memo/core/tools/orchestrator'
 export * from '@memo/core/tools/router'

@@ -1,7 +1,9 @@
 /** @file Message construction and LLM result normalization for the agent loop. */
 import type { LanguageModelUsage, ToolCallPart, ToolResultPart } from 'ai'
+import type { ToolResultOutput } from '@ai-sdk/provider-utils'
 import type { ChatMessage, LLMResult, ToolRegistry } from '@memo/core/types'
-import type { ToolActionStatus } from '@memo/core/tools/orchestrator'
+import type { ToolActionStatus } from '@memo/core/tools/approval'
+import { TOOL_SKIPPED_DISABLED_MESSAGE } from '@memo/core/tools/sdk_tools'
 
 export function parseToolArguments(
     raw: string,
@@ -67,6 +69,11 @@ export function toToolHistoryMessage(result: ToolResultPart): ChatMessage {
         role: 'tool',
         content: [result],
     }
+}
+
+/** Detect the tools-disabled skip output (non-standard 'skipped' replaced by an error-text sentinel). */
+export function isToolSkippedOutput(output: ToolResultOutput): boolean {
+    return output.type === 'error-text' && output.value === TOOL_SKIPPED_DISABLED_MESSAGE
 }
 
 /** ToolResultPart → observation display text. */

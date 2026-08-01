@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 import { describe, test } from 'vitest'
 import { textResult, flattenText } from './mcp'
-import type { MemoToolOutput } from '@memo/core/tools/router/types'
+import type { ToolOutput } from '@memo/core/tools/tools/mcp'
 
 describe('mcp helpers', () => {
     describe('textResult', () => {
@@ -75,37 +75,37 @@ describe('mcp helpers', () => {
         })
 
         test('joins multiple text content items', () => {
-            const result: MemoToolOutput = { type: 'text', value: 'line1\nline2' }
+            const result: ToolOutput = { type: 'text', value: 'line1\nline2' }
             assert.strictEqual(flattenText(result), 'line1\nline2')
         })
 
         test('ignores non-text content', () => {
-            const result: MemoToolOutput = { type: 'text', value: 'visible\nalso visible' }
+            const result: ToolOutput = { type: 'text', value: 'visible\nalso visible' }
             assert.strictEqual(flattenText(result), 'visible\nalso visible')
         })
 
         test('handles empty result', () => {
-            const result: MemoToolOutput = { type: 'text', value: '' }
+            const result: ToolOutput = { type: 'text', value: '' }
             assert.strictEqual(flattenText(result), '')
         })
 
         test('handles empty text', () => {
-            const result: MemoToolOutput = { type: 'text', value: '' }
+            const result: ToolOutput = { type: 'text', value: '' }
             assert.strictEqual(flattenText(result), '')
         })
 
         test('handles json output', () => {
-            const result: MemoToolOutput = { type: 'json', value: { a: 1 } }
+            const result: ToolOutput = { type: 'json', value: { a: 1 } }
             assert.strictEqual(flattenText(result), '{"a":1}')
         })
 
         test('handles execution-denied output', () => {
-            const result: MemoToolOutput = { type: 'execution-denied', reason: 'denied' }
+            const result: ToolOutput = { type: 'execution-denied', reason: 'denied' }
             assert.strictEqual(flattenText(result), 'denied')
         })
 
         test('preserves exact text including whitespace', () => {
-            const result: MemoToolOutput = { type: 'text', value: '  leading spaces\ntrailing spaces  \n\ttab\t' }
+            const result: ToolOutput = { type: 'text', value: '  leading spaces\ntrailing spaces  \n\ttab\t' }
             const output = flattenText(result)
             assert.ok(output.includes('  leading spaces'))
             assert.ok(output.includes('trailing spaces  '))
@@ -121,7 +121,7 @@ describe('mcp helpers', () => {
         })
 
         test('handles many content items', () => {
-            const result: MemoToolOutput = {
+            const result: ToolOutput = {
                 type: 'text',
                 value: Array.from({ length: 100 }, (_, i) => `line${i}`).join('\n'),
             }

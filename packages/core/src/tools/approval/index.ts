@@ -9,6 +9,8 @@ export type {
     ApprovalKey,
     ApprovalMode,
     RiskLevel,
+    ToolActionErrorType,
+    ToolActionStatus,
 } from './types'
 
 export { createApprovalManager } from './manager'

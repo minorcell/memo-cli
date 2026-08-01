@@ -1,5 +1,7 @@
 import assert from 'node:assert'
-import type { MemoToolOutput } from '@memo/core/tools/router/types'
+import type { Tool, ToolExecutionOptions } from 'ai'
+import type { ToolResultOutput } from '@ai-sdk/provider-utils'
+import type { ToolOutput } from '@memo/core/tools/tools/mcp'
 import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -35,7 +37,7 @@ async function readText(path: string) {
     }
 }
 
-function textPayload(result: MemoToolOutput) {
+function textPayload(result: ToolOutput) {
     if (result.type === 'text' || result.type === 'error-text') return result.value ?? ''
     return ''
 }
@@ -76,16 +78,20 @@ afterAll(async () => {
     await rm(tempDir, { recursive: true, force: true })
 })
 
+async function runTool(tool: Tool, input: unknown): Promise<ToolResultOutput> {
+    return (await tool.execute!(input, {} as ToolExecutionOptions)) as ToolResultOutput
+}
+
 describe('codex shell family', () => {
     test('exec_command runs command and returns formatted output', async () => {
-        const result = await execCommandTool.execute({ cmd: 'echo hello-codex' })
+        const result = await runTool(execCommandTool, { cmd: 'echo hello-codex' })
         const text = textPayload(result)
         assert.ok(text.includes('Output:'), 'should contain output section')
         assert.ok(text.includes('hello-codex'), 'should include command output')
     })
 
     test('exec_command blocks dangerous shell command with xml hint', async () => {
-        const result = await execCommandTool.execute({ cmd: 'rm -rf /' })
+        const result = await runTool(execCommandTool, { cmd: 'rm -rf /' })
         const text = textPayload(result)
 
         assert.ok(text.startsWith('<system_hint '))
@@ -94,7 +100,7 @@ describe('codex shell family', () => {
     })
 
     test('write_stdin continues interactive session', async () => {
-        const started = await execCommandTool.execute({
+        const started = await runTool(execCommandTool, {
             cmd: 'read line; echo "$line"',
             yield_time_ms: 50,
         })
@@ -103,7 +109,7 @@ describe('codex shell family', () => {
         assert.ok(match, `expected running session id, got: ${startedText}`)
 
         const sessionId = Number(match?.[1])
-        const resumed = await writeStdinTool.execute({
+        const resumed = await runTool(writeStdinTool, {
             session_id: sessionId,
             chars: 'interactive-ok\n',
             yield_time_ms: 1000,
@@ -114,7 +120,7 @@ describe('codex shell family', () => {
     })
 
     test('write_stdin blocks dangerous input and keeps session alive', async () => {
-        const started = await execCommandTool.execute({
+        const started = await runTool(execCommandTool, {
             cmd: 'read line; echo "$line"',
             yield_time_ms: 50,
         })
@@ -123,7 +129,7 @@ describe('codex shell family', () => {
         assert.ok(match, `expected running session id, got: ${startedText}`)
 
         const sessionId = Number(match?.[1])
-        const blocked = await writeStdinTool.execute({
+        const blocked = await runTool(writeStdinTool, {
             session_id: sessionId,
             chars: 'rm -rf /\n',
             yield_time_ms: 50,
@@ -132,7 +138,7 @@ describe('codex shell family', () => {
         assert.ok(blockedText.startsWith('<system_hint '))
         assert.ok(blockedText.includes('tool="write_stdin"'))
 
-        const resumed = await writeStdinTool.execute({
+        const resumed = await runTool(writeStdinTool, {
             session_id: sessionId,
             chars: 'still-alive\n',
             yield_time_ms: 1000,
@@ -142,7 +148,7 @@ describe('codex shell family', () => {
     })
 
     test('write_stdin can fetch unread output tail after truncation', async () => {
-        const started = await execCommandTool.execute({
+        const started = await runTool(execCommandTool, {
             cmd: `node -e "process.stdout.write('X'.repeat(5000)); setTimeout(() => {}, 2000)"`,
             yield_time_ms: 300,
             max_output_tokens: 10,
@@ -154,7 +160,7 @@ describe('codex shell family', () => {
         let firstChunk = outputPayload(startedText)
         if (firstChunk.length === 0) {
             for (let i = 0; i < 5; i += 1) {
-                const retry = await writeStdinTool.execute({
+                const retry = await runTool(writeStdinTool, {
                     session_id: sessionId,
                     yield_time_ms: 100,
                     max_output_tokens: 10,
@@ -165,7 +171,7 @@ describe('codex shell family', () => {
         }
         assert.strictEqual(firstChunk.length, 40)
 
-        const next = await writeStdinTool.execute({
+        const next = await runTool(writeStdinTool, {
             session_id: sessionId,
             yield_time_ms: 100,
             max_output_tokens: 2000,
@@ -179,7 +185,7 @@ describe('codex shell family', () => {
     test('exec_command rejects when active session cap is exceeded', async () => {
         const results = []
         for (let i = 0; i < 70; i += 1) {
-            results.push(await execCommandTool.execute({ cmd: 'sleep 2', yield_time_ms: 0 }))
+            results.push(await runTool(execCommandTool, { cmd: 'sleep 2', yield_time_ms: 0 }))
         }
         const overflow = results.find(
             (result) => result.type === 'error-text' && textPayload(result).includes('too many active sessions'),
@@ -197,7 +203,7 @@ describe('codex file/search family', () => {
         await writeFile(target, 'alpha beta alpha', 'utf8')
 
         const singleRes = await runWithRuntimeContext({ cwd: tempDir }, () =>
-            applyPatchTool.execute({
+            runTool(applyPatchTool, {
                 input: [
                     '*** Begin Patch',
                     '*** Update File: patched.txt',
@@ -212,7 +218,7 @@ describe('codex file/search family', () => {
         assert.strictEqual(await readText(target), 'A beta alpha\n')
 
         const batchRes = await runWithRuntimeContext({ cwd: tempDir }, () =>
-            applyPatchTool.execute({
+            runTool(applyPatchTool, {
                 input: [
                     '*** Begin Patch',
                     '*** Update File: patched.txt',
@@ -228,7 +234,7 @@ describe('codex file/search family', () => {
     })
 
     test('read_text_file requires valid path in allowed roots', async () => {
-        const result = await readTextFileTool.execute({ path: '/tmp/not-allowed.txt' })
+        const result = await runTool(readTextFileTool, { path: '/tmp/not-allowed.txt' })
         assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('Access denied'))
     })
@@ -238,7 +244,7 @@ describe('codex file/search family', () => {
         await mkdir(nested, { recursive: true })
         await writeFile(join(nested, 'a.txt'), 'a', 'utf8')
 
-        const result = await listDirectoryTool.execute({ path: nested })
+        const result = await runTool(listDirectoryTool, { path: nested })
         const text = textPayload(result)
         assert.ok(text.includes('[FILE] a.txt'), 'should include file label')
     })
@@ -251,7 +257,7 @@ describe('codex file/search family', () => {
         await writeFile(fileA, 'A', 'utf8')
         await writeFile(fileB, 'B', 'utf8')
 
-        const result = await readFilesTool.execute({ paths: [fileA, fileB] })
+        const result = await runTool(readFilesTool, { paths: [fileA, fileB] })
         const text = textPayload(result)
         assert.ok(text.includes(`${fileA}:\nA`))
         assert.ok(text.includes(`${fileB}:\nB`))
@@ -263,7 +269,7 @@ describe('codex file/search family', () => {
         await writeFile(join(searchRoot, 'm1.txt'), 'needle-here', 'utf8')
         await writeFile(join(searchRoot, 'm2.md'), 'nothing', 'utf8')
 
-        const result = await searchFilesTool.execute({ pattern: '**/*.txt', path: searchRoot })
+        const result = await runTool(searchFilesTool, { pattern: '**/*.txt', path: searchRoot })
         const text = textPayload(result)
         assert.ok(text.includes('m1.txt'), 'should include file name')
         assert.ok(!text.includes('m2.md'))
@@ -272,7 +278,7 @@ describe('codex file/search family', () => {
 
 describe('codex workflow/context tools', () => {
     test('update_plan rejects multiple in_progress items', async () => {
-        const result = await updatePlanTool.execute({
+        const result = await runTool(updatePlanTool, {
             plan: [
                 { step: 'a', status: 'in_progress' },
                 { step: 'b', status: 'in_progress' },
@@ -285,7 +291,7 @@ describe('codex workflow/context tools', () => {
     test('get_memory reads from MEMO_HOME Agents.md', async () => {
         const memoryPath = join(tempDir, 'Agents.md')
         await writeFile(memoryPath, '## Memo Added Memories\n\n- prefers concise answers\n', 'utf8')
-        const result = await getMemoryTool.execute({ memory_id: 'thread-1' })
+        const result = await runTool(getMemoryTool, { memory_id: 'thread-1' })
         const text = textPayload(result)
         assert.ok(text.includes('prefers concise answers'))
     })

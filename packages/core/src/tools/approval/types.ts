@@ -66,3 +66,15 @@ export interface ApprovalManager {
     /** Clear all authorizations (called when Session ends) */
     dispose(): void
 }
+
+/** Tool action error category (moved here from tools/orchestrator). */
+export type ToolActionErrorType =
+    | 'approval_denied'
+    | 'policy_denied'
+    | 'sandbox_denied'
+    | 'tool_not_found'
+    | 'input_invalid'
+    | 'execution_failed'
+
+/** Tool action status ('success' or an error category). */
+export type ToolActionStatus = 'success' | ToolActionErrorType

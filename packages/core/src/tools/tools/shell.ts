@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { startExecSession } from '@memo/core/tools/tools/exec_runtime'
 
@@ -14,8 +14,6 @@ const SHELL_INPUT_SCHEMA = z
     })
     .strict()
 
-type ShellInput = z.infer<typeof SHELL_INPUT_SCHEMA>
-
 const SAFE_SHELL_ARG = /^[A-Za-z0-9_./:@%+-]+$/
 
 function shellQuote(part: string) {
@@ -28,12 +26,11 @@ function shellJoin(argv: string[]) {
     return argv.map((part) => shellQuote(part)).join(' ')
 }
 
-export const shellTool = defineMcpTool<ShellInput>({
-    name: 'shell',
+export const shellTool = tool({
     description: 'Runs a shell command (argv form) and returns output.',
     inputSchema: SHELL_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: true,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: true } },
+
     execute: async ({ command, workdir, timeout_ms }) => {
         try {
             const content = await startExecSession({

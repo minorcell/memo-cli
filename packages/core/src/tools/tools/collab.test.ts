@@ -1,5 +1,7 @@
 import assert from 'node:assert'
-import type { MemoToolOutput } from '@memo/core/tools/router/types'
+import type { Tool, ToolExecutionOptions } from 'ai'
+import type { ToolResultOutput } from '@ai-sdk/provider-utils'
+import type { ToolOutput } from '@memo/core/tools/tools/mcp'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -23,7 +25,7 @@ async function makeTempDir(prefix: string) {
     return dir
 }
 
-function textPayload(result: MemoToolOutput) {
+function textPayload(result: ToolOutput) {
     if (result.type === 'text' || result.type === 'error-text') return result.value ?? ''
     return ''
 }
@@ -92,15 +94,19 @@ afterAll(async () => {
     await rm(tempDir, { recursive: true, force: true })
 })
 
+async function runTool(tool: Tool, input: unknown): Promise<ToolResultOutput> {
+    return (await tool.execute!(input, {} as ToolExecutionOptions)) as ToolResultOutput
+}
+
 describe('collab tools', () => {
     test('spawn + wait reaches completed status and returns final map payload', async () => {
-        const spawnResult = await spawnAgentTool.execute({ message: 'echo:hello' })
+        const spawnResult = await runTool(spawnAgentTool, { message: 'echo:hello' })
         assert.strictEqual(spawnResult.type, 'text')
         const spawned = JSON.parse(textPayload(spawnResult))
         assert.strictEqual(spawned.status, 'running')
         assert.ok(typeof spawned.agent_id === 'string' && spawned.agent_id.length > 0)
 
-        const waitResult = await waitTool.execute({ ids: [spawned.agent_id], timeout_ms: 10_000 })
+        const waitResult = await runTool(waitTool, { ids: [spawned.agent_id], timeout_ms: 10_000 })
         assert.strictEqual(waitResult.type, 'text')
         const waited = JSON.parse(textPayload(waitResult))
         assert.strictEqual(waited.timed_out, false)
@@ -113,28 +119,28 @@ describe('collab tools', () => {
     })
 
     test('close_agent marks closed and resume_agent restores pre-close status', async () => {
-        const spawnResult = await spawnAgentTool.execute({ message: 'echo:first' })
+        const spawnResult = await runTool(spawnAgentTool, { message: 'echo:first' })
         const spawned = JSON.parse(textPayload(spawnResult))
         const agentId = spawned.agent_id as string
 
-        await waitTool.execute({ ids: [agentId], timeout_ms: 10_000 })
+        await runTool(waitTool, { ids: [agentId], timeout_ms: 10_000 })
 
-        const closeResult = await closeAgentTool.execute({ id: agentId })
+        const closeResult = await runTool(closeAgentTool, { id: agentId })
         const closed = JSON.parse(textPayload(closeResult))
         assert.strictEqual(closed.status, 'closed')
 
-        const sendWhileClosed = await sendInputTool.execute({
+        const sendWhileClosed = await runTool(sendInputTool, {
             id: agentId,
             message: 'echo:second',
         })
         assert.strictEqual(sendWhileClosed.type, 'error-text')
         assert.ok(textPayload(sendWhileClosed).includes('resume_agent'))
 
-        const resumeResult = await resumeAgentTool.execute({ id: agentId })
+        const resumeResult = await runTool(resumeAgentTool, { id: agentId })
         const resumed = JSON.parse(textPayload(resumeResult))
         assert.strictEqual(resumed.status, 'completed')
 
-        const sendAfterResume = await sendInputTool.execute({
+        const sendAfterResume = await runTool(sendInputTool, {
             id: agentId,
             message: 'echo:second',
         })
@@ -142,7 +148,7 @@ describe('collab tools', () => {
     })
 
     test('wait returns not_found immediately for unknown agents', async () => {
-        const waitResult = await waitTool.execute({
+        const waitResult = await runTool(waitTool, {
             ids: ['missing-agent-id'],
             timeout_ms: 10_000,
         })
@@ -155,27 +161,27 @@ describe('collab tools', () => {
 
     test('spawn_agent respects MEMO_SUBAGENT_MAX_AGENTS limit', async () => {
         process.env.MEMO_SUBAGENT_MAX_AGENTS = '1'
-        const first = await spawnAgentTool.execute({ message: 'sleep:5000' })
+        const first = await runTool(spawnAgentTool, { message: 'sleep:5000' })
         assert.strictEqual(first.type, 'text')
 
-        const second = await spawnAgentTool.execute({ message: 'echo:blocked' })
+        const second = await runTool(spawnAgentTool, { message: 'echo:blocked' })
         assert.strictEqual(second.type, 'error-text')
         assert.ok(textPayload(second).includes('concurrency limit'))
     })
 
     test('wait validates timeout and mutating tools report missing agents', async () => {
-        const invalidTimeout = await waitTool.execute({ ids: ['missing'], timeout_ms: 0 })
+        const invalidTimeout = await runTool(waitTool, { ids: ['missing'], timeout_ms: 0 })
         assert.strictEqual(invalidTimeout.type, 'error-text')
         assert.ok(textPayload(invalidTimeout).includes('timeout_ms'))
 
-        const sendResult = await sendInputTool.execute({ id: 'missing', message: 'x' })
+        const sendResult = await runTool(sendInputTool, { id: 'missing', message: 'x' })
         assert.strictEqual(sendResult.type, 'error-text')
         assert.ok(textPayload(sendResult).includes('agent not found'))
 
-        const closeResult = await closeAgentTool.execute({ id: 'missing' })
+        const closeResult = await runTool(closeAgentTool, { id: 'missing' })
         assert.strictEqual(closeResult.type, 'error-text')
 
-        const resumeResult = await resumeAgentTool.execute({ id: 'missing' })
+        const resumeResult = await runTool(resumeAgentTool, { id: 'missing' })
         assert.strictEqual(resumeResult.type, 'error-text')
     })
 })

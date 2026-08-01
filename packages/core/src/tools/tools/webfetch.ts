@@ -8,7 +8,7 @@ import TurndownService from 'turndown'
 import { ProxyAgent, type Dispatcher } from 'undici'
 import { z } from 'zod'
 import { textResult } from '@memo/core/tools/tools/mcp'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 
 const WEBFETCH_INPUT_SCHEMA = z
     .object({
@@ -19,8 +19,6 @@ const WEBFETCH_INPUT_SCHEMA = z
         proxy_url: z.string().min(1).optional(),
     })
     .strict()
-
-type WebFetchInput = z.infer<typeof WEBFETCH_INPUT_SCHEMA>
 
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:'])
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
@@ -335,13 +333,12 @@ function closeDispatcher(dispatcher: Dispatcher | undefined) {
 /**
  * Webfetch v2: paged HTTP fetch with optional markdown extraction and robots/security policy checks.
  */
-export const webfetchTool = defineMcpTool<WebFetchInput>({
-    name: 'webfetch',
+export const webfetchTool = tool({
     description:
         'Fetch a URL, optionally simplify HTML to markdown, and return paged content with robots-aware policy checks.',
     inputSchema: WEBFETCH_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: false,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: false } },
+
     execute: async (input) => {
         let url: URL
         try {

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { startExecSession } from '@memo/core/tools/tools/exec_runtime'
 
@@ -15,14 +15,11 @@ const SHELL_COMMAND_INPUT_SCHEMA = z
     })
     .strict()
 
-type ShellCommandInput = z.infer<typeof SHELL_COMMAND_INPUT_SCHEMA>
-
-export const shellCommandTool = defineMcpTool<ShellCommandInput>({
-    name: 'shell_command',
+export const shellCommandTool = tool({
     description: 'Runs a shell command and returns its output. Always set workdir when possible.',
     inputSchema: SHELL_COMMAND_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: true,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: true } },
+
     execute: async ({ command, workdir, login, timeout_ms }) => {
         try {
             const content = await startExecSession({

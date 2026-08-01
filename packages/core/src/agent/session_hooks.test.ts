@@ -3,32 +3,27 @@ import assert from 'node:assert'
 import { describe, test } from 'vitest'
 import { createAgentSession, createTokenCounter } from '@memo/core'
 import type { ChatMessage, HistoryEvent, LLMResult, TokenCounter } from '@memo/core'
-import type { ToolResultPart } from 'ai'
-import type { Tool } from '@memo/core/tools/router'
+import { jsonSchema, tool, type Tool, type ToolResultPart } from 'ai'
 import { CONTEXT_COMPACTION_SYSTEM_PROMPT, CONTEXT_SUMMARY_PREFIX } from '@memo/core/agent/compact_prompt'
 import { emptyUsage } from '@memo/core/utils/usage'
 
-const echoTool: Tool = {
-    name: 'echo',
+const echoTool: Tool = tool({
     description: 'echo input',
-    source: 'native',
-    inputSchema: { type: 'object', properties: { text: { type: 'string' } } },
+    inputSchema: jsonSchema({ type: 'object', properties: { text: { type: 'string' } } }),
     execute: async (input: unknown) => {
         const { text } = input as { text: string }
         return { type: 'text', value: `echo:${text}` }
     },
-}
+})
 
-const readNoteTool: Tool = {
-    name: 'read_note',
+const readNoteTool: Tool = tool({
     description: 'read note',
-    source: 'native',
-    inputSchema: { type: 'object', properties: { topic: { type: 'string' } } },
+    inputSchema: jsonSchema({ type: 'object', properties: { topic: { type: 'string' } } }),
     execute: async (input: unknown) => {
         const { topic } = input as { topic: string }
         return { type: 'text', value: `note:${topic}` }
     },
-}
+})
 
 type MockToolOpts = { denied?: boolean; skipped?: boolean; skippedDisabled?: boolean; invalid?: boolean }
 
@@ -50,7 +45,7 @@ function mockToolResult(id: string, name: string, input: unknown, opts: MockTool
             type: 'tool-result',
             toolCallId: id,
             toolName: name,
-            output: { type: 'skipped', reason: TOOL_SKIPPED_DISABLED_TEXT },
+            output: { type: 'error-text', value: TOOL_SKIPPED_DISABLED_TEXT },
         }
     }
     if (opts.skipped) {
@@ -138,12 +133,7 @@ function toolMessageDetails(message: ChatMessage): { toolCallId: string; toolNam
     return {
         toolCallId: part.toolCallId,
         toolName: part.toolName,
-        text:
-            part.output.type === 'text'
-                ? part.output.value
-                : part.output.type === 'skipped'
-                  ? (part.output.reason ?? '')
-                  : '',
+        text: part.output.type === 'text' || part.output.type === 'error-text' ? part.output.value : '',
     }
 }
 

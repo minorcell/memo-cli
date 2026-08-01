@@ -1,9 +1,12 @@
 import assert from 'node:assert'
-import type { MemoToolOutput } from '@memo/core/tools/router/types'
+import type { Tool, ToolExecutionOptions } from 'ai'
+import type { ToolResultOutput } from '@ai-sdk/provider-utils'
+import type { ToolOutput } from '@memo/core/tools/tools/mcp'
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, test } from 'vitest'
+import { z } from 'zod'
 import { readTextFileTool } from '@memo/core/tools/tools/read_text_file'
 import { readMediaFileTool } from '@memo/core/tools/tools/read_media_file'
 import { readFilesTool } from '@memo/core/tools/tools/read_files'
@@ -12,7 +15,7 @@ import { editFileTool } from '@memo/core/tools/tools/edit_file'
 import { listDirectoryTool } from '@memo/core/tools/tools/list_directory'
 import { searchFilesTool } from '@memo/core/tools/tools/search_files'
 
-function textPayload(result: MemoToolOutput): string {
+function textPayload(result: ToolOutput): string {
     if (result.type === 'text' || result.type === 'error-text') return result.value ?? ''
     return ''
 }
@@ -39,32 +42,36 @@ afterEach(async () => {
     await rm(outsideDir, { recursive: true, force: true })
 })
 
+async function runTool(tool: Tool, input: unknown): Promise<ToolResultOutput> {
+    return (await tool.execute!(input, {} as ToolExecutionOptions)) as ToolResultOutput
+}
+
 describe('filesystem tools', () => {
     test('tool schemas reject invalid empty path input', () => {
-        const readValidation = readTextFileTool.validateInput?.({ path: '' })
-        assert.strictEqual(readValidation?.ok, false)
+        const readSchema = readTextFileTool.inputSchema as z.ZodTypeAny
+        assert.strictEqual(readSchema.safeParse({ path: '' }).success, false)
 
-        const listValidation = listDirectoryTool.validateInput?.({ path: '' })
-        assert.strictEqual(listValidation?.ok, false)
+        const listSchema = listDirectoryTool.inputSchema as z.ZodTypeAny
+        assert.strictEqual(listSchema.safeParse({ path: '' }).success, false)
     })
 
     test('read_text_file reads full content and supports head/tail', async () => {
         const filePath = join(rootDir, 'a.txt')
         await writeFile(filePath, 'line1\nline2\nline3\n', 'utf8')
 
-        const full = await readTextFileTool.execute({ path: filePath })
+        const full = await runTool(readTextFileTool, { path: filePath })
         assert.strictEqual(full.type, 'text')
         assert.strictEqual(textPayload(full), 'line1\nline2\nline3\n')
 
-        const head = await readTextFileTool.execute({ path: filePath, head: 2 })
+        const head = await runTool(readTextFileTool, { path: filePath, head: 2 })
         assert.strictEqual(head.type, 'text')
         assert.strictEqual(textPayload(head), 'line1\nline2')
 
-        const tail = await readTextFileTool.execute({ path: filePath, tail: 2 })
+        const tail = await runTool(readTextFileTool, { path: filePath, tail: 2 })
         assert.strictEqual(tail.type, 'text')
         assert.strictEqual(textPayload(tail), 'line3\n')
 
-        const invalid = await readTextFileTool.execute({ path: filePath, head: 1, tail: 1 })
+        const invalid = await runTool(readTextFileTool, { path: filePath, head: 1, tail: 1 })
         assert.strictEqual(invalid.type, 'error-text')
         assert.ok(textPayload(invalid).includes('Cannot specify both head and tail'))
     })
@@ -73,7 +80,7 @@ describe('filesystem tools', () => {
         const filePath = join(rootDir, 'img.png')
         await writeFile(filePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
 
-        const result = await readMediaFileTool.execute({ path: filePath })
+        const result = await runTool(readMediaFileTool, { path: filePath })
         assert.strictEqual(result.type, 'text')
 
         const payload = JSON.parse(textPayload(result)) as {
@@ -94,7 +101,7 @@ describe('filesystem tools', () => {
         await writeFile(first, 'one', 'utf8')
         await writeFile(second, 'two', 'utf8')
 
-        const result = await readFilesTool.execute({ paths: [first, missing, second] })
+        const result = await runTool(readFilesTool, { paths: [first, missing, second] })
         assert.strictEqual(result.type, 'text')
         const text = textPayload(result)
         assert.ok(text.includes(`${first}:\none`))
@@ -105,19 +112,19 @@ describe('filesystem tools', () => {
     test('write_file writes and overwrites content', async () => {
         const filePath = join(rootDir, 'write.txt')
 
-        const first = await writeFileTool.execute({ path: filePath, content: 'alpha' })
+        const first = await runTool(writeFileTool, { path: filePath, content: 'alpha' })
         assert.strictEqual(first.type, 'text')
         assert.ok(textPayload(first).includes('Successfully wrote'))
         assert.strictEqual(await readFile(filePath, 'utf8'), 'alpha')
 
-        const second = await writeFileTool.execute({ path: filePath, content: 'beta' })
+        const second = await runTool(writeFileTool, { path: filePath, content: 'beta' })
         assert.strictEqual(second.type, 'text')
         assert.strictEqual(await readFile(filePath, 'utf8'), 'beta')
     })
 
     test('write_file fails when parent directory is missing', async () => {
         const missingParentPath = join(rootDir, 'missing', 'write.txt')
-        const result = await writeFileTool.execute({ path: missingParentPath, content: 'alpha' })
+        const result = await runTool(writeFileTool, { path: missingParentPath, content: 'alpha' })
         assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('Parent directory does not exist'))
     })
@@ -126,7 +133,7 @@ describe('filesystem tools', () => {
         const filePath = join(rootDir, 'edit.ts')
         await writeFile(filePath, 'a\n  b\n  c\n', 'utf8')
 
-        const dryRun = await editFileTool.execute({
+        const dryRun = await runTool(editFileTool, {
             path: filePath,
             dryRun: true,
             edits: [{ oldText: '  b', newText: '  bb' }],
@@ -136,7 +143,7 @@ describe('filesystem tools', () => {
         assert.ok(dryText.includes('```diff'))
         assert.strictEqual(await readFile(filePath, 'utf8'), 'a\n  b\n  c\n')
 
-        const applied = await editFileTool.execute({
+        const applied = await runTool(editFileTool, {
             path: filePath,
             edits: [
                 { oldText: 'a', newText: 'aa' },
@@ -151,7 +158,7 @@ describe('filesystem tools', () => {
         const filePath = join(rootDir, 'edit-error.ts')
         await writeFile(filePath, 'alpha\nbeta\n', 'utf8')
 
-        const result = await editFileTool.execute({
+        const result = await runTool(editFileTool, {
             path: filePath,
             edits: [{ oldText: 'missing', newText: 'value' }],
         })
@@ -163,7 +170,7 @@ describe('filesystem tools', () => {
         const filePath = join(rootDir, 'edit-crlf.ts')
         await writeFile(filePath, 'line1\r\nline2\r\nline3\r\n', 'utf8')
 
-        const result = await editFileTool.execute({
+        const result = await runTool(editFileTool, {
             path: filePath,
             edits: [{ oldText: 'line1\nline2', newText: 'line1\nline2-updated' }],
         })
@@ -177,7 +184,7 @@ describe('filesystem tools', () => {
         await mkdir(nested, { recursive: true })
         await writeFile(join(rootDir, 'file.txt'), 'x', 'utf8')
 
-        const result = await listDirectoryTool.execute({ path: rootDir })
+        const result = await runTool(listDirectoryTool, { path: rootDir })
         assert.strictEqual(result.type, 'text')
 
         const text = textPayload(result)
@@ -192,7 +199,7 @@ describe('filesystem tools', () => {
         await writeFile(join(rootDir, 'skip.log'), 's', 'utf8')
         await writeFile(join(srcDir, 'inside.txt'), 'i', 'utf8')
 
-        const matched = await searchFilesTool.execute({
+        const matched = await runTool(searchFilesTool, {
             path: rootDir,
             pattern: '**/*.txt',
             excludePatterns: ['src/**'],
@@ -202,7 +209,7 @@ describe('filesystem tools', () => {
         assert.ok(text.includes(join(rootDir, 'keep.txt')))
         assert.ok(!text.includes(join(srcDir, 'inside.txt')))
 
-        const none = await searchFilesTool.execute({ path: rootDir, pattern: '**/*.md' })
+        const none = await runTool(searchFilesTool, { path: rootDir, pattern: '**/*.md' })
         assert.strictEqual(none.type, 'text')
         assert.strictEqual(textPayload(none), 'No matches found')
     })
@@ -211,7 +218,7 @@ describe('filesystem tools', () => {
         const outsideFile = join(outsideDir, 'outside.txt')
         await writeFile(outsideFile, 'outside', 'utf8')
 
-        const result = await readTextFileTool.execute({ path: outsideFile })
+        const result = await runTool(readTextFileTool, { path: outsideFile })
         assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('Access denied - path outside allowed directories'))
     })
@@ -221,7 +228,7 @@ describe('filesystem tools', () => {
         await writeFile(outsideFile, 'outside', 'utf8')
 
         const traversalPath = join('..', basename(outsideDir), 'outside-traversal.txt')
-        const result = await readTextFileTool.execute({ path: traversalPath })
+        const result = await runTool(readTextFileTool, { path: traversalPath })
 
         assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('Access denied - path outside allowed directories'))
@@ -242,7 +249,7 @@ describe('filesystem tools', () => {
             throw error
         }
 
-        const result = await readTextFileTool.execute({ path: linkedPath })
+        const result = await runTool(readTextFileTool, { path: linkedPath })
         assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('Access denied - symlink target outside allowed directories'))
     })

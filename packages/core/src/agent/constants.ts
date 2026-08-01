@@ -1,6 +1,6 @@
 /** @file Agent loop constants shared across agent modules. */
 import type { SessionMode } from '@memo/core/types'
-import type { ToolActionStatus } from '@memo/core/tools/orchestrator'
+import type { ToolActionStatus } from '@memo/core/tools/approval'
 
 export const DEFAULT_SESSION_MODE: SessionMode = 'interactive'
 export const DEFAULT_CONTEXT_WINDOW = 120_000

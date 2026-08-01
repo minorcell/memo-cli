@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { applyFileEdits, validatePath } from '@memo/core/tools/tools/filesystem/lib'
 import { resolveAllowedDirectories } from '@memo/core/tools/tools/filesystem/roots'
@@ -21,14 +21,11 @@ const EDIT_FILE_INPUT_SCHEMA = z
     })
     .strict()
 
-type EditFileInput = z.infer<typeof EDIT_FILE_INPUT_SCHEMA>
-
-export const editFileTool = defineMcpTool<EditFileInput>({
-    name: 'edit_file',
+export const editFileTool = tool({
     description: 'Apply ordered edit operations to a text file and return a unified diff (dryRun previews only).',
     inputSchema: EDIT_FILE_INPUT_SCHEMA,
-    supportsParallelToolCalls: false,
-    isMutating: true,
+    metadata: { memo: { supportsParallelToolCalls: false, isMutating: true } },
+
     execute: async (input) => {
         try {
             const allowedDirectories = await resolveAllowedDirectories()

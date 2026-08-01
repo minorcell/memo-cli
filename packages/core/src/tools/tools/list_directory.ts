@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { validatePath } from '@memo/core/tools/tools/filesystem/lib'
 import { resolveAllowedDirectories } from '@memo/core/tools/tools/filesystem/roots'
@@ -11,14 +11,11 @@ const LIST_DIRECTORY_INPUT_SCHEMA = z
     })
     .strict()
 
-type ListDirectoryInput = z.infer<typeof LIST_DIRECTORY_INPUT_SCHEMA>
-
-export const listDirectoryTool = defineMcpTool<ListDirectoryInput>({
-    name: 'list_directory',
+export const listDirectoryTool = tool({
     description: 'List direct children of a directory using [DIR]/[FILE] labels.',
     inputSchema: LIST_DIRECTORY_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: false,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: false } },
+
     execute: async (input) => {
         try {
             const allowedDirectories = await resolveAllowedDirectories()

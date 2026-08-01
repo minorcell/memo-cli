@@ -1,4 +1,5 @@
 /** @file Session default dependency assembly: toolset, LLM, history sinks, tokenizer, etc. */
+import type { ToolSet } from 'ai'
 import { NATIVE_TOOLS } from '@memo/core/tools'
 import { createTokenCounter } from '@memo/core/utils/tokenizer'
 import { buildSessionPath, getSessionsDir, loadMemoConfig, selectProvider } from '@memo/core/config/config'
@@ -7,15 +8,9 @@ import { resolveModelProfile } from '@memo/core/llm/model_profile'
 import { streamCallLLM } from '@memo/core/llm/ai_stream'
 import { getProviderFactory } from '@memo/core/llm/ai_provider'
 import { loadSystemPrompt as defaultLoadPrompt } from '@memo/core/prompt/prompt'
-import { ToolRouter } from '@memo/core/tools/router'
-import type {
-    AgentSessionDeps,
-    AgentSessionOptions,
-    CallLLM,
-    HistorySink,
-    TokenCounter,
-    ToolRegistry,
-} from '@memo/core/types'
+import { McpToolRegistry } from '@memo/core/tools/router'
+import { wrapToolSetWithRuntime } from '@memo/core/tools/sdk_tools'
+import type { AgentSessionDeps, AgentSessionOptions, CallLLM, HistorySink, TokenCounter } from '@memo/core/types'
 import type { MCPServerConfig } from '@memo/core/config/config'
 
 export function filterMcpServersBySelection(
@@ -46,7 +41,7 @@ export async function withDefaultDeps(
     options: AgentSessionOptions,
     sessionId: string,
 ): Promise<{
-    tools: ToolRegistry
+    tools: ToolSet
     callLLM: CallLLM
     loadPrompt: () => Promise<string>
     historySinks: HistorySink[]
@@ -57,34 +52,27 @@ export async function withDefaultDeps(
     const loaded = await loadMemoConfig()
     const config = loaded.config
 
-    // 1. Initialize ToolRouter
-    const router = new ToolRouter()
+    // 1. Load external MCP tools (follows MEMO_HOME)
+    const mcpRegistry = new McpToolRegistry()
+    await mcpRegistry.loadServersWithOptions(
+        filterMcpServersBySelection(config.mcp_servers, options.activeMcpServers),
+        {
+            memoHome: loaded.home,
+            storeMode: config.mcp_oauth_credentials_store_mode,
+            callbackPort: config.mcp_oauth_callback_port,
+        },
+    )
 
-    // 2. Register built-in tools
-    router.registerNativeTools(NATIVE_TOOLS)
-
-    // 3. Load external MCP tools (follows MEMO_HOME)
-    await router.loadMcpServers(filterMcpServersBySelection(config.mcp_servers, options.activeMcpServers), {
-        memoHome: loaded.home,
-        storeMode: config.mcp_oauth_credentials_store_mode,
-        callbackPort: config.mcp_oauth_callback_port,
-    })
-
-    // 4. Merge user custom tools (deps.tools has highest priority)
-    if (deps.tools) {
-        for (const [name, tool] of Object.entries(deps.tools)) {
-            // Pass through the full Tool definition so inputSchema / isMutating /
-            // supportsParallelToolCalls survive into the AI SDK tools; only force native source.
-            router.registerNativeTool({
-                ...tool,
-                name,
-                source: 'native',
-            })
-        }
+    // 2. Merge user custom tools (deps.tools has highest priority, keys are tool names)
+    const combinedTools: ToolSet = {
+        ...NATIVE_TOOLS,
+        ...mcpRegistry.toToolSet(),
+        ...deps.tools,
     }
 
-    // 5. Get final tool registry
-    const combinedTools = router.toRegistry()
+    // 3. Wrap every tool execute with the runtime gate (approval / skip / truncation).
+    // Context flows in per call via streamText experimental_context.
+    const runtimeTools = wrapToolSetWithRuntime(combinedTools) ?? combinedTools
 
     // 6. Build loadPrompt (tool exposure is handled by the AI SDK tools schema, not prompt text)
     const loadPrompt = async () => {
@@ -103,10 +91,10 @@ export async function withDefaultDeps(
     const defaultHistorySink = new JsonlHistorySink(historyFilePath)
 
     return {
-        tools: combinedTools,
+        tools: runtimeTools,
         dispose: async () => {
             if (deps.dispose) await deps.dispose()
-            await router.dispose()
+            await mcpRegistry.dispose()
         },
         callLLM:
             deps.callLLM ??
@@ -123,7 +111,7 @@ export async function withDefaultDeps(
                     apiKey,
                     messages,
                     // toolContext absent (compaction) disables tools in streamCallLLM.
-                    tools: combinedTools,
+                    tools: runtimeTools,
                     profile: modelProfile,
                     factory: getProviderFactory(provider),
                     toolContext: callOptions?.toolContext,

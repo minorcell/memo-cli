@@ -1,4 +1,6 @@
 import assert from 'node:assert'
+import type { Tool, ToolExecutionOptions } from 'ai'
+import type { ToolResultOutput } from '@ai-sdk/provider-utils'
 import { describe, test, vi, beforeEach, afterEach, expect } from 'vitest'
 import { shellCommandTool } from './shell_command'
 import { flattenText } from './mcp'
@@ -13,6 +15,10 @@ vi.mock('./exec_runtime', async () => {
 
 import { startExecSession } from './exec_runtime'
 
+async function runTool(tool: Tool, input: unknown): Promise<ToolResultOutput> {
+    return (await tool.execute!(input, {} as ToolExecutionOptions)) as ToolResultOutput
+}
+
 describe('shell_command tool', () => {
     beforeEach(() => {
         vi.resetAllMocks()
@@ -26,7 +32,7 @@ describe('shell_command tool', () => {
         test('executes command and returns output', async () => {
             vi.mocked(startExecSession).mockResolvedValue('test output')
 
-            const result = await shellCommandTool.execute({ command: 'echo hello' })
+            const result = await runTool(shellCommandTool, { command: 'echo hello' })
 
             assert.strictEqual(result.type, 'text')
             assert.strictEqual(flattenText(result), 'test output')
@@ -42,7 +48,7 @@ describe('shell_command tool', () => {
             const multiLineOutput = 'line1\nline2\nline3'
             vi.mocked(startExecSession).mockResolvedValue(multiLineOutput)
 
-            const result = await shellCommandTool.execute({
+            const result = await runTool(shellCommandTool, {
                 command: 'printf "line1\nline2\nline3"',
             })
 
@@ -53,7 +59,7 @@ describe('shell_command tool', () => {
         test('handles empty output', async () => {
             vi.mocked(startExecSession).mockResolvedValue('')
 
-            const result = await shellCommandTool.execute({ command: 'true' })
+            const result = await runTool(shellCommandTool, { command: 'true' })
 
             assert.strictEqual(result.type, 'text')
             assert.strictEqual(flattenText(result), '')
@@ -64,7 +70,7 @@ describe('shell_command tool', () => {
         test('passes optional workdir parameter', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellCommandTool.execute({ command: 'pwd', workdir: '/tmp' })
+            await runTool(shellCommandTool, { command: 'pwd', workdir: '/tmp' })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -76,7 +82,7 @@ describe('shell_command tool', () => {
         test('passes optional login parameter', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellCommandTool.execute({ command: 'whoami', login: true })
+            await runTool(shellCommandTool, { command: 'whoami', login: true })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -88,7 +94,7 @@ describe('shell_command tool', () => {
         test('passes login=false explicitly', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellCommandTool.execute({ command: 'echo test', login: false })
+            await runTool(shellCommandTool, { command: 'echo test', login: false })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -100,7 +106,7 @@ describe('shell_command tool', () => {
         test('passes timeout_ms as yield_time_ms and execution_timeout_ms', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellCommandTool.execute({ command: 'sleep 1', timeout_ms: 5000 })
+            await runTool(shellCommandTool, { command: 'sleep 1', timeout_ms: 5000 })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -113,7 +119,7 @@ describe('shell_command tool', () => {
         test('handles zero timeout_ms', async () => {
             vi.mocked(startExecSession).mockResolvedValue('output')
 
-            await shellCommandTool.execute({ command: 'echo test', timeout_ms: 0 })
+            await runTool(shellCommandTool, { command: 'echo test', timeout_ms: 0 })
 
             expect(startExecSession).toHaveBeenCalled()
         })
@@ -123,7 +129,7 @@ describe('shell_command tool', () => {
         test('handles execution errors gracefully', async () => {
             vi.mocked(startExecSession).mockRejectedValue(new Error('command failed'))
 
-            const result = await shellCommandTool.execute({ command: 'invalid-command' })
+            const result = await runTool(shellCommandTool, { command: 'invalid-command' })
 
             assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('shell_command failed'))
@@ -132,7 +138,7 @@ describe('shell_command tool', () => {
         test('includes original error message', async () => {
             vi.mocked(startExecSession).mockRejectedValue(new Error('ENOENT: no such file'))
 
-            const result = await shellCommandTool.execute({ command: 'nonexistent-cmd' })
+            const result = await runTool(shellCommandTool, { command: 'nonexistent-cmd' })
 
             assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('ENOENT'))
@@ -141,7 +147,7 @@ describe('shell_command tool', () => {
         test('handles timeout errors', async () => {
             vi.mocked(startExecSession).mockRejectedValue(new Error('command timed out after 5000ms'))
 
-            const result = await shellCommandTool.execute({ command: 'sleep 10', timeout_ms: 1000 })
+            const result = await runTool(shellCommandTool, { command: 'sleep 10', timeout_ms: 1000 })
 
             assert.strictEqual(result.type, 'error-text')
             assert.ok(flattenText(result).includes('shell_command failed'))
@@ -152,7 +158,7 @@ describe('shell_command tool', () => {
         test('handles commands with pipes', async () => {
             vi.mocked(startExecSession).mockResolvedValue('filtered output')
 
-            await shellCommandTool.execute({ command: 'cat file.txt | grep pattern' })
+            await runTool(shellCommandTool, { command: 'cat file.txt | grep pattern' })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -164,7 +170,7 @@ describe('shell_command tool', () => {
         test('handles commands with redirects', async () => {
             vi.mocked(startExecSession).mockResolvedValue('')
 
-            await shellCommandTool.execute({ command: 'echo hello > /tmp/output.txt' })
+            await runTool(shellCommandTool, { command: 'echo hello > /tmp/output.txt' })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -176,7 +182,7 @@ describe('shell_command tool', () => {
         test('handles commands with environment variables', async () => {
             vi.mocked(startExecSession).mockResolvedValue('test-value')
 
-            await shellCommandTool.execute({ command: 'echo $MY_VAR' })
+            await runTool(shellCommandTool, { command: 'echo $MY_VAR' })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -189,7 +195,7 @@ describe('shell_command tool', () => {
             const longCmd = Array(100).fill('echo test &&').join(' ') + ' echo done'
             vi.mocked(startExecSession).mockResolvedValue('done')
 
-            await shellCommandTool.execute({ command: longCmd })
+            await runTool(shellCommandTool, { command: longCmd })
 
             expect(startExecSession).toHaveBeenCalledWith(
                 expect.objectContaining({

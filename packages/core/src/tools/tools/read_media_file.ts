@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { validatePath } from '@memo/core/tools/tools/filesystem/lib'
 import { resolveAllowedDirectories } from '@memo/core/tools/tools/filesystem/roots'
@@ -11,8 +11,6 @@ const READ_MEDIA_FILE_INPUT_SCHEMA = z
         path: z.string().min(1),
     })
     .strict()
-
-type ReadMediaFileInput = z.infer<typeof READ_MEDIA_FILE_INPUT_SCHEMA>
 
 const MIME_TYPES: Record<string, string> = {
     '.png': 'image/png',
@@ -28,12 +26,11 @@ const MIME_TYPES: Record<string, string> = {
     '.flac': 'audio/flac',
 }
 
-export const readMediaFileTool = defineMcpTool<ReadMediaFileInput>({
-    name: 'read_media_file',
+export const readMediaFileTool = tool({
     description: 'Read an image or audio file and return base64 payload metadata as JSON text.',
     inputSchema: READ_MEDIA_FILE_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: false,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: false } },
+
     execute: async (input) => {
         try {
             const allowedDirectories = await resolveAllowedDirectories()

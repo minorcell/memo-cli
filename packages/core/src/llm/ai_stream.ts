@@ -1,9 +1,7 @@
 /** @file Default streaming LLM call backed by AI SDK streamText. */
-import { streamText, type ModelMessage, type ToolResultPart } from 'ai'
+import { streamText, type ModelMessage, type ToolResultPart, type ToolSet } from 'ai'
 import type { LLMResult } from '@memo/core/types'
-import type { ToolRegistry } from '@memo/core/tools/router/types'
-import type { ToolExecutionContext, SdkToolSet } from '@memo/core/tools/sdk_tools'
-import { buildSdkTools } from '@memo/core/tools/sdk_tools'
+import type { ToolExecutionContext } from '@memo/core/tools/sdk_tools'
 import type { ProviderConfig } from '@memo/core/config/config'
 import type { ModelProfile } from '@memo/core/llm/model_profile'
 import type { AIProviderFactory } from '@memo/core/llm/ai_provider'
@@ -13,8 +11,8 @@ export type StreamCallLLMParams = {
     apiKey: string
     /** CoreMessage[] (ChatMessage alias) — passed to streamText as-is. */
     messages: ModelMessage[]
-    /** Complete tool registry (native + MCP + custom); undefined disables tools (compaction). */
-    tools?: ToolRegistry
+    /** Complete tool set (native + MCP + custom); undefined disables tools (compaction). */
+    tools?: ToolSet
     profile: ModelProfile
     factory: AIProviderFactory
     toolContext?: ToolExecutionContext
@@ -43,19 +41,21 @@ export function normalizeStreamError(err: unknown, signal?: AbortSignal): Error 
 /** Default callLLM implementation: stream via AI SDK, tools execute inside streamText. */
 export async function streamCallLLM(params: StreamCallLLMParams): Promise<LLMResult> {
     const { provider, apiKey, messages, tools, profile, factory, toolContext, thinking, onChunk, signal } = params
-    const sdkTools: SdkToolSet | undefined = tools && toolContext ? buildSdkTools(tools, toolContext) : undefined
+    const activeTools = tools && toolContext ? tools : undefined
     const model = factory.build(provider, apiKey)(provider.model)
     const requestProviderOptions = factory.buildProviderOptions(profile, thinking)
 
     const result = streamText({
         model,
         messages,
-        tools: sdkTools,
-        toolChoice: sdkTools ? 'auto' : undefined,
+        tools: activeTools,
+        toolChoice: activeTools ? 'auto' : undefined,
         // System messages are part of the memo history (initial prompt + mid-loop warnings);
         // they cannot move to the system option without restructuring the history model.
         allowSystemInMessages: true,
         abortSignal: signal,
+        // Per-call context (approval manager / gate / hooks) read by the execute wrappers.
+        experimental_context: toolContext,
         // Non-standard wire fields (e.g. parallel_tool_calls) pass through under the provider instance name.
         providerOptions: requestProviderOptions ? { [provider.name]: requestProviderOptions } : undefined,
     })

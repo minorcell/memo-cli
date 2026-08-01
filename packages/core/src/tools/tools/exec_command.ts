@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { startExecSession } from '@memo/core/tools/tools/exec_runtime'
 
@@ -18,15 +18,12 @@ const EXEC_COMMAND_INPUT_SCHEMA = z
     })
     .strict()
 
-type ExecCommandInput = z.infer<typeof EXEC_COMMAND_INPUT_SCHEMA>
-
-export const execCommandTool = defineMcpTool<ExecCommandInput>({
-    name: 'exec_command',
+export const execCommandTool = tool({
     description:
         'Runs a command in a PTY-like managed session, returning output or a session ID for ongoing interaction.',
     inputSchema: EXEC_COMMAND_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: true,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: true } },
+
     execute: async (input) => {
         try {
             const content = await startExecSession({

@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import {
-    fallbackSessionTitleFromPrompt,
-    normalizeSessionTitle,
-    truncateSessionTitle,
-} from '@memo/core/utils/title'
+import { fallbackSessionTitleFromPrompt, normalizeSessionTitle, truncateSessionTitle } from '@memo/core/utils/title'
 
 describe('session title helpers', () => {
     test('truncateSessionTitle appends ellipsis when exceeding max', () => {

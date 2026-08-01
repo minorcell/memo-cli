@@ -1,5 +1,6 @@
-/** @file MCP tool registry */
-import type { McpTool, MemoToolOutput, ToolRegistry, MCPServerConfig } from '../types'
+/** @file MCP tool registry (stores standard AI SDK Tool objects). */
+import { jsonSchema, type Tool } from 'ai'
+import type { MCPServerConfig } from '../types'
 import { McpClientPool } from './pool'
 import { getGlobalMcpCacheStore, type CachedMcpToolDescriptor } from './cache_store'
 import { setActiveMcpCacheStore, setActiveMcpPool } from './context'
@@ -10,7 +11,7 @@ export class McpToolRegistry {
     private pool: McpClientPool
     private serverToolNames: Map<string, Set<string>> = new Map()
     private refreshPromises: Map<string, Promise<void>> = new Map()
-    private tools: Map<string, McpTool> = new Map()
+    private tools: Map<string, Tool> = new Map()
     private cacheStore = getGlobalMcpCacheStore()
     private readonly shouldLog: boolean
 
@@ -21,30 +22,25 @@ export class McpToolRegistry {
         this.shouldLog = !(process.stdout.isTTY && process.stdin.isTTY)
     }
 
-    private buildTool(serverName: string, config: MCPServerConfig, descriptor: CachedMcpToolDescriptor): McpTool {
+    /** Cached-descriptor placeholder tool: lazy-connects and delegates to the real MCP tool on execute. */
+    private buildCachedTool(serverName: string, config: MCPServerConfig, descriptor: CachedMcpToolDescriptor): Tool {
         return {
-            name: `${serverName}_${descriptor.originalName}`,
             description: descriptor.description || `Tool from ${serverName}: ${descriptor.originalName}`,
-            source: 'mcp',
-            serverName,
-            originalName: descriptor.originalName,
-            inputSchema: (descriptor.inputSchema as any) ?? {},
-            execute: async (input: unknown): Promise<MemoToolOutput> => {
+            inputSchema: descriptor.inputSchema
+                ? jsonSchema(descriptor.inputSchema as object)
+                : jsonSchema({ type: 'object' }),
+            execute: async (input, options) => {
                 const connection = await this.pool.connect(serverName, config)
                 const sdkTool = connection.tools[descriptor.originalName]
                 if (!sdkTool?.execute) {
                     return { type: 'error-text', value: `MCP tool not found: ${descriptor.originalName}` }
                 }
-                const output = await sdkTool.execute(input, {
-                    toolCallId: `${serverName}_${descriptor.originalName}_${Date.now()}`,
-                    messages: [],
-                })
-                return output as MemoToolOutput
+                return sdkTool.execute(input, options)
             },
         }
     }
 
-    private replaceServerTools(serverName: string, nextTools: McpTool[]) {
+    private replaceServerTools(serverName: string, nextTools: Record<string, Tool>) {
         const prev = this.serverToolNames.get(serverName)
         if (prev) {
             for (const toolName of prev) {
@@ -53,9 +49,9 @@ export class McpToolRegistry {
         }
 
         const next = new Set<string>()
-        for (const tool of nextTools) {
-            this.tools.set(tool.name, tool)
-            next.add(tool.name)
+        for (const [toolName, tool] of Object.entries(nextTools)) {
+            this.tools.set(toolName, tool)
+            next.add(toolName)
         }
         this.serverToolNames.set(serverName, next)
     }
@@ -89,10 +85,12 @@ export class McpToolRegistry {
                 const connection = await this.pool.connect(serverName, config)
                 const descriptors = this.connectionToDescriptors(serverName, connection)
                 await this.cacheStore.setServerTools(serverName, config, descriptors)
-                const tools = descriptors.map((descriptor) => this.buildTool(serverName, config, descriptor))
+                const tools = Object.fromEntries(
+                    Object.entries(connection.tools).map(([name, tool]) => [`${serverName}_${name}`, tool]),
+                )
                 this.replaceServerTools(serverName, tools)
                 if (this.shouldLog && mode === 'background') {
-                    console.log(`[MCP] Refreshed '${serverName}' tools in background (${tools.length})`)
+                    console.log(`[MCP] Refreshed '${serverName}' tools in background (${Object.keys(tools).length})`)
                 }
             } catch (err) {
                 if (this.shouldLog) {
@@ -147,11 +145,16 @@ export class McpToolRegistry {
         for (const [serverName, config] of entries) {
             const cached = await this.cacheStore.getServerTools(serverName, config)
             if (cached) {
-                const tools = cached.tools.map((descriptor) => this.buildTool(serverName, config, descriptor))
+                const tools = Object.fromEntries(
+                    cached.tools.map((descriptor) => [
+                        `${serverName}_${descriptor.originalName}`,
+                        this.buildCachedTool(serverName, config, descriptor),
+                    ]),
+                )
                 this.replaceServerTools(serverName, tools)
                 if (this.shouldLog) {
                     console.log(
-                        `[MCP] Loaded ${tools.length} cached tools for '${serverName}' (${cached.stale ? 'stale' : 'fresh'})`,
+                        `[MCP] Loaded ${Object.keys(tools).length} cached tools for '${serverName}' (${cached.stale ? 'stale' : 'fresh'})`,
                     )
                 }
 
@@ -169,22 +172,18 @@ export class McpToolRegistry {
     }
 
     /** Get tool */
-    get(name: string): McpTool | undefined {
+    get(name: string): Tool | undefined {
         return this.tools.get(name)
     }
 
     /** Get all tools */
-    getAll(): McpTool[] {
+    getAll(): Tool[] {
         return Array.from(this.tools.values())
     }
 
-    /** Convert to ToolRegistry format */
-    toRegistry(): ToolRegistry {
-        const registry: ToolRegistry = {}
-        for (const [name, tool] of this.tools) {
-            registry[name] = tool
-        }
-        return registry
+    /** Convert to AI SDK ToolSet format */
+    toToolSet(): Record<string, Tool> {
+        return Object.fromEntries(this.tools)
     }
 
     /** Check if tool exists */

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { getGlobalMcpCacheStore, resetGlobalMcpCacheStoreForTests } from '@memo/core/tools/router/mcp/cache_store'
 import { getActiveMcpCacheStore, getActiveMcpPool } from '@memo/core/tools/router/mcp/context'
@@ -24,10 +24,6 @@ const READ_MCP_RESOURCE_INPUT_SCHEMA = z
         uri: z.string().min(1),
     })
     .strict()
-
-type ListResourcesInput = z.infer<typeof LIST_MCP_RESOURCES_INPUT_SCHEMA>
-type ListResourceTemplatesInput = z.infer<typeof LIST_MCP_RESOURCE_TEMPLATES_INPUT_SCHEMA>
-type ReadResourceInput = z.infer<typeof READ_MCP_RESOURCE_INPUT_SCHEMA>
 
 type PoolLike = {
     get?: (name: string) => any
@@ -126,12 +122,11 @@ export function __resetMcpResourceCacheForTests() {
     resetGlobalMcpCacheStoreForTests()
 }
 
-export const listMcpResourcesTool = defineMcpTool<ListResourcesInput>({
-    name: 'list_mcp_resources',
+export const listMcpResourcesTool = tool({
     description: 'Lists resources provided by MCP servers. Prefer resources over web search when possible.',
     inputSchema: LIST_MCP_RESOURCES_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: false,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: false } },
+
     execute: async ({ server, cursor }) => {
         try {
             const pool = getPoolOrThrow()
@@ -218,13 +213,12 @@ export const listMcpResourcesTool = defineMcpTool<ListResourcesInput>({
     },
 })
 
-export const listMcpResourceTemplatesTool = defineMcpTool<ListResourceTemplatesInput>({
-    name: 'list_mcp_resource_templates',
+export const listMcpResourceTemplatesTool = tool({
     description:
         'Lists resource templates provided by MCP servers. Prefer resource templates over web search when possible.',
     inputSchema: LIST_MCP_RESOURCE_TEMPLATES_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: false,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: false } },
+
     execute: async ({ server, cursor }) => {
         try {
             const pool = getPoolOrThrow()
@@ -311,12 +305,11 @@ export const listMcpResourceTemplatesTool = defineMcpTool<ListResourceTemplatesI
     },
 })
 
-export const readMcpResourceTool = defineMcpTool<ReadResourceInput>({
-    name: 'read_mcp_resource',
+export const readMcpResourceTool = tool({
     description: 'Read a specific resource from an MCP server given the server name and resource URI.',
     inputSchema: READ_MCP_RESOURCE_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: false,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: false } },
+
     execute: async ({ server, uri }) => {
         try {
             const pool = getPoolOrThrow()

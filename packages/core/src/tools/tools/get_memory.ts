@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 
 const GET_MEMORY_INPUT_SCHEMA = z
@@ -11,19 +11,16 @@ const GET_MEMORY_INPUT_SCHEMA = z
     })
     .strict()
 
-type GetMemoryInput = z.infer<typeof GET_MEMORY_INPUT_SCHEMA>
-
 function resolveMemoryPath() {
     const base = process.env.MEMO_HOME?.trim() || join(homedir(), '.memo')
     return join(base, 'Agents.md')
 }
 
-export const getMemoryTool = defineMcpTool<GetMemoryInput>({
-    name: 'get_memory',
+export const getMemoryTool = tool({
     description: 'Loads the stored memory payload for a memory_id.',
     inputSchema: GET_MEMORY_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: false,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: false } },
+
     execute: async ({ memory_id }) => {
         try {
             const memoryPath = resolveMemoryPath()

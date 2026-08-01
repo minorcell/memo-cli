@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { getRuntimeCwd } from '@memo/core/tools/runtime/context'
 
@@ -80,12 +80,6 @@ const CLOSE_AGENT_INPUT_SCHEMA = z
         id: z.string().min(1),
     })
     .strict()
-
-type SpawnInput = z.infer<typeof SPAWN_AGENT_INPUT_SCHEMA>
-type SendInput = z.infer<typeof SEND_INPUT_INPUT_SCHEMA>
-type ResumeInput = z.infer<typeof RESUME_AGENT_INPUT_SCHEMA>
-type WaitInput = z.infer<typeof WAIT_INPUT_SCHEMA>
-type CloseInput = z.infer<typeof CLOSE_AGENT_INPUT_SCHEMA>
 
 function nowIso() {
     return new Date().toISOString()
@@ -345,12 +339,11 @@ export async function __resetCollabStateForTests() {
     agents.clear()
 }
 
-export const spawnAgentTool = defineMcpTool<SpawnInput>({
-    name: 'spawn_agent',
+export const spawnAgentTool = tool({
     description: 'Spawn a sub-agent for a well-scoped task and return the agent id.',
     inputSchema: SPAWN_AGENT_INPUT_SCHEMA,
-    supportsParallelToolCalls: false,
-    isMutating: true,
+    metadata: { memo: { supportsParallelToolCalls: false, isMutating: true } },
+
     execute: async ({ message }) => {
         const trimmed = message.trim()
         if (!trimmed) {
@@ -392,12 +385,11 @@ export const spawnAgentTool = defineMcpTool<SpawnInput>({
     },
 })
 
-export const sendInputTool = defineMcpTool<SendInput>({
-    name: 'send_input',
+export const sendInputTool = tool({
     description: 'Send a message to an existing agent.',
     inputSchema: SEND_INPUT_INPUT_SCHEMA,
-    supportsParallelToolCalls: false,
-    isMutating: true,
+    metadata: { memo: { supportsParallelToolCalls: false, isMutating: true } },
+
     execute: async ({ id, message, interrupt }) => {
         const record = agents.get(id)
         if (!record) return buildMissingAgentError(id)
@@ -440,12 +432,11 @@ export const sendInputTool = defineMcpTool<SendInput>({
     },
 })
 
-export const resumeAgentTool = defineMcpTool<ResumeInput>({
-    name: 'resume_agent',
+export const resumeAgentTool = tool({
     description: 'Resume a previously closed agent by id.',
     inputSchema: RESUME_AGENT_INPUT_SCHEMA,
-    supportsParallelToolCalls: false,
-    isMutating: true,
+    metadata: { memo: { supportsParallelToolCalls: false, isMutating: true } },
+
     execute: async ({ id }) => {
         const record = agents.get(id)
         if (!record) return buildMissingAgentError(id)
@@ -468,12 +459,11 @@ export const resumeAgentTool = defineMcpTool<ResumeInput>({
     },
 })
 
-export const waitTool = defineMcpTool<WaitInput>({
-    name: 'wait',
+export const waitTool = tool({
     description: 'Wait for agent statuses and return current snapshots.',
     inputSchema: WAIT_INPUT_SCHEMA,
-    supportsParallelToolCalls: false,
-    isMutating: false,
+    metadata: { memo: { supportsParallelToolCalls: false, isMutating: false } },
+
     execute: async ({ ids, timeout_ms }) => {
         const resolvedTimeout = clampWaitTimeout(timeout_ms)
         if (resolvedTimeout === null) {
@@ -541,12 +531,11 @@ export const waitTool = defineMcpTool<WaitInput>({
     },
 })
 
-export const closeAgentTool = defineMcpTool<CloseInput>({
-    name: 'close_agent',
+export const closeAgentTool = tool({
     description: 'Close an agent and return its last known status.',
     inputSchema: CLOSE_AGENT_INPUT_SCHEMA,
-    supportsParallelToolCalls: false,
-    isMutating: true,
+    metadata: { memo: { supportsParallelToolCalls: false, isMutating: true } },
+
     execute: async ({ id }) => {
         const record = agents.get(id)
         if (!record) return buildMissingAgentError(id)

@@ -1,5 +1,7 @@
 import assert from 'node:assert'
-import type { MemoToolOutput } from '@memo/core/tools/router/types'
+import type { Tool, ToolExecutionOptions } from 'ai'
+import type { ToolResultOutput } from '@ai-sdk/provider-utils'
+import type { ToolOutput } from '@memo/core/tools/tools/mcp'
 import { access, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -25,17 +27,17 @@ async function readText(path: string) {
     }
 }
 
-function textPayload(result: MemoToolOutput) {
+function textPayload(result: ToolOutput) {
     if (result.type === 'text' || result.type === 'error-text') return result.value ?? ''
     return ''
 }
 
-function assertPatchOk(result: MemoToolOutput) {
+function assertPatchOk(result: ToolOutput) {
     const payload = textPayload(result)
     assert.ok(result.type !== 'error-text', payload)
 }
 
-function assertPatchError(result: MemoToolOutput, includes?: string) {
+function assertPatchError(result: ToolOutput, includes?: string) {
     assert.strictEqual(result.type, 'error-text')
     if (includes) {
         assert.ok(textPayload(result).includes(includes), textPayload(result))
@@ -43,11 +45,11 @@ function assertPatchError(result: MemoToolOutput, includes?: string) {
 }
 
 async function executePatch(input: string) {
-    return runWithRuntimeContext({ cwd: tempDir }, () => applyPatchTool.execute({ input }))
+    return runWithRuntimeContext({ cwd: tempDir }, () => runTool(applyPatchTool, { input }))
 }
 
 async function executePatchIn(cwd: string, input: string) {
-    return runWithRuntimeContext({ cwd }, () => applyPatchTool.execute({ input }))
+    return runWithRuntimeContext({ cwd }, () => runTool(applyPatchTool, { input }))
 }
 
 beforeAll(async () => {
@@ -64,6 +66,10 @@ afterAll(async () => {
     }
     await rm(tempDir, { recursive: true, force: true })
 })
+
+async function runTool(tool: Tool, input: unknown): Promise<ToolResultOutput> {
+    return (await tool.execute!(input, {} as ToolExecutionOptions)) as ToolResultOutput
+}
 
 describe('apply_patch tool (structured patch)', () => {
     test('applies add/update/delete operations in one patch', async () => {
@@ -363,7 +369,7 @@ describe('apply_patch tool (structured patch)', () => {
     })
 
     test('validates required input field', async () => {
-        const result = await applyPatchTool.execute({} as never)
+        const result = await runTool(applyPatchTool, {} as never)
         assertPatchError(result, 'apply_patch invalid input')
     })
 })

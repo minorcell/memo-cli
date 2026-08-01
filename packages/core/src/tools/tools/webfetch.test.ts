@@ -1,6 +1,9 @@
 import assert from 'node:assert'
-import type { MemoToolOutput } from '@memo/core/tools/router/types'
+import type { Tool, ToolExecutionOptions } from 'ai'
+import type { ToolResultOutput } from '@ai-sdk/provider-utils'
+import type { ToolOutput } from '@memo/core/tools/tools/mcp'
 import { afterEach, beforeEach, describe, test, vi } from 'vitest'
+import { z } from 'zod'
 
 vi.mock('node:dns/promises', () => ({
     lookup: vi.fn(),
@@ -18,7 +21,7 @@ const WEBFETCH_ENV_KEYS = [
     'MEMO_WEBFETCH_BLOCK_PRIVATE_NET',
 ]
 
-type ToolResult = MemoToolOutput
+type ToolResult = ToolOutput
 
 function textPayload(result: ToolResult) {
     return result.type === 'text' || result.type === 'error-text' ? result.value : ''
@@ -39,6 +42,10 @@ function installFetchMock(
     })
     Object.assign(globalThis, { fetch: fetchMock as unknown as typeof globalThis.fetch })
     return fetchMock
+}
+
+async function runTool(tool: Tool, input: unknown): Promise<ToolResultOutput> {
+    return (await tool.execute!(input, {} as ToolExecutionOptions)) as ToolResultOutput
 }
 
 describe('webfetch tool', () => {
@@ -65,18 +72,18 @@ describe('webfetch tool', () => {
     })
 
     test('requires url', async () => {
-        const res = webfetchTool.validateInput?.({ url: '' })
-        assert.ok(res && !res.ok)
+        const schema = webfetchTool.inputSchema as z.ZodTypeAny
+        assert.strictEqual(schema.safeParse({ url: '' }).success, false)
     })
 
     test('rejects unsupported protocol', async () => {
-        const res = await webfetchTool.execute({ url: 'file:///etc/hosts' })
+        const res = await runTool(webfetchTool, { url: 'file:///etc/hosts' })
         assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('Unsupported protocol'))
     })
 
     test('rejects invalid proxy protocol', async () => {
-        const res = await webfetchTool.execute({
+        const res = await runTool(webfetchTool, {
             url: 'https://example.com',
             proxy_url: 'socks5://127.0.0.1:1080',
         })
@@ -92,7 +99,7 @@ describe('webfetch tool', () => {
                 headers: { 'content-type': 'text/html; charset=utf-8' },
             }),
         ])
-        const res = await webfetchTool.execute({ url: 'https://example.com' })
+        const res = await runTool(webfetchTool, { url: 'https://example.com' })
         const text = textPayload(res)
         assert.strictEqual(res.type, 'text')
         assert.ok(text.includes('Contents of https://example.com/'))
@@ -109,7 +116,7 @@ describe('webfetch tool', () => {
                 headers: { 'content-type': 'text/html' },
             }),
         ])
-        const res = await webfetchTool.execute({ url: 'https://example.com', raw: true })
+        const res = await runTool(webfetchTool, { url: 'https://example.com', raw: true })
         const text = textPayload(res)
         assert.strictEqual(res.type, 'text')
         assert.ok(text.includes('cannot be simplified to markdown'))
@@ -124,7 +131,7 @@ describe('webfetch tool', () => {
                 headers: { 'content-type': 'application/json' },
             }),
         ])
-        const res = await webfetchTool.execute({ url: 'https://example.com/data' })
+        const res = await runTool(webfetchTool, { url: 'https://example.com/data' })
         const text = textPayload(res)
         assert.strictEqual(res.type, 'text')
         assert.ok(text.includes('cannot be simplified to markdown'))
@@ -139,7 +146,7 @@ describe('webfetch tool', () => {
                 headers: { 'content-type': 'text/plain' },
             }),
         ])
-        const res = await webfetchTool.execute({
+        const res = await runTool(webfetchTool, {
             url: 'https://example.com/data',
             start_index: 2,
             max_length: 4,
@@ -158,7 +165,7 @@ describe('webfetch tool', () => {
                 headers: { 'content-type': 'text/plain' },
             }),
         ])
-        const res = await webfetchTool.execute({
+        const res = await runTool(webfetchTool, {
             url: 'https://example.com/data',
             start_index: 99,
         })
@@ -171,21 +178,21 @@ describe('webfetch tool', () => {
             new Response('not found', { status: 404 }),
             new Response('ok', { status: 200, headers: { 'content-type': 'text/plain' } }),
         ])
-        const res = await webfetchTool.execute({ url: 'https://example.com/data' })
+        const res = await runTool(webfetchTool, { url: 'https://example.com/data' })
         assert.strictEqual(res.type, 'text')
         assert.ok(textPayload(res).includes('Contents of https://example.com/data'))
     })
 
     test('robots 403 blocks autonomous fetching', async () => {
         installFetchMock([new Response('blocked', { status: 403 })])
-        const res = await webfetchTool.execute({ url: 'https://example.com/data' })
+        const res = await runTool(webfetchTool, { url: 'https://example.com/data' })
         assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('autonomous fetching is not allowed'))
     })
 
     test('robots disallow blocks autonomous fetching', async () => {
         installFetchMock([new Response('User-agent: *\nDisallow: /', { status: 200 })])
-        const res = await webfetchTool.execute({ url: 'https://example.com/data' })
+        const res = await runTool(webfetchTool, { url: 'https://example.com/data' })
         assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes("site's robots.txt"))
     })
@@ -198,7 +205,7 @@ describe('webfetch tool', () => {
                 headers: { 'content-type': 'text/plain' },
             }),
         ])
-        const res = await webfetchTool.execute({ url: 'https://example.com/data' })
+        const res = await runTool(webfetchTool, { url: 'https://example.com/data' })
         assert.strictEqual(res.type, 'text')
         assert.strictEqual(fetchMock.mock.calls.length, 1)
     })
@@ -206,7 +213,7 @@ describe('webfetch tool', () => {
     test('blocks localhost target', async () => {
         const fetchMock = vi.fn()
         Object.assign(globalThis, { fetch: fetchMock as unknown as typeof globalThis.fetch })
-        const res = await webfetchTool.execute({ url: 'http://localhost:8080/private' })
+        const res = await runTool(webfetchTool, { url: 'http://localhost:8080/private' })
         assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('Blocked private or local network host'))
         assert.strictEqual(fetchMock.mock.calls.length, 0)
@@ -216,7 +223,7 @@ describe('webfetch tool', () => {
         dnsLookupMock.mockResolvedValue([{ address: '10.0.0.12', family: 4 }] as never)
         const fetchMock = vi.fn()
         Object.assign(globalThis, { fetch: fetchMock as unknown as typeof globalThis.fetch })
-        const res = await webfetchTool.execute({ url: 'https://example.com/private' })
+        const res = await runTool(webfetchTool, { url: 'https://example.com/private' })
         assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('resolved to 10.0.0.12'))
         assert.strictEqual(fetchMock.mock.calls.length, 0)
@@ -232,7 +239,7 @@ describe('webfetch tool', () => {
                 headers: { 'content-type': 'text/plain' },
             }),
         ])
-        const res = await webfetchTool.execute({ url: 'https://example.com/data' })
+        const res = await runTool(webfetchTool, { url: 'https://example.com/data' })
         assert.strictEqual(res.type, 'text')
     })
 
@@ -251,7 +258,7 @@ describe('webfetch tool', () => {
                     })
                 }),
         ])
-        const res = await webfetchTool.execute({ url: 'https://example.com/slow' })
+        const res = await runTool(webfetchTool, { url: 'https://example.com/slow' })
         assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('timeout or aborted'))
     })
@@ -268,7 +275,7 @@ describe('webfetch tool', () => {
                 },
             }),
         ])
-        const res = await webfetchTool.execute({ url: 'https://example.com/large' })
+        const res = await runTool(webfetchTool, { url: 'https://example.com/large' })
         assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('response body too large'))
     })
@@ -278,7 +285,7 @@ describe('webfetch tool', () => {
             new Response('User-agent: *\nAllow: /', { status: 200 }),
             new Response('not found', { status: 404, headers: { 'content-type': 'text/plain' } }),
         ])
-        const res = await webfetchTool.execute({ url: 'https://example.com/missing' })
+        const res = await runTool(webfetchTool, { url: 'https://example.com/missing' })
         assert.strictEqual(res.type, 'error-text')
         assert.ok(textPayload(res).includes('status code 404'))
     })
@@ -288,7 +295,7 @@ describe('webfetch tool', () => {
             new Response('User-agent: *\nAllow: /', { status: 200 }),
             new Response('ok', { status: 200, headers: { 'content-type': 'text/plain' } }),
         ])
-        const res = await webfetchTool.execute({
+        const res = await runTool(webfetchTool, {
             url: 'https://example.com/data',
             proxy_url: 'http://proxy.example.com:8080',
         })

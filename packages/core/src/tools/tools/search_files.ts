@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { searchFilesWithValidation, validatePath } from '@memo/core/tools/tools/filesystem/lib'
 import { resolveAllowedDirectories } from '@memo/core/tools/tools/filesystem/roots'
@@ -12,14 +12,11 @@ const SEARCH_FILES_INPUT_SCHEMA = z
     })
     .strict()
 
-type SearchFilesInput = z.infer<typeof SEARCH_FILES_INPUT_SCHEMA>
-
-export const searchFilesTool = defineMcpTool<SearchFilesInput>({
-    name: 'search_files',
+export const searchFilesTool = tool({
     description: 'Recursively search files and directories by glob pattern within allowed directories.',
     inputSchema: SEARCH_FILES_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: false,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: false } },
+
     execute: async (input) => {
         try {
             const allowedDirectories = await resolveAllowedDirectories()

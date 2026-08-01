@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { headFile, readFileContent, tailFile, validatePath } from '@memo/core/tools/tools/filesystem/lib'
 import { resolveAllowedDirectories } from '@memo/core/tools/tools/filesystem/roots'
@@ -12,14 +12,11 @@ const READ_TEXT_FILE_INPUT_SCHEMA = z
     })
     .strict()
 
-type ReadTextFileInput = z.infer<typeof READ_TEXT_FILE_INPUT_SCHEMA>
-
-export const readTextFileTool = defineMcpTool<ReadTextFileInput>({
-    name: 'read_text_file',
+export const readTextFileTool = tool({
     description: 'Read the complete file content as text, optionally with head/tail line limits.',
     inputSchema: READ_TEXT_FILE_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: false,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: false } },
+
     execute: async (input) => {
         if (input.head && input.tail) {
             return textResult('Cannot specify both head and tail parameters simultaneously', true)

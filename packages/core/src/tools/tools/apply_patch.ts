@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { getRuntimeCwd } from '@memo/core/tools/runtime/context'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { normalizePath, writePathDenyReason } from '@memo/core/tools/tools/helpers'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 
 const BEGIN_PATCH_MARKER = '*** Begin Patch'
 const END_PATCH_MARKER = '*** End Patch'
@@ -90,8 +90,6 @@ It is important to remember:
 - You must prefix new lines with \`+\` even when creating a new file
 - File references can only be relative, NEVER ABSOLUTE.
 `
-
-type ApplyPatchInput = z.infer<typeof APPLY_PATCH_INPUT_SCHEMA>
 
 type AddFileHunk = {
     type: 'add'
@@ -704,12 +702,11 @@ function formatParseError(err: ApplyPatchParseError): string {
     return `Invalid patch: ${err.message}`
 }
 
-export const applyPatchTool = defineMcpTool<ApplyPatchInput>({
-    name: 'apply_patch',
+export const applyPatchTool = tool({
     description: APPLY_PATCH_DESCRIPTION,
     inputSchema: APPLY_PATCH_INPUT_SCHEMA,
-    supportsParallelToolCalls: false,
-    isMutating: true,
+    metadata: { memo: { supportsParallelToolCalls: false, isMutating: true } },
+
     execute: async (input) => {
         const parsed = APPLY_PATCH_INPUT_SCHEMA.safeParse(input)
         if (!parsed.success) {

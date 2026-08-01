@@ -1,5 +1,7 @@
 import assert from 'node:assert'
-import type { MemoToolOutput } from '@memo/core/tools/router/types'
+import type { Tool, ToolExecutionOptions } from 'ai'
+import type { ToolResultOutput } from '@ai-sdk/provider-utils'
+import type { ToolOutput } from '@memo/core/tools/tools/mcp'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -15,7 +17,7 @@ async function makeTempDir(prefix: string) {
     return dir
 }
 
-function textPayload(result: MemoToolOutput) {
+function textPayload(result: ToolOutput) {
     if (result.type === 'text' || result.type === 'error-text') return result.value ?? ''
     return ''
 }
@@ -35,9 +37,13 @@ afterAll(async () => {
     await rm(tempDir, { recursive: true, force: true })
 })
 
+async function runTool(tool: Tool, input: unknown): Promise<ToolResultOutput> {
+    return (await tool.execute!(input, {} as ToolExecutionOptions)) as ToolResultOutput
+}
+
 describe('get_memory tool', () => {
     test('returns missing error when Agents.md does not exist', async () => {
-        const result = await getMemoryTool.execute({ memory_id: 'missing-thread' })
+        const result = await runTool(getMemoryTool, { memory_id: 'missing-thread' })
         assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('memory not found'))
     })
@@ -46,7 +52,7 @@ describe('get_memory tool', () => {
         const memoryPath = join(tempDir, 'Agents.md')
         await writeFile(memoryPath, '## Memo Added Memories\n\n- prefers concise output\n', 'utf8')
 
-        const result = await getMemoryTool.execute({ memory_id: 'thread-1' })
+        const result = await runTool(getMemoryTool, { memory_id: 'thread-1' })
         assert.ok(result.type === 'text')
 
         const parsed = JSON.parse(textPayload(result))

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { readFileContent, validatePath } from '@memo/core/tools/tools/filesystem/lib'
 import { resolveAllowedDirectories } from '@memo/core/tools/tools/filesystem/roots'
@@ -10,15 +10,12 @@ const READ_FILES_INPUT_SCHEMA = z
     })
     .strict()
 
-type ReadFilesInput = z.infer<typeof READ_FILES_INPUT_SCHEMA>
-
-export const readFilesTool = defineMcpTool<ReadFilesInput>({
-    name: 'read_files',
+export const readFilesTool = tool({
     description:
         'Read multiple text files in one call. Per-file failures are returned inline without aborting the batch.',
     inputSchema: READ_FILES_INPUT_SCHEMA,
-    supportsParallelToolCalls: true,
-    isMutating: false,
+    metadata: { memo: { supportsParallelToolCalls: true, isMutating: false } },
+
     execute: async (input) => {
         try {
             const allowedDirectories = await resolveAllowedDirectories()

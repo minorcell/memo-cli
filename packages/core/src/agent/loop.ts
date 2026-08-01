@@ -37,20 +37,25 @@ import { accumulateUsage, emptyUsage } from '@memo/core/utils/usage'
 import { isAbortError } from '@memo/core/utils/errors'
 import { stableStringify } from '@memo/core/utils/serialize'
 import { fallbackSessionTitleFromPrompt } from '@memo/core/utils/title'
-import { createApprovalManager, type ApprovalManager } from '@memo/core/tools/approval'
-import type { ToolApprovalHooks } from '@memo/core/tools/orchestrator'
+import {
+    createApprovalManager,
+    type ApprovalManager,
+    type ApprovalRequest,
+    type ApprovalDecision,
+    type ToolActionStatus,
+} from '@memo/core/tools/approval'
+import type { ToolApprovalHooks } from '@memo/core/tools/sdk_tools'
 import { runWithRuntimeContext } from '@memo/core/tools/runtime/context'
 import type { ToolExecutionContext } from '@memo/core/tools/sdk_tools'
 import { createStepGate } from '@memo/core/tools/runtime/step_gate'
 import {
+    isToolSkippedOutput,
     mapOutputStatus,
     normalizeLLMResponse,
     outputToObservation,
     parseTextToolCall,
     toToolHistoryMessage,
 } from './messages'
-import type { ApprovalRequest, ApprovalDecision } from '@memo/core/tools/approval'
-import type { ToolActionStatus } from '@memo/core/tools/orchestrator'
 
 const DEFAULT_AUTO_COMPACT_THRESHOLD_PERCENT = 80
 const COMPACT_USER_MESSAGE_MAX_TOKENS = 20_000
@@ -549,7 +554,6 @@ export class AgentSessionImpl implements AgentSession {
                         approvalManager: this.approvalManager,
                         approvalHooks: this.buildToolApprovalHooks(turn, step),
                         toolsDisabled: this.toolsDisabled,
-                        onRepeatedAction: (tool, input) => this.maybeWarnRepeatedAction(tool, input),
                         gate: createStepGate(),
                     }
                     try {
@@ -746,10 +750,7 @@ export class AgentSessionImpl implements AgentSession {
                     // 工具调用已由 AI SDK 在 streamText 内执行（execute 包装器：审批/截断/禁用跳过）。
                     if (toolUseBlocks.length > 0) {
                         // 工具禁用模式：全部跳过 → 按工具禁用错误终止
-                        // Outputs are MemoToolOutput at runtime (SDK types don't include the `skipped` variant).
-                        const disabledSkipped = toolResults.some(
-                            (tr) => (tr.output as { type: string }).type === 'skipped',
-                        )
+                        const disabledSkipped = toolResults.some((tr) => isToolSkippedOutput(tr.output))
                         if (disabledSkipped) {
                             status = 'error'
                             finalText = TOOL_DISABLED_ERROR_MESSAGE
@@ -1115,7 +1116,6 @@ export function resolveToolPermission(options: AgentSessionOptions): ResolvedToo
         approvalMode: 'auto',
     }
 }
-
 
 export async function emitEventToSinks(event: HistoryEvent, sinks: HistorySink[]) {
     for (const sink of sinks) {

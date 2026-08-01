@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import type { AgentSessionDeps, AgentSessionOptions, ChatMessage, LLMResult, ToolRegistry } from '@memo/core/types'
+import { tool, type Tool, type ToolSet } from 'ai'
+import { z } from 'zod'
+import type { AgentSessionDeps, AgentSessionOptions, ChatMessage, LLMResult } from '@memo/core/types'
 import type { MCPServerConfig } from '@memo/core/config/config'
 import type { AIProviderFactory } from '@memo/core/llm/ai_provider'
 import { emptyUsage } from '@memo/core/utils/usage'
-import type { Tool } from '@memo/core/tools/router'
 
 const state = vi.hoisted(() => ({
     loadedConfig: {
@@ -34,19 +35,14 @@ const state = vi.hoisted(() => ({
     },
     sessionsDir: '/tmp/memo-sessions',
     sessionPath: '/tmp/memo-sessions/session-1.jsonl',
-    toolDefinitions: [{ type: 'function', function: { name: 'mock_tool', parameters: {} } }],
     registry: {
         mock_tool: {
-            name: 'mock_tool',
             description: 'mock tool',
-            source: 'native',
             inputSchema: { type: 'object' },
             execute: async () => ({ type: 'text', value: 'ok' }),
-        } as Tool,
-    } as ToolRegistry,
+        } as unknown as Tool,
+    } as ToolSet,
     loadMcpServersCalls: [] as unknown[],
-    registerNativeToolsCalls: [] as unknown[],
-    registerNativeToolCalls: [] as unknown[],
     historySinkPaths: [] as string[],
     routerDisposed: 0,
     createTokenCounterCalls: [] as Array<string | undefined>,
@@ -126,25 +122,13 @@ vi.mock('@memo/core/utils/tokenizer', () => ({
 }))
 
 vi.mock('@memo/core/tools/router', () => ({
-    ToolRouter: class ToolRouter {
-        registerNativeTools(tools: unknown) {
-            state.registerNativeToolsCalls.push(tools)
-        }
-
-        async loadMcpServers(servers: unknown, options: unknown) {
+    McpToolRegistry: class McpToolRegistry {
+        async loadServersWithOptions(servers: unknown, options: unknown) {
             state.loadMcpServersCalls.push([servers, options])
         }
 
-        registerNativeTool(tool: unknown) {
-            state.registerNativeToolCalls.push(tool)
-        }
-
-        toRegistry() {
+        toToolSet() {
             return state.registry
-        }
-
-        generateToolDefinitions() {
-            return state.toolDefinitions
         }
 
         async dispose() {
@@ -156,8 +140,6 @@ vi.mock('@memo/core/tools/router', () => ({
 describe('withDefaultDeps (default path)', () => {
     beforeEach(() => {
         state.loadMcpServersCalls = []
-        state.registerNativeToolsCalls = []
-        state.registerNativeToolCalls = []
         state.historySinkPaths = []
         state.routerDisposed = 0
         state.createTokenCounterCalls = []
@@ -184,30 +166,25 @@ describe('withDefaultDeps (default path)', () => {
 
     test('passes user custom tools through with full definition (schema/isMutating/parallel flags)', async () => {
         const { withDefaultDeps } = await import('@memo/core/agent/defaults')
-        const customTool: Tool = {
-            name: 'my_tool',
+        const customTool: Tool = tool({
             description: 'custom tool',
-            source: 'native',
-            inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'] },
-            isMutating: true,
-            supportsParallelToolCalls: false,
+            inputSchema: z.object({ value: z.string() }),
+            metadata: { memo: { isMutating: true, supportsParallelToolCalls: false } },
             execute: async () => ({ type: 'text', value: 'done' }),
-        }
+        })
 
-        await withDefaultDeps(
+        const resolved = await withDefaultDeps(
             { tools: { my_tool: customTool } } as AgentSessionDeps,
             {} as AgentSessionOptions,
             'session-custom',
         )
 
-        expect(state.registerNativeToolCalls).toHaveLength(1)
-        const registered = state.registerNativeToolCalls[0] as Tool
-        expect(registered.name).toBe('my_tool')
-        expect(registered.inputSchema).toEqual(customTool.inputSchema)
-        expect(registered.isMutating).toBe(true)
-        expect(registered.supportsParallelToolCalls).toBe(false)
-        expect(registered.source).toBe('native')
-        expect(registered.execute).toBe(customTool.execute)
+        const wrapped = resolved.tools.my_tool
+        expect(wrapped).toBeDefined()
+        expect(wrapped?.description).toBe(customTool.description)
+        expect(wrapped?.inputSchema).toBe(customTool.inputSchema)
+        expect(wrapped?.metadata).toEqual(customTool.metadata)
+        expect(typeof wrapped?.execute).toBe('function')
     })
 
     test('builds default deps with default sinks and prompt without tool description injection', async () => {

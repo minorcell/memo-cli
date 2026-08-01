@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defineMcpTool } from '@memo/core/tools/tools/types'
+import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 
 const PLAN_ITEM_SCHEMA = z
@@ -16,16 +16,13 @@ const UPDATE_PLAN_INPUT_SCHEMA = z
     })
     .strict()
 
-type UpdatePlanInput = z.infer<typeof UPDATE_PLAN_INPUT_SCHEMA>
-
 let currentPlan: UpdatePlanInput['plan'] = []
 
-export const updatePlanTool = defineMcpTool<UpdatePlanInput>({
-    name: 'update_plan',
+export const updatePlanTool = tool({
     description: 'Updates the task plan. At most one step can be in_progress at a time.',
     inputSchema: UPDATE_PLAN_INPUT_SCHEMA,
-    supportsParallelToolCalls: false,
-    isMutating: false,
+    metadata: { memo: { supportsParallelToolCalls: false, isMutating: false } },
+
     execute: async ({ explanation, plan }) => {
         const inProgressCount = plan.filter((item) => item.status === 'in_progress').length
         if (inProgressCount > 1) {
