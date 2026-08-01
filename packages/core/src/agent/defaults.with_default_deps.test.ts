@@ -91,7 +91,7 @@ vi.mock('@memo/core/config/config', () => ({
     buildSessionPath: vi.fn(() => state.sessionPath),
 }))
 
-vi.mock('@memo/core/history/history', () => ({
+vi.mock('@memo/core/features/history', () => ({
     JsonlHistorySink: class JsonlHistorySink {
         constructor(path: string) {
             state.historySinkPaths.push(path)

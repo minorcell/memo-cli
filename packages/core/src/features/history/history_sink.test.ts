@@ -3,7 +3,8 @@ import { unlink, readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { JsonlHistorySink, createHistoryEvent } from '@memo/core/history/history'
+import { JsonlHistorySink } from '@memo/core/features/history'
+import { createHistoryEvent } from '@memo/core/agent/loop'
 
 const getTempFilePath = () => join(tmpdir(), `memo-test-${Date.now()}.jsonl`)
 

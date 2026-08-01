@@ -2,7 +2,7 @@
 import { NATIVE_TOOLS } from '@memo/tools'
 import { createTokenCounter } from '@memo/core/utils/tokenizer'
 import { buildSessionPath, getSessionsDir, loadMemoConfig, selectProvider } from '@memo/core/config/config'
-import { JsonlHistorySink } from '@memo/core/history/history'
+import { JsonlHistorySink } from '@memo/core/features/history'
 import { resolveModelProfile } from '@memo/core/llm/model_profile'
 import { streamCallLLM } from '@memo/core/llm/ai_stream'
 import { getProviderFactory } from '@memo/core/llm/ai_provider'

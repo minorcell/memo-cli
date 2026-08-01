@@ -2,7 +2,6 @@
 export * from './types'
 export * from './prompt/prompt'
 export * from './skills/skills'
-export * from './history/history'
 export * from './utils/workspace'
 export * from './features/file_suggestions'
 export * from './features/slash'

@@ -1,6 +1,5 @@
 /** @file Session/Turn runtime core: handles ReAct loop, tool scheduling, and event logging. */
 import { randomUUID } from 'node:crypto'
-import { createHistoryEvent } from '@memo/core/history/history'
 import { buildThinking } from '@memo/core/utils/utils'
 import {
     buildCompactionUserPrompt,
@@ -19,6 +18,7 @@ import type {
     HistoryEvent,
     HistorySink,
     ParsedAssistant,
+    Role,
     SessionMode,
     ToolPermissionMode,
     TokenCounter,
@@ -1194,6 +1194,28 @@ export class AgentSessionImpl implements AgentSession {
             meta: payload.meta,
         })
         await emitEventToSinks(event, this.sinks)
+    }
+}
+
+/** Helper to generate structured history events. */
+export function createHistoryEvent(params: {
+    sessionId: string
+    type: HistoryEvent['type']
+    turn?: number
+    step?: number
+    content?: string
+    role?: Role
+    meta?: Record<string, unknown>
+}): HistoryEvent {
+    return {
+        ts: new Date().toISOString(),
+        sessionId: params.sessionId,
+        turn: params.turn,
+        step: params.step,
+        type: params.type,
+        content: params.content,
+        role: params.role,
+        meta: params.meta,
     }
 }
 

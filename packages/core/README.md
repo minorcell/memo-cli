@@ -20,9 +20,7 @@ Core provides the central capabilities of **Memo Code**: the ReAct loop, session
 - `features/` — user-facing capabilities built on the contracts (not part of the loop); one directory per module, exports via `index.ts`
     - `slash/`: Slash command specs and registry.
     - `file_suggestions/`: File suggestion helpers for the composer.
-    - `history/`: Session history viewing and resume (read side of the JSONL logs).
-- `history/`
-    - `history.ts`: JSONL history sink and event construction (write side, used by the loop).
+    - `history/`: Complete session-history module — JSONL sink (write side, injected by the composition root), parser and index (read side for resume/viewing).
 - `prompt/`
     - `prompt.ts` + `prompt.md`: System prompt loading (runtime context, AGENTS.md/SOUL.md/skills injection).
 - `skills/` / `mcp/`
