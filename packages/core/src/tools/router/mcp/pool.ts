@@ -1,11 +1,5 @@
 /** @file MCP Client 连接池管理（基于 @ai-sdk/mcp） */
-import {
-    createMCPClient,
-    UnauthorizedError,
-    type MCPClient,
-    type MCPClientConfig,
-    type OAuthClientProvider as SdkOAuthClientProvider,
-} from '@ai-sdk/mcp'
+import { createMCPClient, UnauthorizedError, type MCPClient, type MCPClientConfig } from '@ai-sdk/mcp'
 import { Experimental_StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio'
 import type { MCPServerConfig, McpClientConnection } from '../types'
 import { createRuntimeMcpOAuthProvider, type McpOAuthSettings } from './oauth'
@@ -49,8 +43,7 @@ async function connectWithConfig(
             type: 'http',
             url: config.url,
             headers: resolveHttpHeaders(config),
-            // memo's provider implements the same OAuthClientProvider contract (SDK-origin).
-            ...(authProvider ? { authProvider: authProvider as unknown as SdkOAuthClientProvider } : {}),
+            ...(authProvider ? { authProvider } : {}),
         }
         try {
             return await createMCPClient({ transport })

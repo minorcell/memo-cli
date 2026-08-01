@@ -11,8 +11,8 @@ const { authMock, spawnMock } = vi.hoisted(() => {
     }
 })
 
-vi.mock('@modelcontextprotocol/sdk/client/auth.js', async () => {
-    const actual = await vi.importActual('@modelcontextprotocol/sdk/client/auth.js')
+vi.mock('@ai-sdk/mcp', async () => {
+    const actual = await vi.importActual('@ai-sdk/mcp')
     return {
         ...(actual as object),
         auth: authMock,

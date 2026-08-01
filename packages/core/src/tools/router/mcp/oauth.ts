@@ -4,13 +4,14 @@ import { createServer } from 'node:http'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { auth, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
-import type {
-    OAuthClientInformationMixed,
-    OAuthClientMetadata,
-    OAuthTokens,
-} from '@modelcontextprotocol/sdk/shared/auth.js'
-import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
+import {
+    auth,
+    type OAuthClientInformation,
+    type OAuthClientMetadata,
+    type OAuthClientProvider,
+    type OAuthTokens,
+} from '@ai-sdk/mcp'
+import type { FetchFunction } from '@ai-sdk/provider-utils'
 import type { MCPServerConfig } from '../types'
 
 const OAUTH_FILE_VERSION = 1
@@ -33,7 +34,7 @@ export type McpOAuthSettings = {
 }
 
 export type McpOAuthCredential = {
-    clientInformation?: OAuthClientInformationMixed
+    clientInformation?: OAuthClientInformation
     tokens?: OAuthTokens
 }
 
@@ -306,7 +307,7 @@ export async function openExternalUrl(url: string): Promise<void> {
     })
 }
 
-function createServerBoundFetch(serverUrl: string, defaultHeaders: Record<string, string>): FetchLike {
+function createServerBoundFetch(serverUrl: string, defaultHeaders: Record<string, string>): FetchFunction {
     return async (input, init) => {
         const requestUrl =
             typeof input === 'string' || input instanceof URL ? new URL(String(input), serverUrl) : new URL(input.url)
@@ -408,7 +409,7 @@ class MemoOAuthClientProvider implements OAuthClientProvider {
         return this.credential.clientInformation
     }
 
-    async saveClientInformation(clientInformation: OAuthClientInformationMixed) {
+    async saveClientInformation(clientInformation: OAuthClientInformation) {
         await this.ensureLoaded()
         this.credential = {
             ...this.credential,
