@@ -9,7 +9,7 @@ import type {
     TokenUsageSummary,
     ToolUsageSummary,
 } from '../api_types.js'
-import { workspaceIdFromCwd } from './workspace.js'
+import { workspaceIdFromCwd } from '../utils/workspace.js'
 
 type MutableTurnDetail = SessionTurnDetail & {
     byStep: Map<number, SessionTurnStep>
