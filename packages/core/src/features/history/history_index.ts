@@ -7,9 +7,9 @@ import type {
     SessionListItem,
     SessionListResponse,
     ToolUsageSummary,
-} from '../api_types.js'
+} from '../../api_types.js'
 import { parseHistoryLogToSessionDetail } from './history_parser.js'
-import { cwdBelongsToWorkspace } from '../utils/workspace.js'
+import { cwdBelongsToWorkspace } from '../../utils/workspace.js'
 
 type SessionFileMeta = {
     filePath: string

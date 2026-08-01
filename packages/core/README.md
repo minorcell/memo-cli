@@ -17,10 +17,10 @@ Core provides the central capabilities of **Memo Code**: the ReAct loop, session
     - `defaults.ts`: Composition root — default dependency completion (toolset, LLM, prompt, history sink, tokenizer).
     - `hooks.ts`: Hook/middleware runners and history snapshotting.
     - `compact_prompt.ts`: Context compaction prompt building.
-- `features/` — user-facing capabilities built on the contracts (not part of the loop)
+- `features/` — user-facing capabilities built on the contracts (not part of the loop); one directory per module, exports via `index.ts`
     - `slash/`: Slash command specs and registry.
-    - `file_suggestions.ts`: File suggestion helpers for the composer.
-    - `history_parser.ts` / `history_index.ts`: Session history viewing and resume (read side of the JSONL logs).
+    - `file_suggestions/`: File suggestion helpers for the composer.
+    - `history/`: Session history viewing and resume (read side of the JSONL logs).
 - `history/`
     - `history.ts`: JSONL history sink and event construction (write side, used by the loop).
 - `prompt/`
