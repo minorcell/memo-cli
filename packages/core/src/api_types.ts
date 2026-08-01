@@ -25,11 +25,9 @@ export type ApiEnvelope<T> =
           meta: ApiErrorMeta
       }
 
-export type TokenUsageSummary = {
-    prompt: number
-    completion: number
-    total: number
-}
+/** Token usage in API DTOs (AI SDK LanguageModelUsage shape). */
+import type { LanguageModelUsage } from 'ai'
+export type TokenUsageSummary = LanguageModelUsage
 
 export type ToolUsageSummary = {
     total: number

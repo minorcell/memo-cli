@@ -50,7 +50,7 @@ function buildSampleLog(): string {
             content: 'done',
             meta: {
                 status: 'ok',
-                tokens: { prompt: 10, completion: 5, total: 15 },
+                tokens: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
             },
         }),
     ].join('\n')
@@ -64,7 +64,7 @@ describe('parseHistoryLogToSessionDetail', () => {
         assert.strictEqual(detail.turnCount, 1)
         assert.strictEqual(detail.toolUsage.total, 1)
         assert.strictEqual(detail.toolUsage.success, 1)
-        assert.strictEqual(detail.tokenUsage.total, 15)
+        assert.strictEqual(detail.tokenUsage.totalTokens, 15)
         assert.strictEqual(detail.turns.length, 1)
         assert.strictEqual(detail.turns[0]?.steps.length, 1)
         assert.ok(detail.summary.includes('User: hello'))

@@ -1,6 +1,5 @@
 /** @file Session/Turn runtime core: handles ReAct loop, tool scheduling, and event logging. */
 import { randomUUID } from 'node:crypto'
-import { buildThinking } from '@memo/core/utils/utils'
 import {
     buildCompactionUserPrompt,
     CONTEXT_COMPACTION_SYSTEM_PROMPT,
@@ -615,7 +614,8 @@ export class AgentSessionImpl implements AgentSession {
                         // parsed.action 复用单 action 结构，取首个工具作为主 action 语义。
                         const firstTool = toolUseBlocks[0]
                         if (firstTool) {
-                            const thinking = assistantText ? buildThinking([assistantText]) : undefined
+                            // Reasoning is already separated by the AI SDK; no think-tag extraction needed.
+                            const thinking = reasoningContent
                             parsed = {
                                 action: {
                                     tool: firstTool.toolName,

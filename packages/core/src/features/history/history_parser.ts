@@ -34,9 +34,11 @@ type ParseResultState = {
 
 function defaultTokenUsage(): TokenUsageSummary {
     return {
-        prompt: 0,
-        completion: 0,
-        total: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+        outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
     }
 }
 
@@ -177,14 +179,13 @@ function parseEventLine(line: string, index: number): SessionEventItem | null {
 
 function accumulateTokenUsage(target: TokenUsageSummary, source: Record<string, unknown> | undefined): void {
     if (!source) return
-    // meta.tokens now uses AI SDK LanguageModelUsage shape; keep reading legacy prompt/completion fields too.
-    const prompt = asNumber(source.inputTokens) ?? asNumber(source.prompt)
-    const completion = asNumber(source.outputTokens) ?? asNumber(source.completion)
-    const total = asNumber(source.totalTokens) ?? asNumber(source.total)
+    const inputTokens = asNumber(source.inputTokens)
+    const outputTokens = asNumber(source.outputTokens)
+    const totalTokens = asNumber(source.totalTokens)
 
-    if (prompt !== null) target.prompt += Math.floor(prompt)
-    if (completion !== null) target.completion += Math.floor(completion)
-    if (total !== null) target.total += Math.floor(total)
+    if (inputTokens !== null) target.inputTokens = (target.inputTokens ?? 0) + Math.floor(inputTokens)
+    if (outputTokens !== null) target.outputTokens = (target.outputTokens ?? 0) + Math.floor(outputTokens)
+    if (totalTokens !== null) target.totalTokens = (target.totalTokens ?? 0) + Math.floor(totalTokens)
 }
 
 function normalizeFinalStatus(raw: string | undefined): SessionRuntimeStatus {
