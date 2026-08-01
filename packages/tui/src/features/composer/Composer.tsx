@@ -21,6 +21,7 @@ import {
     type EditorBuffer,
 } from './composerInput'
 import { resolveDeleteKind } from './composerKeys'
+import { resolveComposerColor } from './composerColor'
 import { PasteBurst, type PasteBurstFlushResult } from './pasteBurst'
 import {
     formatSlashCommand,
@@ -63,6 +64,7 @@ type ComposerProps = {
     onHistorySelect: (entry: SessionHistoryEntry) => void
     onModelSelect: (provider: ProviderConfig) => void
     onToggleThinking: () => void
+    thinkingOn: boolean
     onSetToolPermission: (mode: ToolPermissionMode) => void
     onSystemMessage: (title: string, content: string) => void
 }
@@ -315,6 +317,7 @@ export const Composer = memo(function Composer({
     onModelSelect,
     onSetToolPermission,
     onToggleThinking,
+    thinkingOn,
     onSystemMessage,
 }: ComposerProps) {
     const { stdout } = useStdout()
@@ -912,7 +915,7 @@ export const Composer = memo(function Composer({
     const composerContentWidth = Math.max(1, terminalWidth - 7)
     const wrappedLayout = getWrappedCursorLayout(editor.value, editor.cursor, composerContentWidth)
     const lines = wrappedLayout.lines
-    const composerColor = disabled ? 'gray' : operationStatus === 'idle' ? 'cyan' : 'yellow'
+    const composerColor = resolveComposerColor({ disabled, operationStatus, thinkingOn })
     const placeholder = disabled
         ? operationStatus === 'awaiting_approval'
             ? 'Resolve tool approval to continue'

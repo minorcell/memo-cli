@@ -841,6 +841,7 @@ export function App({
                     void handleModelSelect(provider)
                 }}
                 onSetToolPermission={handleSetToolPermission}
+                thinkingOn={thinkingOn}
                 onSystemMessage={appendSystemMessage}
             />
 
