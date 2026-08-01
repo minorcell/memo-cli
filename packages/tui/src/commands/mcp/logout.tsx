@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import zod from 'zod'
 import { argument } from 'pastel'
 import { loadMemoConfig } from '@memo/core'
-import { logoutMcpServerOAuth } from '@memo/core/tools/router/mcp/oauth'
+import { logoutMcpServerOAuth } from '@memo/core'
 import { getErrorMessage, oauthSettingsFromLoaded } from '../../features/mcp/mcpHelpers'
 
 export const args = zod.array(zod.string()).describe(argument({ name: 'name', description: 'Server name' }))

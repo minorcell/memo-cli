@@ -18,6 +18,8 @@ export type MemoToolOutput =
     | { type: 'json'; value: unknown }
     | { type: 'error-text'; value: string }
     | { type: 'execution-denied'; reason?: string }
+    /** Tool skipped without executing (e.g. tools disabled); consumers switch on `type`, not message text. */
+    | { type: 'skipped'; reason?: string }
 
 /** Unified tool interface */
 export interface Tool {

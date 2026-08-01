@@ -1,30 +1,7 @@
 import { describe, expect, test, vi } from 'vitest'
 import type { HistorySink } from '@memo/core/types'
-import {
-    accumulateUsage,
-    emitEventToSinks,
-    emptyUsage,
-    fallbackSessionTitleFromPrompt,
-    isAbortError,
-    normalizeSessionTitle,
-    stableStringify,
-    truncateSessionTitle,
-} from '@memo/core/agent/loop'
+import { emitEventToSinks } from '@memo/core/agent/loop'
 import { parseTextToolCall, toToolHistoryMessage } from '@memo/core/agent/messages'
-
-describe('accumulateUsage', () => {
-    test('uses explicit total when provided', () => {
-        const usage = emptyUsage()
-        accumulateUsage(usage, { inputTokens: 2, outputTokens: 3, totalTokens: 100 })
-        expect(usage).toEqual({ ...emptyUsage(), inputTokens: 2, outputTokens: 3, totalTokens: 100 })
-    })
-
-    test('falls back to input + output when total is absent', () => {
-        const usage = emptyUsage()
-        accumulateUsage(usage, { inputTokens: 2, outputTokens: 3 })
-        expect(usage).toEqual({ ...emptyUsage(), inputTokens: 2, outputTokens: 3, totalTokens: 5 })
-    })
-})
 
 describe('emitEventToSinks', () => {
     test('writes structured error payload to stderr when sink append fails', async () => {
@@ -63,26 +40,6 @@ describe('emitEventToSinks', () => {
     })
 })
 
-describe('stableStringify', () => {
-    test('serializes self-referencing object without throwing', () => {
-        const root: Record<string, unknown> = {}
-        root.self = root
-
-        const serialized = stableStringify(root)
-        expect(serialized).toBe('{"self":"[Circular]"}')
-    })
-
-    test('serializes indirect circular references with circular marker', () => {
-        const parent: Record<string, unknown> = { name: 'parent' }
-        const child: Record<string, unknown> = { name: 'child', parent }
-        parent.child = child
-
-        const serialized = stableStringify(parent)
-        expect(serialized).toContain('"child":{"name":"child","parent":"[Circular]"}')
-        expect(serialized).toContain('"name":"parent"')
-    })
-})
-
 describe('parseTextToolCall', () => {
     const tools = {
         read_file: {} as never,
@@ -113,37 +70,6 @@ describe('parseTextToolCall', () => {
     })
 })
 
-describe('session title helpers', () => {
-    test('truncateSessionTitle appends ellipsis when exceeding max', () => {
-        const truncated = truncateSessionTitle('x'.repeat(80))
-        expect(truncated.endsWith('...')).toBe(true)
-        expect(truncated.length).toBe(60)
-    })
-
-    test('normalizeSessionTitle strips quotes and whitespace', () => {
-        expect(normalizeSessionTitle('  "  Hello\nWorld  "  ')).toBe('Hello World')
-        expect(normalizeSessionTitle('   ')).toBe('')
-    })
-
-    test('normalizeSessionTitle removes think tags and title prefixes', () => {
-        expect(
-            normalizeSessionTitle(
-                '<think>internal</think> Title: "Build REST API migration plan" <thinking>secret</thinking>',
-            ),
-        ).toBe('Build REST API migration plan')
-    })
-
-    test('fallbackSessionTitleFromPrompt handles empty/cjk/word prompts', () => {
-        expect(fallbackSessionTitleFromPrompt('   ')).toBe('New Session')
-        expect(fallbackSessionTitleFromPrompt('这是一个非常非常长的中文标题用于测试截断行为')).toBe(
-            '这是一个非常非常长的中文标题用于测试截断...',
-        )
-        expect(fallbackSessionTitleFromPrompt('build a rest api using express and sqlite quickly')).toBe(
-            'build a rest api using express and sqlite',
-        )
-    })
-})
-
 describe('tool result helpers', () => {
     test('toToolHistoryMessage maps tool result part into tool chat message', () => {
         const message = toToolHistoryMessage({
@@ -163,17 +89,5 @@ describe('tool result helpers', () => {
                 },
             ],
         })
-    })
-})
-
-describe('isAbortError', () => {
-    test('detects abort error by name and message', () => {
-        const abortError = new Error('cancelled')
-        abortError.name = 'AbortError'
-        const abortedMessageError = new Error('Request was aborted.')
-        expect(isAbortError(abortError)).toBe(true)
-        expect(isAbortError(abortedMessageError)).toBe(true)
-        expect(isAbortError(new Error('other'))).toBe(false)
-        expect(isAbortError('AbortError')).toBe(false)
     })
 })

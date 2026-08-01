@@ -73,13 +73,12 @@ export async function withDefaultDeps(
     // 4. Merge user custom tools (deps.tools has highest priority)
     if (deps.tools) {
         for (const [name, tool] of Object.entries(deps.tools)) {
-            // User custom tools override同名 tools in router
+            // Pass through the full Tool definition so inputSchema / isMutating /
+            // supportsParallelToolCalls survive into the AI SDK tools; only force native source.
             router.registerNativeTool({
+                ...tool,
                 name,
-                description: tool.description,
                 source: 'native',
-                inputSchema: { type: 'object' }, // Simplified, should convert from tool in practice
-                execute: tool.execute,
             })
         }
     }
@@ -87,23 +86,16 @@ export async function withDefaultDeps(
     // 5. Get final tool registry
     const combinedTools = router.toRegistry()
 
-    // 6. Build loadPrompt (includes tool descriptions)
+    // 6. Build loadPrompt (tool exposure is handled by the AI SDK tools schema, not prompt text)
     const loadPrompt = async () => {
-        let basePrompt = deps.loadPrompt
-            ? await deps.loadPrompt()
-            : await defaultLoadPrompt({
-                  cwd: options.cwd,
-                  memoHome: loaded.home,
-                  activeSkillPaths: config.active_skills,
-              })
-
-        // Inject tool descriptions into prompt (for non-Tool Use API mode)
-        const toolDescriptions = router.generateToolDescriptions()
-        if (toolDescriptions) {
-            basePrompt += `\n\n${toolDescriptions}`
+        if (deps.loadPrompt) {
+            return deps.loadPrompt()
         }
-
-        return basePrompt
+        return defaultLoadPrompt({
+            cwd: options.cwd,
+            memoHome: loaded.home,
+            activeSkillPaths: config.active_skills,
+        })
     }
 
     const sessionsDir = getSessionsDir(loaded, options)

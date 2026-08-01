@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import type { ApprovalDecision, ApprovalRequest } from '@memo/core/tools/approval'
+import type { ApprovalDecision, ApprovalRequest } from '@memo/core'
 
 export function useApproval() {
     const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null)

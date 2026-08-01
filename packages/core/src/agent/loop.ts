@@ -27,11 +27,21 @@ import type {
 } from '@memo/core/types'
 import type { LanguageModelUsage, ToolCallPart, ToolResultPart } from 'ai'
 import { buildHookRunners, runHook, snapshotHistory, type HookRunnerMap } from '@memo/core/agent/hooks'
+import {
+    DEFAULT_CONTEXT_WINDOW,
+    DEFAULT_SESSION_MODE,
+    TOOL_ACTION_SUCCESS_STATUS,
+    TOOL_DISABLED_ERROR_MESSAGE,
+} from '@memo/core/agent/constants'
+import { accumulateUsage, emptyUsage } from '@memo/core/utils/usage'
+import { isAbortError } from '@memo/core/utils/errors'
+import { stableStringify } from '@memo/core/utils/serialize'
+import { fallbackSessionTitleFromPrompt } from '@memo/core/utils/title'
 import { createApprovalManager, type ApprovalManager } from '@memo/core/tools/approval'
 import type { ToolApprovalHooks } from '@memo/core/tools/orchestrator'
 import { runWithRuntimeContext } from '@memo/core/tools/runtime/context'
-import type { ToolExecutionContext } from './sdk_tools'
-import { createStepGate } from './step_gate'
+import type { ToolExecutionContext } from '@memo/core/tools/sdk_tools'
+import { createStepGate } from '@memo/core/tools/runtime/step_gate'
 import {
     mapOutputStatus,
     normalizeLLMResponse,
@@ -734,8 +744,9 @@ export class AgentSessionImpl implements AgentSession {
                     // 工具调用已由 AI SDK 在 streamText 内执行（execute 包装器：审批/截断/禁用跳过）。
                     if (toolUseBlocks.length > 0) {
                         // 工具禁用模式：全部跳过 → 按工具禁用错误终止
+                        // Outputs are MemoToolOutput at runtime (SDK types don't include the `skipped` variant).
                         const disabledSkipped = toolResults.some(
-                            (tr) => tr.output.type === 'text' && tr.output.value === TOOL_SKIPPED_DISABLED_MESSAGE,
+                            (tr) => (tr.output as { type: string }).type === 'skipped',
                         )
                         if (disabledSkipped) {
                             status = 'error'
@@ -776,7 +787,7 @@ export class AgentSessionImpl implements AgentSession {
 
                         // 重复调用防呆
                         for (const block of toolUseBlocks) {
-                            this.maybeWarnRepeatedAction(block.name, block.input)
+                            this.maybeWarnRepeatedAction(block.toolName, block.input)
                         }
 
                         // action 事件（批次级）
@@ -1062,14 +1073,6 @@ export function createHistoryEvent(params: {
 
 // --- Agent loop constants and helpers ---------------------------------------------
 
-export const DEFAULT_SESSION_MODE: SessionMode = 'interactive'
-export const DEFAULT_CONTEXT_WINDOW = 120_000
-export const TOOL_ACTION_SUCCESS_STATUS: ToolActionStatus = 'success'
-export const TOOL_DISABLED_ERROR_MESSAGE =
-    'Tool usage is disabled in the current permission mode. Switch to /core/tools once or /core/tools full to enable tools.'
-export const SESSION_TITLE_MAX_CHARS = 60
-export const TOOL_SKIPPED_DISABLED_MESSAGE = 'Tool execution skipped: tools are disabled in current permission mode.'
-
 export type ResolvedToolPermission = {
     mode: ToolPermissionMode | 'auto'
     toolsDisabled: boolean
@@ -1118,25 +1121,6 @@ export function resolveToolPermission(options: AgentSessionOptions): ResolvedToo
     }
 }
 
-export function emptyUsage(): LanguageModelUsage {
-    return {
-        inputTokens: 0,
-        outputTokens: 0,
-        totalTokens: 0,
-        inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
-        outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined },
-    }
-}
-
-export function accumulateUsage(target: LanguageModelUsage, delta?: Partial<LanguageModelUsage>) {
-    if (!delta) return
-    const inputDelta = delta.inputTokens ?? 0
-    const outputDelta = delta.outputTokens ?? 0
-    const totalDelta = delta.totalTokens ?? inputDelta + outputDelta
-    target.inputTokens = (target.inputTokens ?? 0) + inputDelta
-    target.outputTokens = (target.outputTokens ?? 0) + outputDelta
-    target.totalTokens = (target.totalTokens ?? 0) + totalDelta
-}
 
 export async function emitEventToSinks(event: HistoryEvent, sinks: HistorySink[]) {
     for (const sink of sinks) {
@@ -1151,83 +1135,4 @@ export async function emitEventToSinks(event: HistoryEvent, sinks: HistorySink[]
             })
         }
     }
-}
-
-export function isAbortError(err: unknown): err is Error {
-    if (!(err instanceof Error)) return false
-    if (err.name === 'AbortError') return true
-
-    const message = err.message?.toLowerCase?.() ?? ''
-    return (
-        message.includes('request was aborted') ||
-        message.includes('operation was aborted') ||
-        message.includes('aborted')
-    )
-}
-
-export function truncateSessionTitle(input: string): string {
-    if (input.length <= SESSION_TITLE_MAX_CHARS) return input
-    return `${input.slice(0, SESSION_TITLE_MAX_CHARS - 3).trimEnd()}...`
-}
-
-export function normalizeSessionTitle(raw: string): string {
-    const compact = raw
-        .replace(/<\s*(think|thinking)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, ' ')
-        .replace(/<\s*\/?\s*(think|thinking)\b[^>]*>/gi, ' ')
-        .replace(/\r?\n+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-    if (!compact) return ''
-    const unprefixed = compact.replace(/^(title|session title|标题)\s*[:：-]\s*/i, '').trim()
-    if (!unprefixed) return ''
-    const unquoted = unprefixed.replace(/^["'`“”‘’]+|["'`“”‘’]+$/g, '').trim()
-    if (!unquoted) return ''
-    return truncateSessionTitle(unquoted)
-}
-
-export function fallbackSessionTitleFromPrompt(input: string): string {
-    const compact = input.replace(/\s+/g, ' ').trim()
-    if (!compact) return 'New Session'
-
-    // Keep short CJK/non-space prompts readable.
-    if (!compact.includes(' ')) {
-        return compact.length <= 20 ? compact : `${compact.slice(0, 20).trimEnd()}...`
-    }
-
-    const words = compact.split(' ').filter(Boolean)
-    const short = words.slice(0, 8).join(' ')
-    return truncateSessionTitle(short || compact)
-}
-
-// Stable serialization for duplicate action detection (ensures consistent key ordering)
-export function stableStringify(value: unknown): string {
-    return stableStringifyWithSeen(value, new WeakSet<object>(), 0)
-}
-
-const MAX_STABLE_STRINGIFY_DEPTH = 100
-
-function stableStringifyWithSeen(value: unknown, seen: WeakSet<object>, depth: number): string {
-    if (depth > MAX_STABLE_STRINGIFY_DEPTH) {
-        return JSON.stringify('[MaxDepthExceeded]')
-    }
-    if (typeof value === 'bigint') {
-        return JSON.stringify(value.toString())
-    }
-    if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
-    if (seen.has(value)) {
-        return JSON.stringify('[Circular]')
-    }
-
-    seen.add(value)
-    if (Array.isArray(value)) {
-        const result = `[${value.map((v) => stableStringifyWithSeen(v, seen, depth + 1)).join(',')}]`
-        seen.delete(value)
-        return result
-    }
-    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b))
-    const result = `{${entries
-        .map(([k, v]) => `${JSON.stringify(k)}:${stableStringifyWithSeen(v, seen, depth + 1)}`)
-        .join(',')}}`
-    seen.delete(value)
-    return result
 }

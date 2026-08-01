@@ -4,14 +4,13 @@
  * 1. 管理内置工具（NativeToolRegistry）
  * 2. 管理外部 MCP 工具（McpToolRegistry）
  * 3. 提供统一的工具查询和执行接口
- * 4. 生成工具描述（用于 Prompt）
  */
-import type { MemoToolOutput, Tool, ToolRegistry, MCPServerConfig, ToolDescription } from './types'
+import type { MemoToolOutput, Tool, ToolRegistry, MCPServerConfig } from './types'
 import { NativeToolRegistry } from './native'
 import { McpToolRegistry } from './mcp'
 import type { McpOAuthSettings } from './mcp/oauth'
 
-export type { Tool, ToolRegistry, MCPServerConfig, ToolDescription, NativeTool, McpTool } from './types'
+export type { Tool, ToolRegistry, MCPServerConfig, NativeTool, McpTool } from './types'
 export { NativeToolRegistry, McpToolRegistry }
 export type { McpOAuthSettings } from './mcp/oauth'
 
@@ -94,102 +93,6 @@ export class ToolRouter {
             throw new Error(`Tool '${name}' not found`)
         }
         return tool.execute(input)
-    }
-
-    // ==================== Prompt 生成 ====================
-
-    /**
-     * 生成 Tool Use API 格式的工具定义列表
-     * @returns 工具定义数组，用于传递给 LLM API
-     */
-
-    /**
-     * 生成工具描述文本，用于注入到系统 Prompt
-     * @returns 格式化的工具描述
-     */
-    generateToolDescriptions(): string {
-        const tools = this.getAllTools()
-        if (tools.length === 0) {
-            return ''
-        }
-
-        const lines: string[] = []
-        lines.push('## Available Tools')
-        lines.push('')
-
-        // 分组：内置工具和 MCP 工具
-        const nativeTools = tools.filter((t) => t.source === 'native')
-        const mcpTools = tools.filter((t) => t.source === 'mcp')
-
-        // 内置工具
-        if (nativeTools.length > 0) {
-            lines.push('### Built-in Tools')
-            lines.push('')
-            for (const tool of nativeTools) {
-                lines.push(this.formatToolDescription(tool))
-            }
-            lines.push('')
-        }
-
-        // MCP tools
-        if (mcpTools.length > 0) {
-            lines.push('### External MCP Tools')
-            lines.push('')
-
-            // Group by server
-            const grouped = this.groupByServer(mcpTools)
-            for (const [serverName, serverTools] of Object.entries(grouped)) {
-                lines.push(`**Server: ${serverName}**`)
-                lines.push('')
-                for (const tool of serverTools) {
-                    lines.push(this.formatToolDescription(tool))
-                }
-                lines.push('')
-            }
-        }
-
-        return lines.join('\n')
-    }
-
-    /** Format single tool description */
-    private formatToolDescription(tool: Tool): string {
-        const lines: string[] = []
-        lines.push(`#### ${tool.name}`)
-        lines.push(`- **Description**: ${tool.description}`)
-
-        if (tool.inputSchema && Object.keys(tool.inputSchema).length > 0) {
-            lines.push(`- **Input Schema**: ${JSON.stringify(tool.inputSchema)}`)
-        }
-
-        return lines.join('\n')
-    }
-
-    /** Group MCP tools by server */
-    private groupByServer(tools: Tool[]): Record<string, Tool[]> {
-        const grouped: Record<string, Tool[]> = {}
-        for (const tool of tools) {
-            if (tool.source === 'mcp') {
-                const serverName = (tool as import('./types').McpTool).serverName
-                if (!grouped[serverName]) {
-                    grouped[serverName] = []
-                }
-                grouped[serverName].push(tool)
-            }
-        }
-        return grouped
-    }
-
-    /**
-     * 获取工具描述列表（结构化数据）
-     */
-    getToolDescriptions(): ToolDescription[] {
-        return this.getAllTools().map((tool) => ({
-            name: tool.name,
-            description: tool.description,
-            source: tool.source,
-            serverName: tool.source === 'mcp' ? (tool as import('./types').McpTool).serverName : undefined,
-            inputSchema: tool.inputSchema,
-        }))
     }
 
     // ==================== 生命周期 ====================

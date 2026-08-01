@@ -6,7 +6,7 @@ import type { MemoToolOutput, Tool, ToolRegistry } from '@memo/core/tools/router
 import type { ApprovalManager } from '@memo/core/tools/approval'
 import type { ToolApprovalHooks } from '@memo/core/tools/orchestrator'
 import { getMaxToolResultChars } from '@memo/core/tools/runtime/tool_output_limits'
-import type { StepGate } from './step_gate'
+import type { StepGate } from '@memo/core/tools/runtime/step_gate'
 
 const TOOL_SKIPPED_AFTER_REJECTION_MESSAGE = 'Skipped tool execution after previous rejection.'
 const TOOL_SKIPPED_DISABLED_MESSAGE = 'Tool execution skipped: tools are disabled in current permission mode.'
@@ -47,7 +47,7 @@ async function executeToolCall(
     ctx: ToolExecutionContext,
     sdkOptions: ToolExecutionOptions,
 ): Promise<MemoToolOutput> {
-    if (ctx.toolsDisabled) return { type: 'text', value: TOOL_SKIPPED_DISABLED_MESSAGE }
+    if (ctx.toolsDisabled) return { type: 'skipped', reason: TOOL_SKIPPED_DISABLED_MESSAGE }
 
     const exclusive = tool.isMutating === true || tool.supportsParallelToolCalls === false
     const permit = await ctx.gate.acquire(exclusive)

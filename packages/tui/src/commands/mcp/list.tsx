@@ -2,9 +2,9 @@ import React, { useEffect } from 'react'
 import zod from 'zod'
 import { option } from 'pastel'
 import { loadMemoConfig } from '@memo/core'
-import { getMcpAuthStatus } from '@memo/core/tools/router/mcp/oauth'
+import { getMcpAuthStatus } from '@memo/core'
 import { formatServer, oauthSettingsFromLoaded } from '../../features/mcp/mcpHelpers'
-import type { McpAuthStatus } from '@memo/core/tools/router/mcp/oauth'
+import type { McpAuthStatus } from '@memo/core'
 
 export const options = zod.object({
     json: zod

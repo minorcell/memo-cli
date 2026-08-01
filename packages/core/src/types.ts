@@ -2,7 +2,7 @@
 import type { FinishReason, LanguageModelUsage, ModelMessage, ToolCallPart, ToolResultPart } from 'ai'
 import type { ApprovalRequest, ApprovalDecision } from '@memo/core/tools/approval'
 import type { ToolActionStatus } from '@memo/core/tools/orchestrator'
-import type { ToolExecutionContext } from '@memo/core/agent/sdk_tools'
+import type { ToolExecutionContext } from '@memo/core/tools/sdk_tools'
 export type { ApprovalDecision, ApprovalRequest } from '@memo/core/tools/approval'
 export type { ToolActionStatus } from '@memo/core/tools/orchestrator'
 export type { FinishReason, LanguageModelUsage } from 'ai'

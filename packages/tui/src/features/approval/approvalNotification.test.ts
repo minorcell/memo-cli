@@ -1,4 +1,4 @@
-import type { ApprovalRequest } from '@memo/core/tools/approval'
+import type { ApprovalRequest } from '@memo/core'
 import { describe, expect, test, vi } from 'vitest'
 import { buildDesktopNotificationCommand, notifyApprovalRequested } from './approvalNotification'
 

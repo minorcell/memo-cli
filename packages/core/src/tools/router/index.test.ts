@@ -154,44 +154,6 @@ describe('ToolRouter', () => {
         expect(result).toEqual({ type: 'text', value: '{"test":true}' })
     })
 
-    test('generateToolDescriptions returns empty for no tools', () => {
-        const router = new ToolRouter()
-        expect(router.generateToolDescriptions()).toBe('')
-    })
-
-    test('generateToolDescriptions includes native tools', () => {
-        const router = new ToolRouter()
-        router.registerNativeTool({
-            name: 'my_tool',
-            description: 'My tool description',
-            source: 'native',
-            inputSchema: { type: 'object' },
-            execute: async () => ({ type: 'text', value: '' }),
-        })
-
-        const desc = router.generateToolDescriptions()
-        expect(desc).toContain('## Available Tools')
-        expect(desc).toContain('### Built-in Tools')
-        expect(desc).toContain('my_tool')
-        expect(desc).toContain('My tool description')
-    })
-
-    test('getToolDescriptions returns structured data', () => {
-        const router = new ToolRouter()
-        router.registerNativeTool({
-            name: 'test',
-            description: 'Test',
-            source: 'native',
-            inputSchema: { type: 'object' },
-            execute: async () => ({ type: 'text', value: '' }),
-        })
-
-        const descs = router.getToolDescriptions()
-        expect(descs.length).toBeGreaterThan(0)
-        expect(descs[0].name).toBe('test')
-        expect(descs[0].source).toBe('native')
-    })
-
     test('createToolRouter registers native tools', async () => {
         const router = await createToolRouter({
             nativeTools: [

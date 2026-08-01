@@ -201,4 +201,36 @@ describe('streamCallLLM', () => {
         expect(params.abortSignal).toBe(signal)
         expect(params.providerOptions).toEqual({ mock: { parallel_tool_calls: true } })
     })
+
+    test('skips tool execution with a typed skipped output when tools are disabled', async () => {
+        const signal = new AbortController().signal
+        state.parts = []
+        const registry = {
+            echo: {
+                name: 'echo',
+                description: 'echo',
+                source: 'native' as const,
+                inputSchema: { type: 'object' },
+                execute: async () => ({ type: 'text' as const, value: 'must not run' }),
+            },
+        }
+        const toolContext = {
+            approvalManager: { check: () => ({ needApproval: false as const, decision: 'auto-execute' as const }) },
+            approvalHooks: {},
+            toolsDisabled: true,
+            onRepeatedAction: () => {},
+            gate: { acquire: async () => ({ skipped: false as const, release: () => {} }), markDenied: () => {} },
+        }
+        await streamCallLLM(
+            baseParams({
+                signal,
+                tools: registry,
+                toolContext,
+            }),
+        )
+
+        const params = state.streamTextParams[0] as { tools?: Record<string, { execute: () => Promise<unknown> }> }
+        const output = await params.tools?.echo.execute({})
+        expect(output).toMatchObject({ type: 'skipped', reason: 'Tool execution skipped: tools are disabled in current permission mode.' })
+    })
 })

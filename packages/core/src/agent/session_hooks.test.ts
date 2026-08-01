@@ -6,7 +6,7 @@ import type { ChatMessage, HistoryEvent, LLMResult, TokenCounter } from '@memo/c
 import type { ToolResultPart } from 'ai'
 import type { Tool } from '@memo/core/tools/router'
 import { CONTEXT_COMPACTION_SYSTEM_PROMPT, CONTEXT_SUMMARY_PREFIX } from '@memo/core/agent/compact_prompt'
-import { emptyUsage } from '@memo/core/agent/loop'
+import { emptyUsage } from '@memo/core/utils/usage'
 
 const echoTool: Tool = {
     name: 'echo',
@@ -50,7 +50,7 @@ function mockToolResult(id: string, name: string, input: unknown, opts: MockTool
             type: 'tool-result',
             toolCallId: id,
             toolName: name,
-            output: { type: 'text', value: TOOL_SKIPPED_DISABLED_TEXT },
+            output: { type: 'skipped', reason: TOOL_SKIPPED_DISABLED_TEXT },
         }
     }
     if (opts.skipped) {
@@ -138,7 +138,12 @@ function toolMessageDetails(message: ChatMessage): { toolCallId: string; toolNam
     return {
         toolCallId: part.toolCallId,
         toolName: part.toolName,
-        text: part.output.type === 'text' ? part.output.value : '',
+        text:
+            part.output.type === 'text'
+                ? part.output.value
+                : part.output.type === 'skipped'
+                  ? (part.output.reason ?? '')
+                  : '',
     }
 }
 
@@ -762,8 +767,9 @@ describe('session hooks & middleware', () => {
             },
         )
         try {
-            const result = await session.runTurn('auto compact please '.repeat(20))
-            assert.strictEqual(result.status, 'prompt_limit')
+            const result = await session.runTurn('auto compact please '.repeat(30))
+            assert.strictEqual(result.status, 'ok')
+            assert.strictEqual(result.finalText, 'done')
             assert.strictEqual(autoCompactionCalls, 1)
         } finally {
             await session.close()
@@ -803,8 +809,8 @@ describe('session hooks & middleware', () => {
         )
 
         try {
-            const runResult = await session.runTurn('trigger auto compaction '.repeat(20))
-            assert.strictEqual(runResult.status, 'prompt_limit')
+            const runResult = await session.runTurn('trigger auto compaction '.repeat(25))
+            assert.strictEqual(runResult.status, 'ok')
 
             const manualResult = await session.compactHistory('manual')
             assert.strictEqual(manualResult.status, 'success')

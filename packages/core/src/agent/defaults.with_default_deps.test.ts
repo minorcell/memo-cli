@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { AgentSessionDeps, AgentSessionOptions, ChatMessage, LLMResult, ToolRegistry } from '@memo/core/types'
 import type { MCPServerConfig } from '@memo/core/config/config'
 import type { AIProviderFactory } from '@memo/core/llm/ai_provider'
-import { emptyUsage } from '@memo/core/agent/loop'
+import { emptyUsage } from '@memo/core/utils/usage'
 import type { Tool } from '@memo/core/tools/router'
 
 const state = vi.hoisted(() => ({
@@ -34,7 +34,6 @@ const state = vi.hoisted(() => ({
     },
     sessionsDir: '/tmp/memo-sessions',
     sessionPath: '/tmp/memo-sessions/session-1.jsonl',
-    toolDescriptions: '## Tools\n- mock_tool',
     toolDefinitions: [{ type: 'function', function: { name: 'mock_tool', parameters: {} } }],
     registry: {
         mock_tool: {
@@ -144,10 +143,6 @@ vi.mock('@memo/core/tools/router', () => ({
             return state.registry
         }
 
-        generateToolDescriptions() {
-            return state.toolDescriptions
-        }
-
         generateToolDefinitions() {
             return state.toolDefinitions
         }
@@ -166,7 +161,6 @@ describe('withDefaultDeps (default path)', () => {
         state.historySinkPaths = []
         state.routerDisposed = 0
         state.createTokenCounterCalls = []
-        state.toolDescriptions = '## Tools\n- mock_tool'
         state.promptText = 'SYSTEM_PROMPT'
         state.streamCalls = []
         state.factoryLookups = []
@@ -188,7 +182,35 @@ describe('withDefaultDeps (default path)', () => {
         delete process.env.DEEPSEEK_API_KEY
     })
 
-    test('builds default deps with injected tool descriptions and default sinks', async () => {
+    test('passes user custom tools through with full definition (schema/isMutating/parallel flags)', async () => {
+        const { withDefaultDeps } = await import('@memo/core/agent/defaults')
+        const customTool: Tool = {
+            name: 'my_tool',
+            description: 'custom tool',
+            source: 'native',
+            inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'] },
+            isMutating: true,
+            supportsParallelToolCalls: false,
+            execute: async () => ({ type: 'text', value: 'done' }),
+        }
+
+        await withDefaultDeps(
+            { tools: { my_tool: customTool } } as AgentSessionDeps,
+            {} as AgentSessionOptions,
+            'session-custom',
+        )
+
+        expect(state.registerNativeToolCalls).toHaveLength(1)
+        const registered = state.registerNativeToolCalls[0] as Tool
+        expect(registered.name).toBe('my_tool')
+        expect(registered.inputSchema).toEqual(customTool.inputSchema)
+        expect(registered.isMutating).toBe(true)
+        expect(registered.supportsParallelToolCalls).toBe(false)
+        expect(registered.source).toBe('native')
+        expect(registered.execute).toBe(customTool.execute)
+    })
+
+    test('builds default deps with default sinks and prompt without tool description injection', async () => {
         const { withDefaultDeps } = await import('@memo/core/agent/defaults')
 
         const resolved = await withDefaultDeps({}, {} as AgentSessionOptions, 'session-1')
@@ -199,8 +221,7 @@ describe('withDefaultDeps (default path)', () => {
         expect(resolved.historyFilePath).toBe(state.sessionPath)
 
         const prompt = await resolved.loadPrompt()
-        expect(prompt).toContain('SYSTEM_PROMPT')
-        expect(prompt).toContain('## Tools\n- mock_tool')
+        expect(prompt).toBe('SYSTEM_PROMPT')
     })
 
     test('respects provided deps overrides (callLLM/historySinks/tokenCounter/loadPrompt/dispose)', async () => {

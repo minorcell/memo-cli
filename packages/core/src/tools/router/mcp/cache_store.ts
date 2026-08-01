@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { stableStringify } from '@memo/core/utils/serialize'
 import type { MCPServerConfig } from '../types'
 
 const CACHE_FILE_NAME = 'mcp.json'
@@ -67,20 +68,6 @@ function resolveMemoHomeDir(): string {
 
 function getCacheFilePath(): string {
     return join(resolveMemoHomeDir(), 'cache', CACHE_FILE_NAME)
-}
-
-function stableStringify(value: unknown): string {
-    if (value === null || typeof value !== 'object') {
-        return JSON.stringify(value)
-    }
-
-    if (Array.isArray(value)) {
-        return `[${value.map((item) => stableStringify(item)).join(',')}]`
-    }
-
-    const object = value as Record<string, unknown>
-    const keys = Object.keys(object).sort()
-    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(object[key])}`).join(',')}}`
 }
 
 function configHash(config: MCPServerConfig): string {
