@@ -14,6 +14,15 @@ import {
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import type { MCPServerConfig } from '../types'
 
+function escapeHtml(text: string): string {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
+
 const OAUTH_FILE_VERSION = 1
 const OAUTH_FILE_NAME = 'mcp-oauth.json'
 const OAUTH_CALLBACK_TIMEOUT_MS = 300_000
@@ -271,7 +280,14 @@ function browserCommand(url: string): { command: string; args: string[] } {
         return { command: 'open', args: [url] }
     }
     if (process.platform === 'win32') {
-        return { command: 'cmd', args: ['/c', 'start', '', url] }
+        // `cmd /c start` parses URL metacharacters (`&`, `|`) as command separators.
+        // PowerShell's Start-Process treats the URL as a single data argument, but a
+        // quote could still break out of the quoted argument, so reject URLs
+        // containing one (valid URLs percent-encode quotes anyway).
+        if (/["']/.test(url)) {
+            throw new Error(`Refusing to open URL containing a quote character: ${url}`)
+        }
+        return { command: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', `Start-Process '${url}'`] }
     }
     return { command: 'xdg-open', args: [url] }
 }
@@ -631,7 +647,7 @@ async function createCallbackServer(callbackPort: number | undefined, timeoutMs:
 
         const message = errorDescription ?? error ?? 'OAuth callback missing code.'
         res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' })
-        res.end(`<html><body><h1>Authentication failed.</h1><p>${message}</p></body></html>`)
+        res.end(`<html><body><h1>Authentication failed.</h1><p>${escapeHtml(message)}</p></body></html>`)
         rejectCode?.(new Error(message))
     })
 

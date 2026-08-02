@@ -8,6 +8,7 @@ const DEFAULT_EXEC_YIELD_TIME_MS = 10_000
 const DEFAULT_WRITE_YIELD_TIME_MS = 250
 const DEFAULT_MAX_OUTPUT_TOKENS = 2_000
 const MAX_SESSIONS = 64
+const MAX_SESSION_OUTPUT_BYTES = 16 * 1024 * 1024
 
 type StartExecRequest = {
     cmd: string
@@ -36,6 +37,7 @@ type SessionState = {
     pendingStdinInput: string
     startedAtMs: number
     exited: boolean
+    outputTruncated: boolean
     exitCode: number | null
     eventBus: EventEmitter
     proc: ReturnType<typeof spawn>
@@ -268,15 +270,22 @@ class UnifiedExecManager {
             pendingStdinInput: '',
             startedAtMs,
             exited: false,
+            outputTruncated: false,
             exitCode: null,
             eventBus: new EventEmitter(),
             proc,
         }
 
         const append = (prefix: string, chunk: Buffer | string) => {
+            if (session.outputTruncated) return
             const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8')
             session.output += prefix ? `${prefix}${text}` : text
             session.eventBus.emit('output')
+            if (session.output.length > MAX_SESSION_OUTPUT_BYTES) {
+                session.outputTruncated = true
+                session.output += '\n\n[exec output truncated: exceeded 16 MiB; process terminated]\n'
+                void this.terminateForTimeout(session)
+            }
         }
 
         proc.stdout?.on('data', (chunk) => append('', chunk))
@@ -357,6 +366,12 @@ class UnifiedExecManager {
         const delta = session.output.slice(session.readOffset)
         const truncated = truncateByTokens(delta, maxOutputTokens)
         session.readOffset += truncated.deliveredChars
+
+        // A completed session never produces more output; once everything has been
+        // delivered, drop the buffer so idle sessions don't pin memory.
+        if (session.exited && session.readOffset >= session.output.length) {
+            session.output = ''
+        }
 
         const payload: SessionResponse = {
             sessionId: session.id,

@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach, afterEach } from 'vitest'
-import { unlink, readFile } from 'node:fs/promises'
+import { unlink, readFile, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -38,6 +38,14 @@ describe('JsonlHistorySink', () => {
         const parsed = JSON.parse(firstLine) as unknown as { sessionId: string; type: string }
         expect(parsed.sessionId === 'test-session').toBe(true)
         expect(parsed.type === 'session_start').toBe(true)
+    })
+
+    test('writes session file with owner-only permissions', async () => {
+        const sink = new JsonlHistorySink(filePath)
+        await sink.append(createHistoryEvent({ sessionId: 'test-session', type: 'session_start' }))
+
+        const mode = (await stat(filePath)).mode & 0o777
+        expect(mode).toBe(0o600)
     })
 
     test('creates parent directory if not exists', async () => {

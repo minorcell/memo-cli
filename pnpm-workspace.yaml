@@ -3,3 +3,5 @@ packages:
 allowBuilds:
     esbuild: true
     msw: true
+overrides:
+    micromatch>picomatch: ^2.3.2

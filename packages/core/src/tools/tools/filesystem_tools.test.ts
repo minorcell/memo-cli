@@ -2,7 +2,7 @@ import assert from 'node:assert'
 import type { Tool, ToolExecutionOptions } from 'ai'
 import type { ToolResultOutput } from '@ai-sdk/provider-utils'
 import type { ToolOutput } from '@memo/core/tools/tools/mcp'
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, open, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, test } from 'vitest'
@@ -92,6 +92,29 @@ describe('filesystem tools', () => {
         assert.strictEqual(payload.type, 'image')
         assert.strictEqual(payload.mimeType, 'image/png')
         assert.ok(payload.data.length > 0)
+    })
+
+    test('read_text_file rejects files over the size cap', async () => {
+        const filePath = join(rootDir, 'big.txt')
+        const handle = await open(filePath, 'w')
+        // Sparse file: logical size exceeds the 50 MiB cap without using disk.
+        await handle.truncate(51 * 1024 * 1024)
+        await handle.close()
+
+        const result = await runTool(readTextFileTool, { path: filePath })
+        assert.strictEqual(result.type, 'error-text')
+        assert.ok(textPayload(result).includes('File too large to read'))
+    })
+
+    test('read_media_file rejects files over the size cap', async () => {
+        const filePath = join(rootDir, 'big.png')
+        const handle = await open(filePath, 'w')
+        await handle.truncate(11 * 1024 * 1024)
+        await handle.close()
+
+        const result = await runTool(readMediaFileTool, { path: filePath })
+        assert.strictEqual(result.type, 'error-text')
+        assert.ok(textPayload(result).includes('file too large'))
     })
 
     test('read_files keeps order and does not stop on single file failure', async () => {
