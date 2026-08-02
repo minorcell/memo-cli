@@ -26,9 +26,9 @@
                     "title": "终端原生",
                     "description": "在你常用的终端环境中工作，直接集成到你的终端工作流中。"
                 },
-                "webConsole": {
-                    "title": "Web 控制台",
-                    "description": "在浏览器中管理多 workspace 项目与并发实时会话。"
+                "liveReasoning": {
+                    "title": "实时推理",
+                    "description": "思考过程、计划进度与工具输出实时流入会话时间线。"
                 },
                 "builtInTools": {
                     "title": "内置丰富工具",
@@ -44,7 +44,7 @@
                 },
                 "skills": {
                     "title": "Skills",
-                    "description": "使用基于 Markdown 的 skills，并在 CLI 与 Web 中控制激活状态。"
+                    "description": "基于 Markdown 的技能，自动发现、去重并按需激活。"
                 }
             }
         },

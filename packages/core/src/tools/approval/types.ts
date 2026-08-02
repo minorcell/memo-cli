@@ -31,6 +31,9 @@ export interface ApprovalRequest {
     fingerprint: ApprovalKey
     riskLevel: RiskLevel
     reason: string
+    sessionId?: string
+    agentId?: string
+    agentPath?: string
 }
 
 /** Approval manager configuration */

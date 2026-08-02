@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { SiteHeader } from '@/components/site-header'
 import { MemoHeroRemotion } from '@/components/memo-hero-remotion'
 import { MemoArchitectureDiagram } from '@/components/memo-architecture-remotion'
-import { ArrowRight, Terminal, Cpu, Shield, GitBranch, Layers, Zap } from 'lucide-react'
+import { ArrowRight, Terminal, Cpu, Shield, GitBranch, Sparkles, Zap } from 'lucide-react'
 import Link from 'next/link'
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? ''
@@ -36,9 +36,9 @@ export function HomeClient({
             descKey: 'home.features.items.terminalNative.description',
         },
         {
-            icon: Layers,
-            titleKey: 'home.features.items.webConsole.title',
-            descKey: 'home.features.items.webConsole.description',
+            icon: Sparkles,
+            titleKey: 'home.features.items.liveReasoning.title',
+            descKey: 'home.features.items.liveReasoning.description',
         },
         {
             icon: Shield,

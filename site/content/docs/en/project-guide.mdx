@@ -1,0 +1,84 @@
+---
+title: 'Project Guide (AGENTS.md)'
+description: 'Configure project conventions and workflows with AGENTS.md.'
+order: 12
+category: 'Core Features'
+---
+
+# Project Guide (AGENTS.md)
+
+AGENTS.md is a plain Markdown file that carries project-level instructions: structure, conventions, and workflows. Memo reads it automatically so that any agent working in the repository follows the same rules.
+
+## Where AGENTS.md Lives
+
+AGENTS.md files may exist anywhere in the repository:
+
+- Project root (for example `<project-root>/AGENTS.md`)
+- Any subdirectory — each AGENTS.md applies to the entire directory tree rooted at the folder that contains it
+
+Memo automatically detects and loads AGENTS.md at startup:
+
+- For every file you touch, Memo obeys instructions in any AGENTS.md whose scope includes that file.
+- More-deeply-nested AGENTS.md files take precedence on conflict.
+- The AGENTS.md at the repo root is included in the prompt — no need to re-read it.
+
+## What to Put In It
+
+AGENTS.md is a good place for:
+
+- **Project Structure**: directory organization, important file locations
+- **Tech Stack**: main frameworks, libraries, tool versions
+- **Development Workflow**: build, test, deploy commands
+- **Code Conventions**: naming, file organization, style guides
+- **Security Notes**: sensitive files, environment variable handling
+- **Known Issues**: common pitfalls and their solutions
+
+Keep it concise and focused on information unique to the project — avoid repeating what is already in `package.json` or the README.
+
+## Auto-Generation
+
+Use the `/init` slash command inside a session, or run the CLI command:
+
+```bash
+memo init
+```
+
+Memo analyzes the current project and generates an `AGENTS.md` containing tech stack, commands, and conventions.
+
+`memo init` is idempotent like `git init`:
+
+- if `AGENTS.md` already exists, it is never touched — Memo skips with a message
+- delete the file first if you want to regenerate it
+
+## Maintenance Responsibility
+
+**Important**: if you modify anything mentioned in AGENTS.md, update it as well:
+
+- add/remove important directories
+- change build/test commands
+- update tech stack
+- modify code conventions
+
+## Context Loading Order
+
+Memo builds the system prompt in this order:
+
+1. Base system prompt
+2. **AGENTS.md** (project guide layer)
+3. Skills (if any)
+
+This means:
+
+- AGENTS.md guidance applies to all work in its scope
+- explicit user instructions in the current turn have the highest priority
+- neither AGENTS.md nor skills can override safety rules and tool policies
+
+## Persistent Preferences
+
+For user-level preferences that should persist across projects, see the [Memory System](./memory.md) (`get_memory` reads `~/.memo/Agents.md`).
+
+## Related
+
+- [Memory System](./memory.md): persistent user preferences
+- [Configuration](./configuration.md): config.toml details
+- [Skills System](./skills.md): domain-specific expertise

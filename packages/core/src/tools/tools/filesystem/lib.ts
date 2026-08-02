@@ -25,6 +25,8 @@ interface FileEdit {
     newText: string
 }
 
+const MAX_FILE_READ_BYTES = 50 * 1024 * 1024
+
 export function formatSize(bytes: number): string {
     const units = ['B', 'KB', 'MB', 'GB', 'TB']
     if (bytes === 0) return '0 B'
@@ -127,6 +129,13 @@ export async function getFileStats(filePath: string): Promise<FileInfo> {
 }
 
 export async function readFileContent(filePath: string, encoding: BufferEncoding = 'utf-8'): Promise<string> {
+    const stats = await fs.stat(filePath)
+    if (stats.isFile() && stats.size > MAX_FILE_READ_BYTES) {
+        throw new Error(
+            `File too large to read (${formatSize(stats.size)} > ${formatSize(MAX_FILE_READ_BYTES)}). ` +
+                `Use the head/tail options of read_text_file instead.`,
+        )
+    }
     return await fs.readFile(filePath, encoding)
 }
 
@@ -155,7 +164,7 @@ export async function writeFileContent(filePath: string, content: string): Promi
 }
 
 export async function applyFileEdits(filePath: string, edits: FileEdit[], dryRun = false): Promise<string> {
-    const content = normalizeLineEndings(await fs.readFile(filePath, 'utf-8'))
+    const content = normalizeLineEndings(await readFileContent(filePath, 'utf-8'))
 
     let modifiedContent = content
     for (const edit of edits) {

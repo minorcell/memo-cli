@@ -21,13 +21,24 @@ describe('parseHistoryLog', () => {
                     cwd: '/tmp/demo',
                     providerName: 'deepseek',
                     modelName: 'deepseek-chat',
-                    contextWindow: 64000,
                     toolPermissionMode: 'once',
                     thinking: true,
                 },
             }),
             line({ type: 'turn_start', turn: 1, content: 'plan this task' }),
             line({ type: 'assistant', turn: 1, step: 0, content: 'thinking...' }),
+            line({
+                type: 'agent_status',
+                content: 'review complete',
+                meta: {
+                    agent_id: 'agent-1',
+                    agent_path: '/root/review',
+                    task_name: 'review',
+                    status: 'completed',
+                    context_percent: 12.5,
+                    updated_at: '2026-01-01T00:00:00.000Z',
+                },
+            }),
             line({
                 type: 'action',
                 turn: 1,
@@ -56,7 +67,6 @@ describe('parseHistoryLog', () => {
         const parsed = parseHistoryLog(raw)
         assert.strictEqual(parsed.providerName, 'deepseek')
         assert.strictEqual(parsed.modelName, 'deepseek-chat')
-        assert.strictEqual(parsed.contextWindow, 64000)
         assert.strictEqual(parsed.toolPermissionMode, 'once')
         assert.strictEqual(parsed.thinking, true)
         assert.strictEqual(parsed.messages.length, 2)
@@ -82,6 +92,17 @@ describe('parseHistoryLog', () => {
                 tool: 'read_file',
                 observation: 'loaded',
                 status: TOOL_STATUS.SUCCESS,
+            },
+        ])
+        assert.deepStrictEqual(parsed.agents, [
+            {
+                agentId: 'agent-1',
+                agentPath: '/root/review',
+                taskName: 'review',
+                status: 'completed',
+                contextPercent: 12.5,
+                lastMessage: 'review complete',
+                updatedAt: '2026-01-01T00:00:00.000Z',
             },
         ])
     })

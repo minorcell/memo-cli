@@ -1,572 +1,199 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { z } from 'zod'
-import { tool } from 'ai'
+import { tool, type ToolExecutionOptions } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
-import { getRuntimeCwd } from '@memo/core/tools/runtime/context'
-
-type AgentStatus = 'running' | 'completed' | 'errored' | 'closed'
-type WaitStatus = AgentStatus | 'not_found'
-type WaitDetail = {
-    status: WaitStatus
-    last_message: string | null
-    last_output: string | null
-    last_error: string | null
-    last_submission_id: string | null
-    updated_at: string | null
-}
-
-type RunningSubmission = {
-    id: string
-    message: string
-    process: ChildProcessWithoutNullStreams
-    startedAt: string
-    interrupted: boolean
-}
-
-type AgentRecord = {
-    id: string
-    createdAt: string
-    updatedAt: string
-    status: AgentStatus
-    statusBeforeClose: AgentStatus
-    lastMessage: string
-    lastSubmissionId: string | null
-    lastOutput: string | null
-    lastError: string | null
-    running: RunningSubmission | null
-}
+import type { ToolExecutionContext } from '@memo/core/tools/sdk_tools'
+import type { CollabSessionBinding } from '@memo/core/agent/control'
 
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000
 const MIN_WAIT_TIMEOUT_MS = 10_000
 const MAX_WAIT_TIMEOUT_MS = 300_000
-const DEFAULT_MAX_AGENTS = 4
-const TERMINATE_GRACE_MS = 1_500
-const MAX_OUTPUT_PREVIEW_CHARS = 2_000
-
-const agents = new Map<string, AgentRecord>()
 
 const SPAWN_AGENT_INPUT_SCHEMA = z
     .object({
         message: z.string().min(1),
+        task_name: z.string().min(1),
         agent_type: z.string().optional(),
+        fork_turns: z.string().optional(),
     })
     .strict()
 
-const SEND_INPUT_INPUT_SCHEMA = z
+const MESSAGE_INPUT_SCHEMA = z
     .object({
-        id: z.string().min(1),
+        target: z.string().min(1),
         message: z.string().min(1),
-        interrupt: z.boolean().optional(),
     })
     .strict()
 
-const RESUME_AGENT_INPUT_SCHEMA = z
+const WAIT_AGENT_INPUT_SCHEMA = z
     .object({
-        id: z.string().min(1),
-    })
-    .strict()
-
-const WAIT_INPUT_SCHEMA = z
-    .object({
-        ids: z.array(z.string().min(1)).min(1),
         timeout_ms: z.number().int().positive().optional(),
     })
     .strict()
 
-const CLOSE_AGENT_INPUT_SCHEMA = z
+const TARGET_INPUT_SCHEMA = z
     .object({
-        id: z.string().min(1),
+        target: z.string().min(1),
     })
     .strict()
 
-function nowIso() {
-    return new Date().toISOString()
-}
-
-function buildMissingAgentError(id: string) {
-    return textResult(`agent not found: ${id}`, true)
-}
-
-function parseMaxAgents() {
-    const raw = process.env.MEMO_SUBAGENT_MAX_AGENTS?.trim()
-    if (!raw) return DEFAULT_MAX_AGENTS
-    const parsed = Number(raw)
-    if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_AGENTS
-    return Math.floor(parsed)
-}
-
-function runningAgentCount() {
-    let count = 0
-    for (const record of agents.values()) {
-        if (record.running) count += 1
-    }
-    return count
-}
-
-function resolveSubagentCommand() {
-    const explicit = process.env.MEMO_SUBAGENT_COMMAND?.trim()
-    if (explicit) return explicit
-
-    const distEntry = resolve(getRuntimeCwd(), 'dist/index.js')
-    if (existsSync(distEntry)) {
-        return `node ${JSON.stringify(distEntry)} --dangerous`
-    }
-
-    return 'memo --dangerous'
-}
-
-function isFinalStatus(status: WaitStatus) {
-    return status !== 'running'
-}
-
-function sleep(ms: number) {
-    return new Promise<void>((resolve) => {
-        setTimeout(resolve, ms)
+const LIST_AGENTS_INPUT_SCHEMA = z
+    .object({
+        path_prefix: z.string().min(1).optional(),
     })
+    .strict()
+
+function collabBinding(options: ToolExecutionOptions): CollabSessionBinding {
+    const context = options.experimental_context as ToolExecutionContext | undefined
+    if (!context?.collab) throw new Error('collaboration tools require an active agent session')
+    return context.collab
 }
 
-function clampWaitTimeout(raw?: number): number | null {
-    if (raw === undefined) return DEFAULT_WAIT_TIMEOUT_MS
-    if (raw <= 0) return null
-    return Math.max(MIN_WAIT_TIMEOUT_MS, Math.min(MAX_WAIT_TIMEOUT_MS, raw))
-}
-
-function truncateOutput(text: string) {
-    if (text.length <= MAX_OUTPUT_PREVIEW_CHARS) return text
-    return `${text.slice(0, MAX_OUTPUT_PREVIEW_CHARS)}\n...[truncated]`
-}
-
-function compactOutput(stdout: string, stderr: string) {
-    const pieces: string[] = []
-    const out = stdout.trim()
-    const err = stderr.trim()
-    if (out) pieces.push(out)
-    if (err) pieces.push(`stderr:\n${err}`)
-    return truncateOutput(pieces.join('\n\n'))
-}
-
-async function terminateRunningSubmission(record: AgentRecord) {
-    const running = record.running
-    if (!running) return
-    running.interrupted = true
-    const proc = running.process
-
-    if (proc.exitCode !== null || proc.killed) return
-
-    await new Promise<void>((resolve) => {
-        let settled = false
-        const finish = () => {
-            if (settled) return
-            settled = true
-            clearTimeout(killTimer)
-            proc.off('close', finish)
-            resolve()
-        }
-        const killTimer = setTimeout(() => {
-            if (proc.exitCode === null) {
-                try {
-                    proc.kill('SIGKILL')
-                } catch {
-                    finish()
-                }
-            }
-        }, TERMINATE_GRACE_MS)
-        proc.on('close', finish)
-        try {
-            proc.kill('SIGTERM')
-        } catch {
-            finish()
-        }
-    })
-}
-
-function getWaitStatus(id: string): WaitStatus {
-    const record = agents.get(id)
-    if (!record) return 'not_found'
-    return record.status
-}
-
-function getWaitDetail(id: string): WaitDetail {
-    const record = agents.get(id)
-    if (!record) {
-        return {
-            status: 'not_found',
-            last_message: null,
-            last_output: null,
-            last_error: null,
-            last_submission_id: null,
-            updated_at: null,
-        }
-    }
-    return {
-        status: record.status,
-        last_message: record.lastMessage,
-        last_output: record.lastOutput,
-        last_error: record.lastError,
-        last_submission_id: record.lastSubmissionId,
-        updated_at: record.updatedAt,
-    }
-}
-
-function buildAgentSummary(record: AgentRecord) {
-    return {
-        agent_id: record.id,
-        status: record.status,
-        created_at: record.createdAt,
-        updated_at: record.updatedAt,
-        last_message: record.lastMessage,
-        last_submission_id: record.lastSubmissionId,
-        has_last_output: Boolean(record.lastOutput),
-        has_last_error: Boolean(record.lastError),
-    }
-}
-
-function finalizeSubmission(params: {
-    record: AgentRecord
-    submissionId: string
-    stdout: string
-    stderr: string
-    exitCode: number
-    interrupted: boolean
+function compactAgent(agent: {
+    agentId: string
+    agentPath: string
+    taskName: string
+    status: string
+    lastMessage?: string
+    error?: string
 }) {
-    const { record, submissionId, stdout, stderr, exitCode, interrupted } = params
-    if (!record.running || record.running.id !== submissionId) {
-        return
+    return {
+        agent_id: agent.agentId,
+        agent_path: agent.agentPath,
+        task_name: agent.taskName,
+        status: agent.status,
+        last_message: agent.lastMessage ?? null,
+        error: agent.error ?? null,
     }
-
-    record.running = null
-    record.updatedAt = nowIso()
-    record.lastOutput = compactOutput(stdout, stderr) || null
-    record.lastError = null
-
-    if (record.status === 'closed') {
-        return
-    }
-
-    if (interrupted) {
-        record.status = 'errored'
-        record.lastError = 'interrupted'
-        record.statusBeforeClose = 'errored'
-        return
-    }
-
-    if (exitCode === 0) {
-        record.status = 'completed'
-        record.statusBeforeClose = 'completed'
-        return
-    }
-
-    record.status = 'errored'
-    record.lastError = `submission failed with exit code ${exitCode}`
-    record.statusBeforeClose = 'errored'
 }
 
-async function startSubmission(record: AgentRecord, message: string): Promise<string> {
-    const maxAgents = parseMaxAgents()
-    if (runningAgentCount() >= maxAgents) {
-        throw new Error(`subagent concurrency limit reached (${maxAgents})`)
-    }
-
-    const submissionId = crypto.randomUUID()
-    const command = resolveSubagentCommand()
-    const proc = spawn(command, {
-        cwd: getRuntimeCwd(),
-        env: {
-            ...process.env,
-        },
-        shell: true,
-        stdio: ['pipe', 'pipe', 'pipe'],
-    })
-
-    const stdoutChunks: string[] = []
-    const stderrChunks: string[] = []
-
-    proc.stdout?.setEncoding('utf8')
-    proc.stderr?.setEncoding('utf8')
-    proc.stdout?.on('data', (chunk) => stdoutChunks.push(chunk))
-    proc.stderr?.on('data', (chunk) => stderrChunks.push(chunk))
-    proc.on('error', (err) => {
-        stderrChunks.push(`[spawn error] ${(err as Error).message}`)
-    })
-
-    record.running = {
-        id: submissionId,
-        message,
-        process: proc,
-        startedAt: nowIso(),
-        interrupted: false,
-    }
-    record.status = 'running'
-    record.lastMessage = message
-    record.lastSubmissionId = submissionId
-    record.updatedAt = nowIso()
-
-    proc.on('close', (code) => {
-        const exitCode = typeof code === 'number' ? code : -1
-        const interrupted = Boolean(record.running?.id === submissionId && record.running.interrupted)
-        finalizeSubmission({
-            record,
-            submissionId,
-            stdout: stdoutChunks.join(''),
-            stderr: stderrChunks.join(''),
-            exitCode,
-            interrupted,
-        })
-    })
-
-    try {
-        proc.stdin?.write(`${message.trim()}\n`)
-    } catch {
-        // ignore short-lived stdin errors; close handler will report final status
-    }
-    try {
-        proc.stdin?.end()
-    } catch {
-        // ignore
-    }
-
-    return submissionId
+function toolFailure(name: string, error: unknown) {
+    return textResult(`${name} failed: ${error instanceof Error ? error.message : String(error)}`, true)
 }
 
-export async function __resetCollabStateForTests() {
-    const tasks: Promise<void>[] = []
-    for (const record of agents.values()) {
-        tasks.push(terminateRunningSubmission(record))
-    }
-    await Promise.allSettled(tasks)
-    agents.clear()
+function nonEmptyMessage(value: string): string {
+    const message = value.trim()
+    if (!message) throw new Error('message must not be empty')
+    return message
 }
+
+const collabMetadata = { memo: { supportsParallelToolCalls: true, isMutating: false } }
 
 export const spawnAgentTool = tool({
-    description: 'Spawn a sub-agent for a well-scoped task and return the agent id.',
+    description: 'Spawn an in-process sub-agent for a well-scoped task.',
     inputSchema: SPAWN_AGENT_INPUT_SCHEMA,
-    metadata: { memo: { supportsParallelToolCalls: false, isMutating: true } },
-
-    execute: async ({ message }) => {
-        const trimmed = message.trim()
-        if (!trimmed) {
-            return textResult(`spawn_agent failed: message must not be empty`, true)
-        }
-
-        const id = crypto.randomUUID()
-        const createdAt = nowIso()
-        const record: AgentRecord = {
-            id,
-            createdAt,
-            updatedAt: createdAt,
-            status: 'running',
-            statusBeforeClose: 'completed',
-            lastMessage: trimmed,
-            lastSubmissionId: null,
-            lastOutput: null,
-            lastError: null,
-            running: null,
-        }
-        agents.set(id, record)
-
+    metadata: collabMetadata,
+    execute: async ({ message, task_name, fork_turns }, options) => {
         try {
-            const submissionId = await startSubmission(record, trimmed)
-            return textResult(
-                JSON.stringify(
-                    {
-                        ...buildAgentSummary(record),
-                        submission_id: submissionId,
-                    },
-                    null,
-                    2,
-                ),
-            )
-        } catch (err) {
-            agents.delete(id)
-            return textResult(`spawn_agent failed: ${(err as Error).message}`, true)
+            const sender = collabBinding(options)
+            const agent = await sender.control.spawnAgent(sender, {
+                message: nonEmptyMessage(message),
+                taskName: task_name,
+                forkTurns: fork_turns,
+            })
+            return textResult(JSON.stringify(compactAgent(agent), null, 2))
+        } catch (error) {
+            return toolFailure('spawn_agent', error)
         }
     },
 })
 
-export const sendInputTool = tool({
-    description: 'Send a message to an existing agent.',
-    inputSchema: SEND_INPUT_INPUT_SCHEMA,
-    metadata: { memo: { supportsParallelToolCalls: false, isMutating: true } },
-
-    execute: async ({ id, message, interrupt }) => {
-        const record = agents.get(id)
-        if (!record) return buildMissingAgentError(id)
-
-        const trimmed = message.trim()
-        if (!trimmed) {
-            return textResult(`send_input failed: message must not be empty`, true)
-        }
-
-        if (record.status === 'closed') {
-            return textResult(`send_input failed: agent ${id} is closed; run resume_agent first`, true)
-        }
-
-        if (record.running) {
-            if (!interrupt) {
-                return textResult(
-                    `send_input failed: agent ${id} is busy; set interrupt=true to cancel current submission`,
-                    true,
-                )
-            }
-            await terminateRunningSubmission(record)
-        }
-
+export const sendMessageTool = tool({
+    description: 'Queue a message for an agent without starting an idle turn.',
+    inputSchema: MESSAGE_INPUT_SCHEMA,
+    metadata: collabMetadata,
+    execute: async ({ target, message }, options) => {
         try {
-            const submissionId = await startSubmission(record, trimmed)
+            const sender = collabBinding(options)
+            const receiver = sender.control.sendMessage(sender, target, nonEmptyMessage(message), false)
+            return textResult(JSON.stringify({ target: receiver.agentPath, queued: true }, null, 2))
+        } catch (error) {
+            return toolFailure('send_message', error)
+        }
+    },
+})
+
+export const followupTaskTool = tool({
+    description: 'Send follow-up work to an agent and start a turn if it is idle.',
+    inputSchema: MESSAGE_INPUT_SCHEMA,
+    metadata: collabMetadata,
+    execute: async ({ target, message }, options) => {
+        try {
+            const sender = collabBinding(options)
+            const receiver = sender.control.sendMessage(sender, target, nonEmptyMessage(message), true)
+            return textResult(JSON.stringify({ target: receiver.agentPath, triggered: true }, null, 2))
+        } catch (error) {
+            return toolFailure('followup_task', error)
+        }
+    },
+})
+
+export const waitAgentTool = tool({
+    description: 'Wait for mailbox activity. Child result content is delivered separately to the next model request.',
+    inputSchema: WAIT_AGENT_INPUT_SCHEMA,
+    metadata: collabMetadata,
+    execute: async ({ timeout_ms }, options) => {
+        const timeoutMs = timeout_ms ?? DEFAULT_WAIT_TIMEOUT_MS
+        if (timeoutMs < MIN_WAIT_TIMEOUT_MS || timeoutMs > MAX_WAIT_TIMEOUT_MS) {
+            return textResult(
+                `wait_agent failed: timeout_ms must be between ${MIN_WAIT_TIMEOUT_MS} and ${MAX_WAIT_TIMEOUT_MS}`,
+                true,
+            )
+        }
+        try {
+            const sender = collabBinding(options)
+            const activity = await sender.control.waitForActivity(sender, timeoutMs, options.abortSignal)
+            const timedOut = activity === 'timeout'
+            const message =
+                activity === 'mailbox'
+                    ? 'Wait completed.'
+                    : activity === 'aborted'
+                      ? 'Wait interrupted by cancellation.'
+                      : activity === 'closed'
+                        ? 'Agent mailbox closed.'
+                        : 'Wait timed out.'
+            return textResult(JSON.stringify({ message, timed_out: timedOut }, null, 2))
+        } catch (error) {
+            return toolFailure('wait_agent', error)
+        }
+    },
+})
+
+export const interruptAgentTool = tool({
+    description: 'Interrupt an agent current turn while keeping the agent available for follow-up work.',
+    inputSchema: TARGET_INPUT_SCHEMA,
+    metadata: collabMetadata,
+    execute: async ({ target }, options) => {
+        try {
+            const sender = collabBinding(options)
+            const receiver = sender.control.interruptAgent(sender, target)
             return textResult(
                 JSON.stringify(
                     {
-                        agent_id: record.id,
-                        status: record.status,
-                        submission_id: submissionId,
+                        agent_id: receiver.agentId,
+                        agent_path: receiver.agentPath,
+                        previous_status: receiver.status,
                     },
                     null,
                     2,
                 ),
             )
-        } catch (err) {
-            return textResult(`send_input failed: ${(err as Error).message}`, true)
+        } catch (error) {
+            return toolFailure('interrupt_agent', error)
         }
     },
 })
 
-export const resumeAgentTool = tool({
-    description: 'Resume a previously closed agent by id.',
-    inputSchema: RESUME_AGENT_INPUT_SCHEMA,
-    metadata: { memo: { supportsParallelToolCalls: false, isMutating: true } },
-
-    execute: async ({ id }) => {
-        const record = agents.get(id)
-        if (!record) return buildMissingAgentError(id)
-
-        if (record.status === 'closed') {
-            record.status = record.statusBeforeClose
-            record.updatedAt = nowIso()
+export const listAgentsTool = tool({
+    description: 'List live sub-agents in the current agent subtree.',
+    inputSchema: LIST_AGENTS_INPUT_SCHEMA,
+    metadata: collabMetadata,
+    execute: async ({ path_prefix }, options) => {
+        try {
+            const sender = collabBinding(options)
+            const agents = sender.control.listAgents(sender, path_prefix).map(compactAgent)
+            return textResult(JSON.stringify({ agents }, null, 2))
+        } catch (error) {
+            return toolFailure('list_agents', error)
         }
-
-        return textResult(
-            JSON.stringify(
-                {
-                    agent_id: id,
-                    status: record.status,
-                },
-                null,
-                2,
-            ),
-        )
-    },
-})
-
-export const waitTool = tool({
-    description: 'Wait for agent statuses and return current snapshots.',
-    inputSchema: WAIT_INPUT_SCHEMA,
-    metadata: { memo: { supportsParallelToolCalls: false, isMutating: false } },
-
-    execute: async ({ ids, timeout_ms }) => {
-        const resolvedTimeout = clampWaitTimeout(timeout_ms)
-        if (resolvedTimeout === null) {
-            return textResult(`wait failed: timeout_ms must be greater than zero`, true)
-        }
-
-        const collectFinals = () => {
-            const status: Record<string, WaitStatus> = {}
-            const details: Record<string, WaitDetail> = {}
-            for (const id of ids) {
-                const current = getWaitStatus(id)
-                if (isFinalStatus(current)) {
-                    status[id] = current
-                    details[id] = getWaitDetail(id)
-                }
-            }
-            return { status, details }
-        }
-
-        let finalSnapshots = collectFinals()
-        if (Object.keys(finalSnapshots.status).length > 0) {
-            return textResult(
-                JSON.stringify(
-                    {
-                        status: finalSnapshots.status,
-                        details: finalSnapshots.details,
-                        timed_out: false,
-                    },
-                    null,
-                    2,
-                ),
-            )
-        }
-
-        const deadline = Date.now() + resolvedTimeout
-        while (Date.now() < deadline) {
-            await sleep(100)
-            finalSnapshots = collectFinals()
-            if (Object.keys(finalSnapshots.status).length > 0) {
-                return textResult(
-                    JSON.stringify(
-                        {
-                            status: finalSnapshots.status,
-                            details: finalSnapshots.details,
-                            timed_out: false,
-                        },
-                        null,
-                        2,
-                    ),
-                )
-            }
-        }
-
-        return textResult(
-            JSON.stringify(
-                {
-                    status: {},
-                    details: {},
-                    timed_out: true,
-                },
-                null,
-                2,
-            ),
-        )
-    },
-})
-
-export const closeAgentTool = tool({
-    description: 'Close an agent and return its last known status.',
-    inputSchema: CLOSE_AGENT_INPUT_SCHEMA,
-    metadata: { memo: { supportsParallelToolCalls: false, isMutating: true } },
-
-    execute: async ({ id }) => {
-        const record = agents.get(id)
-        if (!record) return buildMissingAgentError(id)
-
-        if (record.status === 'closed') {
-            return textResult(
-                JSON.stringify(
-                    {
-                        agent_id: id,
-                        status: 'closed',
-                    },
-                    null,
-                    2,
-                ),
-            )
-        }
-
-        record.statusBeforeClose = record.running ? 'completed' : record.status
-        record.status = 'closed'
-        record.updatedAt = nowIso()
-        await terminateRunningSubmission(record)
-
-        return textResult(
-            JSON.stringify(
-                {
-                    agent_id: id,
-                    status: 'closed',
-                },
-                null,
-                2,
-            ),
-        )
     },
 })

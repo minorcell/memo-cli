@@ -205,7 +205,7 @@ export function MemoArchitectureDiagram() {
                     </defs>
 
                     <path
-                        d="M 350 114 C 520 150, 610 176, 710 250"
+                        d="M 350 114 C 520 150, 610 176, 710 170"
                         stroke={COLORS.line}
                         strokeWidth="2"
                         fill="none"
@@ -222,7 +222,7 @@ export function MemoArchitectureDiagram() {
                     </text>
 
                     <path
-                        d="M 710 114 L 710 170"
+                        d="M 710 354 L 710 366"
                         stroke={COLORS.line}
                         strokeWidth="2"
                         fill="none"
@@ -230,41 +230,7 @@ export function MemoArchitectureDiagram() {
                     />
                     <text
                         x="724"
-                        y="144"
-                        fill={COLORS.textMuted}
-                        fontSize="12"
-                        fontFamily="Inter, system-ui, sans-serif"
-                    >
-                        web to server
-                    </text>
-
-                    <path
-                        d="M 710 232 L 710 250"
-                        stroke={COLORS.line}
-                        strokeWidth="2"
-                        fill="none"
-                        markerEnd="url(#memo-arch-arrow)"
-                    />
-                    <text
-                        x="724"
-                        y="243"
-                        fill={COLORS.textMuted}
-                        fontSize="12"
-                        fontFamily="Inter, system-ui, sans-serif"
-                    >
-                        server to core
-                    </text>
-
-                    <path
-                        d="M 710 434 L 710 446"
-                        stroke={COLORS.line}
-                        strokeWidth="2"
-                        fill="none"
-                        markerEnd="url(#memo-arch-arrow)"
-                    />
-                    <text
-                        x="724"
-                        y="440"
+                        y="360"
                         fill={COLORS.textMuted}
                         fontSize="12"
                         fontFamily="Inter, system-ui, sans-serif"
@@ -273,7 +239,7 @@ export function MemoArchitectureDiagram() {
                     </text>
 
                     <path
-                        d="M 890 434 L 890 710"
+                        d="M 890 354 L 890 630"
                         stroke={COLORS.line}
                         strokeWidth="2"
                         fill="none"
@@ -281,7 +247,7 @@ export function MemoArchitectureDiagram() {
                     />
                     <text
                         x="902"
-                        y="570"
+                        y="490"
                         fill={COLORS.textMuted}
                         fontSize="12"
                         fontFamily="Inter, system-ui, sans-serif"
@@ -306,33 +272,13 @@ export function MemoArchitectureDiagram() {
                         }}
                     >
                         <MiniCard title="TUI Client" sub="memo / slash commands" />
-                        <MiniCard title="Web Client" sub="chat + workspace UI" />
-                        <MiniCard title="Other Entrypoints" sub="scripts / CI / API" highlight />
+                        <MiniCard title="Plain Mode" sub="pipes / scripts / --once" />
+                        <MiniCard title="Other Entrypoints" sub="init / mcp / skills" highlight />
                     </div>
                 </Layer>
 
                 <Layer
                     y={170}
-                    h={72}
-                    label="Gateway"
-                    labelBg="linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))"
-                    rowBg={COLORS.panelAlt}
-                >
-                    <div
-                        style={{
-                            height: '100%',
-                            display: 'grid',
-                            gridTemplateColumns: '1.05fr 0.95fr',
-                            gap: 20,
-                        }}
-                    >
-                        <MiniCard title="Web Server API Gateway" sub="REST + WebSocket RPC" />
-                        <MiniCard title="Session Stream / Router" sub="web requests -> core runtime" />
-                    </div>
-                </Layer>
-
-                <Layer
-                    y={250}
                     h={188}
                     label="Core"
                     labelBg="linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))"
@@ -366,7 +312,7 @@ export function MemoArchitectureDiagram() {
                 </Layer>
 
                 <Layer
-                    y={446}
+                    y={366}
                     h={162}
                     label="Tools"
                     labelBg="linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))"
@@ -416,7 +362,7 @@ export function MemoArchitectureDiagram() {
                 </Layer>
 
                 <Layer
-                    y={616}
+                    y={536}
                     h={86}
                     label="Data"
                     labelBg="linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))"
@@ -431,14 +377,14 @@ export function MemoArchitectureDiagram() {
                         }}
                     >
                         <MiniCard title="~/.memo/config.toml" />
-                        <MiniCard title="~/.memo/server.yaml" />
                         <MiniCard title="~/.memo/sessions/*.jsonl" />
+                        <MiniCard title="~/.memo/Agents.md" />
                         <MiniCard title="Project/User SKILL.md" />
                     </div>
                 </Layer>
 
                 <Layer
-                    y={710}
+                    y={630}
                     h={126}
                     label="Models"
                     labelBg="linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))"
@@ -478,7 +424,7 @@ export function MemoArchitectureDiagram() {
                 </Layer>
 
                 <Layer
-                    y={844}
+                    y={764}
                     h={70}
                     label="Runtime"
                     labelBg="linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))"
@@ -504,7 +450,7 @@ export function MemoArchitectureDiagram() {
                         left: RIGHT_AUDIT_X,
                         top: 70,
                         width: RIGHT_COL_W,
-                        height: 844,
+                        height: 764,
                         borderRadius: 8,
                         border: `1px solid ${COLORS.borderStrong}`,
                         background: 'linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04))',
@@ -536,7 +482,7 @@ export function MemoArchitectureDiagram() {
                         left: RIGHT_AUTH_X,
                         top: 70,
                         width: RIGHT_COL_W,
-                        height: 844,
+                        height: 764,
                         borderRadius: 8,
                         border: `1px solid ${COLORS.borderStrong}`,
                         background: 'linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04))',

@@ -24,7 +24,9 @@ export class JsonlHistorySink implements HistorySink {
         }
         this.writeQueue = this.writeQueue.then(async () => {
             await this.ensureDirectory()
-            await appendFile(this.filePath, `${JSON.stringify(event)}\n`, 'utf8')
+            // Session logs contain full conversations and tool output, which may
+            // include secrets; restrict to the owner like the OAuth credential file.
+            await appendFile(this.filePath, `${JSON.stringify(event)}\n`, { encoding: 'utf8', mode: 0o600 })
         })
         return this.writeQueue
     }

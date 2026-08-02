@@ -22,7 +22,6 @@ type ParseResultState = {
     cwd: string
     providerName?: string
     modelName?: string
-    contextWindow?: number
     toolPermissionMode?: string
     thinking?: boolean
     startedAt: string
@@ -279,7 +278,6 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
         cwd: '',
         providerName: undefined,
         modelName: undefined,
-        contextWindow: undefined,
         toolPermissionMode: undefined,
         thinking: undefined,
         startedAt: events[0]?.ts ?? fallbackNow,
@@ -306,10 +304,6 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
             if (providerName) state.providerName = providerName
             const modelName = safeString(event.meta.modelName)
             if (modelName) state.modelName = modelName
-            const contextWindow = event.meta.contextWindow
-            if (typeof contextWindow === 'number' && Number.isFinite(contextWindow) && contextWindow > 0) {
-                state.contextWindow = contextWindow
-            }
             const toolPermissionMode = safeString(event.meta.toolPermissionMode)
             if (toolPermissionMode) state.toolPermissionMode = toolPermissionMode
             if (typeof event.meta.thinking === 'boolean') {
@@ -503,7 +497,6 @@ export function parseHistoryLogToSessionDetail(raw: string, filePath: string): S
         events,
         providerName: state.providerName,
         modelName: state.modelName,
-        contextWindow: state.contextWindow,
         toolPermissionMode: state.toolPermissionMode,
         thinking: state.thinking,
         compactionSummary: state.compactionSummary,

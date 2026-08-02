@@ -20,11 +20,6 @@ Memo 使用 `config.toml` 来管理提供商选择、模型配置覆盖和 MCP �
 
 - 配置路径变为 `$MEMO_HOME/config.toml`
 
-Web 认证配置：
-
-- 默认路径为 `~/.memo/server.yaml`
-- 可通过 `MEMO_SERVER_CONFIG` 指定自定义路径
-
 ## 配置如何应用
 
 Memo 运行时使用以下顺序的配置：
@@ -127,7 +122,7 @@ supports_parallel_tool_calls = false
 
 1. `model_profiles."provider:model".context_window`
 2. `model_profiles."<model>".context_window`
-3. 默认 `120000`
+3. 默认 `1000000`
 
 Memo 在启动时应用此设置，并在使用 `/models` 切换模型时重新应用。
 
@@ -145,9 +140,34 @@ context_window = 128000
 
 - `openai:gpt-5` -> `128000`
 - 其他使用 `gpt-5` 的提供商 -> `272000`
-- 任何没有 `context_window` 覆盖的模型 -> `120000`
+- 任何没有 `context_window` 覆盖的模型 -> `1000000`
+
+## 上下文压缩
+
+当上下文使用量超过阈值时，长会话会被自动压缩：
+
+```toml
+auto_compact_threshold_percent = 90 # 默认：90（1-100）
+```
+
+- 有效范围为 `1` 到 `100`；非法值回退为 `90`
+- 压缩会总结早期上下文并继续会话，保持会话可用
+- `/compact` 可随时手动压缩
 
 ## MCP 服务器配置
+
+### OAuth 设置（远程服务器）
+
+```toml
+# OAuth 浏览器回调使用的本地端口（可选）
+mcp_oauth_callback_port = 38433
+
+# 凭据存储方式："auto"（默认）/ "keyring" / "file"
+mcp_oauth_credentials_store_mode = "auto"
+```
+
+- `mcp_oauth_callback_port`：`memo mcp login` 使用的固定回调端口；未设置时自动选择空闲端口。
+- `mcp_oauth_credentials_store_mode`：OAuth 令牌的持久化位置。
 
 ### 本地 Stdio MCP
 

@@ -121,6 +121,30 @@ describe('oauth runtime helpers', () => {
         await expect(openExternalUrl('https://example.com/oauth/authorize')).rejects.toThrow('spawn failed')
     })
 
+    test('openExternalUrl on win32 uses PowerShell Start-Process', async () => {
+        const child = spawnChild()
+        spawnMock.mockReturnValue(child)
+        const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+
+        await openExternalUrl('https://example.com/oauth/authorize')
+
+        expect(spawnMock).toHaveBeenCalledWith(
+            'powershell.exe',
+            ['-NoProfile', '-NonInteractive', '-Command', "Start-Process 'https://example.com/oauth/authorize'"],
+            expect.objectContaining({ detached: true }),
+        )
+        platformSpy.mockRestore()
+    })
+
+    test('openExternalUrl on win32 rejects URLs containing quotes', async () => {
+        const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+
+        await expect(openExternalUrl('https://example.com/a"b')).rejects.toThrow('quote')
+
+        expect(spawnMock).not.toHaveBeenCalled()
+        platformSpy.mockRestore()
+    })
+
     test('createRuntimeMcpOAuthProvider returns null when no stored token exists', async () => {
         await withTempMemoHome(async (home) => {
             const provider = await createRuntimeMcpOAuthProvider({
@@ -245,6 +269,43 @@ describe('oauth login flow', () => {
                 },
             }),
         ).rejects.toThrow('does not advertise OAuth support')
+    })
+
+    test('callback error page escapes attacker-controlled error text', async () => {
+        await withTempMemoHome(async (home) => {
+            installDiscoveryFetch()
+            spawnMock.mockReturnValue(spawnChild())
+
+            let redirectUrl = ''
+            authMock.mockImplementationOnce(async (provider: any) => {
+                redirectUrl = provider.redirectUrl
+                return 'REDIRECT'
+            })
+            authMock.mockResolvedValueOnce('REDIRECT')
+
+            const loginRejection = loginMcpServerOAuth({
+                serverName: 'remote',
+                config: { type: 'streamable_http', url: TEST_URL },
+                timeoutMs: 5_000,
+                settings: { memoHome: home, storeMode: 'file' },
+            }).then(
+                () => null,
+                (error: unknown) => error,
+            )
+
+            await vi.waitFor(() => {
+                assert.ok(redirectUrl, 'callback server did not come up')
+            })
+
+            const res = await fetch(`${redirectUrl}?error=bad&error_description=<script>alert(1)</script>`)
+            const body = await res.text()
+
+            assert.strictEqual(res.status, 400)
+            expect(body).toContain('&lt;script&gt;')
+            expect(body).not.toContain('<script>')
+
+            await expect(loginRejection).resolves.toBeInstanceOf(Error)
+        })
     })
 
     test('completes login flow with redirect callback and stores tokens', async () => {

@@ -1,10 +1,12 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
 import { tool } from 'ai'
 import { textResult } from '@memo/core/tools/tools/mcp'
 import { validatePath } from '@memo/core/tools/tools/filesystem/lib'
 import { resolveAllowedDirectories } from '@memo/core/tools/tools/filesystem/roots'
+
+const MAX_MEDIA_FILE_BYTES = 10 * 1024 * 1024
 
 const READ_MEDIA_FILE_INPUT_SCHEMA = z
     .object({
@@ -38,6 +40,15 @@ export const readMediaFileTool = tool({
 
             const extension = path.extname(validPath).toLowerCase()
             const mimeType = MIME_TYPES[extension] ?? 'application/octet-stream'
+
+            const fileStats = await stat(validPath)
+            if (fileStats.size > MAX_MEDIA_FILE_BYTES) {
+                return textResult(
+                    `read_media_file failed: file too large (${fileStats.size} bytes > ${MAX_MEDIA_FILE_BYTES} bytes)`,
+                    true,
+                )
+            }
+
             const data = (await readFile(validPath)).toString('base64')
 
             const type = mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('audio/') ? 'audio' : 'blob'

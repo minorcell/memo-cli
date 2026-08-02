@@ -3,7 +3,9 @@ import type { FinishReason, LanguageModelUsage, ModelMessage, ToolCallPart, Tool
 import type { ApprovalRequest, ApprovalDecision, ToolActionStatus } from '@memo/core/tools/approval'
 import type { ToolExecutionContext } from '@memo/core/tools/sdk_tools'
 import type { SkillIndex } from '@memo/core/skills/skills'
+import type { AgentStatus } from '@memo/core/agent/status'
 export type { ApprovalDecision, ApprovalRequest, ToolActionStatus } from '@memo/core/tools/approval'
+export type { AgentStatus } from '@memo/core/agent/status'
 export type { FinishReason, LanguageModelUsage } from 'ai'
 
 /** AI SDK generation result subset returned by CallLLM (all fields are AI SDK types). */
@@ -117,9 +119,11 @@ export type AgentDeps = {
     /** System prompt loading (uses built-in default if not provided). */
     loadPrompt?: () => Promise<string>
     /** Callback for each assistant output. */
-    onAssistantStep?: (content: string, step: number) => void
+    onAssistantStep?: (content: string, step: number, sessionId?: string) => void
     /** Callback for each streaming reasoning chunk (thinking trace). */
-    onReasoningChunk?: (content: string, step: number) => void
+    onReasoningChunk?: (content: string, step: number, sessionId?: string) => void
+    /** Structured sub-agent lifecycle updates for UI and external integrations. */
+    onAgentActivity?: (activity: AgentActivity) => void
     /** Hook collection: inject one-time lifecycle listeners. */
     hooks?: AgentHooks
     /** Middleware list: can register multiple Hook implementations. */
@@ -130,6 +134,18 @@ export type AgentDeps = {
     requestApproval?: (request: ApprovalRequest) => Promise<ApprovalDecision>
     /** Deduped skill index for the session (read_skill tool reads it). */
     skillIndex?: SkillIndex
+}
+
+export type AgentActivity = {
+    agentId: string
+    agentPath: string
+    taskName: string
+    parentId?: string
+    status: AgentStatus
+    contextPercent?: number
+    lastMessage?: string
+    error?: string
+    updatedAt: string
 }
 
 /** Session mode: currently only interactive is supported. */
@@ -349,6 +365,8 @@ export type HistoryEventType =
     | 'observation'
     | 'context_usage'
     | 'context_compact'
+    | 'agent_message'
+    | 'agent_status'
     | 'final'
     | 'turn_end'
 

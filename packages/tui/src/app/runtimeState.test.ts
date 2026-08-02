@@ -68,7 +68,14 @@ describe('runtimeReducer', () => {
         assert.strictEqual(runtimeStatus(state), 'cancelling')
 
         state = runtimeReducer(state, { type: 'approval_requested', request: approval })
-        assert.strictEqual(runtimeStatus(state), 'cancelling')
+        assert.strictEqual(runtimeStatus(state), 'awaiting_approval')
+    })
+
+    test('surfaces background approvals without an active root turn', () => {
+        let state = runtimeReducer(createInitialRuntimeState(), { type: 'approval_requested', request: approval })
+        assert.strictEqual(runtimeStatus(state), 'awaiting_approval')
+        state = runtimeReducer(state, { type: 'approval_resolved' })
+        assert.strictEqual(runtimeStatus(state), 'idle')
     })
 
     test('ignores stale operation completion', () => {

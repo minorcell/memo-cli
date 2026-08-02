@@ -1,7 +1,5 @@
 import type { ChatMessage } from '@memo/core/types'
 
-const MAX_MESSAGE_CONTENT_CHARS = 4_000
-
 export const CONTEXT_COMPACTION_SYSTEM_PROMPT = `You are performing a CONTEXT CHECKPOINT COMPACTION. Create a handoff summary for another LLM that will resume the task.
 
 Include:
@@ -16,13 +14,29 @@ export const CONTEXT_SUMMARY_PREFIX =
     'Another language model started to solve this problem and produced a summary of its thinking process. You also have access to the state of the tools that were used by that language model. Use this to build on the work that has already been done and avoid duplicating work. Here is the summary produced by the other language model, use the information in this summary to assist with your own analysis:'
 
 function normalizeContent(content: string): string {
-    const compact = content.replace(/\r\n/g, '\n').trim()
-    if (compact.length <= MAX_MESSAGE_CONTENT_CHARS) {
-        return compact
+    return content.replace(/\r\n/g, '\n').trim()
+}
+
+/**
+ * Truncate a single message to maxChars, keeping the tail (tool output carries
+ * its result/error at the end, while the head is usually echoes and noise).
+ * Only applied by selectCompactionMessages when one message alone exceeds the
+ * budget - regular transcripts are never truncated per-message.
+ */
+function truncateMessage(message: ChatMessage, maxChars: number): ChatMessage {
+    if (typeof message.content === 'string') {
+        if (message.content.length <= maxChars) return message
+        return { ...message, content: `...${message.content.slice(-maxChars)}` }
     }
-    // Keep the tail: tool output carries its result/error at the end, while the
-    // head is usually command echoes and noise.
-    return `...${compact.slice(-MAX_MESSAGE_CONTENT_CHARS)}`
+    return {
+        ...message,
+        content: message.content.map((part) => {
+            if (part.type === 'tool-result' && part.output.type === 'text' && part.output.value.length > maxChars) {
+                return { ...part, output: { ...part.output, value: `...${part.output.value.slice(-maxChars)}` } }
+            }
+            return part
+        }),
+    }
 }
 
 function messageToTranscriptLine(message: ChatMessage, index: number): string {
@@ -60,9 +74,11 @@ export function isContextSummaryMessage(message: ChatMessage): boolean {
 
 /**
  * Drop the oldest messages so the serialized transcript fits within
- * budgetTokens, keeping the newest message unconditionally. Returns the
- * selected messages in their original order (indices are preserved — gaps
- * mark the dropped messages).
+ * budgetTokens, keeping the newest message unconditionally. A single message
+ * that alone exceeds the budget is truncated to fit (tail kept), so the
+ * compaction request can never overflow the window. Returns the selected
+ * messages in their original order (indices are preserved — gaps mark the
+ * dropped messages).
  */
 export function selectCompactionMessages(
     messages: ChatMessage[],
@@ -80,8 +96,18 @@ export function selectCompactionMessages(
         if (!message) {
             continue
         }
-        const tokens = countTokens(messageToTranscriptLine(message, i)) + 1 // +1 for the '\n\n' separator
+        const line = messageToTranscriptLine(message, i)
+        const tokens = countTokens(line) + 1 // +1 for the '\n\n' separator
         if (selected.length > 0 && used + tokens > budgetTokens) {
+            break
+        }
+        if (selected.length === 0 && used + tokens > budgetTokens) {
+            // Newest message alone exceeds the budget: truncate it to fit.
+            // Linear scale from the estimated tokens gives a close-enough
+            // character budget for the tail.
+            const ratio = Math.min(1, Math.max(0, budgetTokens - used) / Math.max(1, tokens - 1))
+            const maxChars = Math.max(1, Math.floor(line.length * ratio))
+            selected.push(truncateMessage(message, maxChars))
             break
         }
         selected.push(message)

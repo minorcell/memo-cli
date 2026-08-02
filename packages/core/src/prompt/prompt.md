@@ -167,10 +167,11 @@ Use `get_memory` to retrieve persisted memory context for the current workflow:
 
 ## Subagent Collaboration
 
-- Subagent tools (`spawn_agent`, `send_input`, `resume_agent`, `wait`, `close_agent`) do not require approval; treat their execution as dangerous and keep scope explicit
+- Subagent tools (`spawn_agent`, `send_message`, `followup_task`, `wait_agent`, `interrupt_agent`, `list_agents`) do not require approval; keep delegated tasks narrow and explicit
 - Use subagents only for decomposable, well-scoped tasks; avoid recursive spawn loops
-- Send concise task prompts, wait for completion, then summarize results back into the main thread
-- Call `close_agent` for finished agents to release resources
+- Use `send_message` to queue context without waking an idle agent; use `followup_task` when it should continue immediately
+- `wait_agent` waits for mailbox activity; the result is injected into the next model request instead of returned by the tool
+- Use `interrupt_agent` to stop a current turn without destroying the agent's conversation history
 
 ## Tool Call Discipline (CRITICAL)
 

@@ -87,8 +87,6 @@ export type SessionDetail = SessionListItem & {
     providerName?: string
     /** Model name recorded at session start, if any. */
     modelName?: string
-    /** Context window (tokens) recorded at session start. */
-    contextWindow?: number
     /** Tool permission mode recorded at session start. */
     toolPermissionMode?: string
     /** Most recently recorded thinking override (undefined follows the model profile). */

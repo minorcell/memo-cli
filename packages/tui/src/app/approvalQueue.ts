@@ -26,10 +26,14 @@ export class ApprovalQueue {
         current.resolve(decision)
 
         if (decision === 'deny') {
-            const pending = this.pending
-            this.pending = []
-            for (const item of pending) item.resolve('deny')
-            this.onActiveChange(null)
+            const source = approvalSource(current.request)
+            const retained: PendingApproval[] = []
+            for (const item of this.pending) {
+                if (approvalSource(item.request) === source) item.resolve('deny')
+                else retained.push(item)
+            }
+            this.pending = retained
+            this.advance()
             return
         }
 
@@ -47,6 +51,22 @@ export class ApprovalQueue {
         if (active || pending.length > 0) this.onActiveChange(null)
     }
 
+    denySource(sessionId: string | undefined): void {
+        if (!sessionId) return
+        if (this.active?.request.sessionId === sessionId) {
+            const current = this.active
+            this.active = null
+            current.resolve('deny')
+        }
+        const retained: PendingApproval[] = []
+        for (const item of this.pending) {
+            if (item.request.sessionId === sessionId) item.resolve('deny')
+            else retained.push(item)
+        }
+        this.pending = retained
+        if (!this.active) this.advance()
+    }
+
     private advance(): void {
         if (this.active) return
         const next = this.pending.shift()
@@ -57,4 +77,8 @@ export class ApprovalQueue {
         this.active = next
         this.onActiveChange(next.request)
     }
+}
+
+function approvalSource(request: ApprovalRequest): string {
+    return request.sessionId ?? request.agentId ?? 'legacy'
 }

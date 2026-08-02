@@ -29,6 +29,7 @@ import { VisibleUpdateQueue, type VisibleUpdate } from './visibleUpdateQueue'
 import { ChatWidget } from '../features/timeline/ChatWidget'
 import { Composer } from '../features/composer/Composer'
 import { Footer } from '../shared/ui/Footer'
+import { AgentStatusList } from '../features/agents/AgentStatusList'
 import { ApprovalOverlay } from '../features/approval/ApprovalOverlay'
 import { McpActivationOverlay } from '../features/mcp/McpActivationOverlay'
 import { notifyApprovalRequested } from '../features/approval/approvalNotification'
@@ -36,7 +37,11 @@ import { PlanPanel } from '../features/plan/PlanPanel'
 import { planStateReducer } from '../features/plan/planState'
 import { SetupWizard } from '../features/setup/SetupWizard'
 import { parseHistoryLog } from '../features/session/historyParser'
-import { chatTimelineReducer, createInitialTimelineState } from '../features/timeline/chatTimeline'
+import {
+    activeAgentActivities,
+    chatTimelineReducer,
+    createInitialTimelineState,
+} from '../features/timeline/chatTimeline'
 import { calculateContextPercent, inferParallelToolStatuses, inferToolStatus } from '../shared/lib/utils'
 import { checkForUpdate, findLocalPackageInfoSync } from '../shared/lib/version'
 import type { SessionHistoryEntry } from '../features/session/sessionHistory'
@@ -246,14 +251,12 @@ export function App({
             thinkingOnRef.current = parsed.thinking
             setThinkingOn(parsed.thinking)
         }
-        if (parsed.contextWindow) setContextLimit(parsed.contextWindow)
         if (restoredToolPermissionMode) setToolPermissionMode(restoredToolPermissionMode)
         setInputHistory(parsed.turns.map((turn) => turn.userInput.trim()).filter(Boolean))
         setSessionOptionsState((prev) => ({
             ...prev,
             providerName: parsed.providerName ?? prev.providerName,
             modelName: parsed.modelName ?? prev.modelName,
-            contextWindow: parsed.contextWindow ?? prev.contextWindow,
             toolPermissionMode: restoredToolPermissionMode ?? prev.toolPermissionMode,
             dangerous:
                 restoredToolPermissionMode === undefined
@@ -270,6 +273,7 @@ export function App({
         dispatchTimeline({
             type: 'replace_history',
             turns: initialHistory.turns,
+            agents: initialHistory.agents,
             maxSequence: initialHistory.maxSequence,
         })
         dispatchPlan({ type: 'restore_history', turns: initialHistory.turns })
@@ -292,7 +296,8 @@ export function App({
 
     const deps = useMemo<AgentSessionDeps>(
         () => ({
-            onAssistantStep: (chunk: string, step: number) => {
+            onAssistantStep: (chunk: string, step: number, sessionId?: string) => {
+                if (sessionId && sessionId !== sessionRef.current?.id) return
                 const turn = currentTurnRef.current
                 if (!turn) return
                 visibleUpdateQueue.enqueue({
@@ -300,12 +305,19 @@ export function App({
                     action: { type: 'assistant_chunk', turn, step, chunk },
                 })
             },
-            onReasoningChunk: (chunk: string, step: number) => {
+            onReasoningChunk: (chunk: string, step: number, sessionId?: string) => {
+                if (sessionId && sessionId !== sessionRef.current?.id) return
                 const turn = currentTurnRef.current
                 if (!turn) return
                 visibleUpdateQueue.enqueue({
                     kind: 'timeline',
                     action: { type: 'reasoning_chunk', turn, step, chunk },
+                })
+            },
+            onAgentActivity: (activity) => {
+                visibleUpdateQueue.enqueue({
+                    kind: 'timeline',
+                    action: { type: 'agent_status', activity },
                 })
             },
             requestApproval:
@@ -705,6 +717,7 @@ export function App({
                 dispatchTimeline({
                     type: 'replace_history',
                     turns: parsed.turns,
+                    agents: parsed.agents,
                     maxSequence: parsed.maxSequence,
                 })
                 dispatchPlan({ type: 'restore_history', turns: parsed.turns })
@@ -729,7 +742,7 @@ export function App({
 
     const handleCancelRun = useCallback(() => {
         if (runtime.active?.kind !== 'turn') return
-        approvalQueue.denyAll()
+        approvalQueue.denySource(session?.id)
         dispatchRuntime({ type: 'cancel_requested' })
         session?.cancelCurrentTurn?.()
     }, [approvalQueue, runtime.active, session])
@@ -871,6 +884,7 @@ export function App({
     }, [pendingHistoryMessages, session])
 
     const contextPercent = calculateContextPercent(currentContextTokens, contextLimit)
+    const activeAgents = useMemo(() => activeAgentActivities(timeline.agents), [timeline.agents])
     const chatHeader = useMemo(
         () => ({
             providerName: currentProvider,
@@ -970,6 +984,8 @@ export function App({
                 thinkingOn={thinkingOn}
                 followOutput={followOutput}
             />
+
+            <AgentStatusList agents={activeAgents} />
         </Box>
     )
 }

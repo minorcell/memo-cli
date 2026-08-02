@@ -26,7 +26,8 @@
         "diff": "^8.0.3",
         "ignore": "^7.0.5",
         "js-tiktoken": "^1.0.21",
-        "minimatch": "^10.0.1",
+        "minimatch": "^10.2.6",
+        "undici": "^6.28.0",
         "zod": "^4.3.6"
     },
     "devDependencies": {

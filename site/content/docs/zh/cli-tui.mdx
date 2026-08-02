@@ -12,7 +12,7 @@ Memo 有两种运行模式：用于日常开发的交互式 TUI，以及用于�
 ## 运行时架构（当前）
 
 - `packages/tui`：终端运行时包（`memo` 入口、参数解析、模式分发、纯文本模式 + 交互式 TUI 运行时）。
-- `packages/core`：两种模式使用的会话状态机和工具调用运行时。
+- `packages/core`：两种模式使用的会话状态机、工具调用运行时与 LLM 层。
 
 ## 运行模式
 
@@ -51,6 +51,21 @@ echo "your prompt" | memo
 - `--prev` / `-prev`：预加载当前目录最近本地会话历史。
 - `--dangerous` / `-d`：跳过审批检查。
 
+## 实时流式输出、思考与计划进度
+
+TUI 时间线是实时的：
+
+- 模型输出与推理内容边生成边流入时间线，流式渲染 Markdown
+- 进行中的任务计划（`update_plan`）会以进度面板展示各步骤状态
+- `Ctrl+T` 切换是否跟随实时输出流
+
+思考模式可在会话内随时切换：
+
+- 在**空**输入框上按 `Tab` 切换思考模式开关
+- 思考模式开启时，输入框显示为琥珀色
+
+该开关会被记住，并在恢复历史会话时一并还原（见下文）。
+
 ## 输入增强
 
 ### 使用 `@` 引用文件
@@ -60,7 +75,7 @@ echo "your prompt" | memo
 示例：
 
 - `Review @package.json and explain scripts`
-- `Compare @packages/core/src/runtime/session.ts with @packages/tools/src/index.ts`
+- `Compare @packages/core/src/agent/loop.ts with @packages/core/src/tools/index.ts`
 
 ### 会话恢复 (`resume`)
 
@@ -72,6 +87,8 @@ echo "your prompt" | memo
 
 然后选择一个会话建议来加载历史上下文。
 
+恢复会话时也会还原该会话的 UI 状态：提供商、模型、思考开关、工具权限模式、上下文窗口和输入历史。
+
 ## 斜杠命令
 
 使用 `/` 打开命令建议。
@@ -81,6 +98,7 @@ echo "your prompt" | memo
 - `/exit`：退出 Memo
 - `/resume`：显示历史加载指南
 - `/models`：列出/切换已配置的提供商和模型
+- `/tools`：切换工具权限模式（`none` / `once` / `full`）
 - `/compact`：手动压缩当前会话上下文
 - `/mcp`：显示已配置的 MCP 服务器
 - `/init`：让 Memo 为当前项目生成 `AGENTS.md`
@@ -90,25 +108,34 @@ echo "your prompt" | memo
 - 输入 `exit`（不带斜杠）也会退出。
 - `/models <provider-or-model>` 也可以工作（用于直接切换）。
 
-## Web 模式命令
+## CLI 子命令
+
+Memo 还提供独立的子命令：
 
 ```bash
-memo web --host 127.0.0.1 --port 5494 --open
+memo init               # 为当前项目生成 AGENTS.md（幂等）
+memo mcp list           # 列出已配置的 MCP 服务器
+memo mcp add <name> -- <command...>
+memo mcp login <name>   # 远程 MCP 服务器的 OAuth 登录
+memo skills list        # 列出发现的 skills
+memo skills read <name> # 读取某个 skill 的完整 SKILL.md
 ```
 
-该命令会启动本地 Web 服务并打开浏览器 UI。
+详见 [MCP 集成](./mcp.md) 与 [Skills 系统](./skills.md)。
 
 ## 快捷键
 
 - `Enter`：发送消息
 - `Shift+Enter`：插入换行
-- `Tab`：接受当前建议
+- `Tab`：接受当前建议；在空输入框上切换思考模式
 - `Up/Down`：在建议列表中移动，或浏览输入历史
 - `Esc`：关闭建议面板
 - `Esc Esc`：
     - 运行时：取消当前轮次
     - 空闲时：清除当前输入
+- `Ctrl+T`：切换跟随实时输出
 - `Ctrl+L`：清屏并开始新会话
+- `Ctrl+D`：退出（在空输入框上连按两次）；否则删除光标处字符
 - `Ctrl+C`：退出
 
 ## TUI 中的审批

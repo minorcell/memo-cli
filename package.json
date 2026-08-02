@@ -23,9 +23,9 @@
         "start": "tsx packages/tui/src/cli.tsx",
         "build": "tsup",
         "dev": "tsup --watch",
-        "site:dev": "pnpm --filter @memo-code/site dev",
-        "site:build": "pnpm --filter @memo-code/site build",
-        "site:start": "pnpm --filter @memo-code/site start",
+        "site:dev": "pnpm --dir site dev",
+        "site:build": "pnpm --dir site build",
+        "site:start": "pnpm --dir site start",
         "format": "oxfmt packages site package.json pnpm-workspace.yaml tsconfig.json tsup.config.ts vitest.config.ts vitest.setup.ts .oxfmtrc.json",
         "format:check": "oxfmt --check packages site package.json pnpm-workspace.yaml tsconfig.json tsup.config.ts vitest.config.ts vitest.setup.ts .oxfmtrc.json",
         "lint": "oxlint packages site",
@@ -67,7 +67,7 @@
         "string-width": "^7.2.0",
         "toml": "^3.0.0",
         "turndown": "^7.2.2",
-        "undici": "^6.23.0",
+        "undici": "^6.28.0",
         "zod": "^4.3.6"
     }
 }

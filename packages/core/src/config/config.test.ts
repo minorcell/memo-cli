@@ -142,7 +142,7 @@ describe('mcp config serialization', () => {
         expect(text).toContain('active_skills = ["/tmp/.memo/skills/doc-writing/SKILL.md"]')
         expect(text).toContain('mcp_oauth_credentials_store_mode = "file"')
         expect(text).toContain('mcp_oauth_callback_port = 8765')
-        expect(text).toContain('auto_compact_threshold_percent = 80')
+        expect(text).toContain('auto_compact_threshold_percent = 90')
         expect(text).toContain('[model_profiles.gpt-5]')
         expect(text).toContain('supports_parallel_tool_calls = true')
         expect(text).toContain('context_window = 272000')
@@ -287,7 +287,7 @@ model = "deepseek-chat"
 
         const loaded = await loadMemoConfig()
         expect(loaded.config.mcp_oauth_credentials_store_mode).toBe('auto')
-        expect(loaded.config.auto_compact_threshold_percent).toBe(80)
+        expect(loaded.config.auto_compact_threshold_percent).toBe(90)
     })
 
     test('loadMemoConfig reads custom auto_compact_threshold_percent', async () => {
@@ -325,7 +325,7 @@ model = "deepseek-chat"
         await writeFile(join(home, 'config.toml'), configText, 'utf-8')
 
         const loaded = await loadMemoConfig()
-        expect(loaded.config.auto_compact_threshold_percent).toBe(80)
+        expect(loaded.config.auto_compact_threshold_percent).toBe(90)
     })
 
     test('loadMemoConfig ignores legacy max_prompt_tokens', async () => {
@@ -408,7 +408,7 @@ describe('resolveContextWindowForProvider', () => {
             { name: 'openai', model: 'gpt-5', env_api_key: 'OPENAI_API_KEY' },
         )
 
-        expect(contextWindow).toBe(120000)
+        expect(contextWindow).toBe(1_000_000)
     })
 
     test('matches keys case-insensitively and trims surrounding spaces', () => {
