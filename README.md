@@ -56,7 +56,7 @@ This project grew from a small demo into an indispensable "productivity assistan
 | **Terminal Mode**            | Smooth TUI in terminal                                                               |
 | **Smart Context Management**  | Auto-compact long session context, configurable threshold, millisecond-level token estimation         |
 | **Skills System**             | Skills integration, auto-discover `SKILL.md`, activate by scenario                                    |
-| **Deep MCP Integration**      | Local/remote MCP servers, OAuth login, runtime dynamic switching                                      |
+| **Deep MCP Integration**      | Local/remote MCP servers, OAuth login, per-session dynamic switching                                   |
 | **Enterprise-Grade Security** | Tool approval system (auto-approve/manual-approve), supports once/session/deny modes                  |
 | **OpenAI Compatible**         | Works with any OpenAI-compatible API, flexible multi-Provider configuration                           |
 
@@ -103,19 +103,18 @@ First run will guide you through Provider/Model setup and save config to `~/.mem
 ```
 memo-code/
 ├── packages/
-│   ├── core/          # Core logic: Session state machine, Config handling
-│   ├── tools/         # Tool routing, MCP Client management, built-in tools (exec_command, read_text_file, apply_patch...)
-│   ├── tui/           # Terminal runtime: CLI entry, interactive TUI
-└── docs/              # Technical documentation
+│   ├── core/          # Agent engine: session state machine, LLM/tool loop, built-in tools, MCP client, skills
+│   └── tui/           # Terminal runtime: CLI entry, interactive TUI (Ink)
+└── site/              # Documentation website (Next.js, static export)
 ```
 
 **Technical Highlights:**
 
-- **Architecture**: Clean Core / Tools / TUI separation, state-machine driven session management
-- **Testing**: Core + Tools coverage > 70%, complete unit + integration tests
+- **Architecture**: Core engine with integrated tool routing, thin TUI on top, state-machine driven session management
+- **Testing**: Unit + integration tests, coverage threshold ≥70%
 - **Protocol**: Native MCP (Model Context Protocol) support, can integrate any MCP tool server
 - **Token Estimation**: Real-time context monitoring based on tiktoken, configurable auto-compaction strategy
-- **Distribution**: npm package with hot-reloading without perception
+- **Distribution**: Published to npm with version-driven auto releases via CI
 
 ---
 
@@ -125,9 +124,11 @@ memo-code/
 - `apply_patch` - Structured patch editing (`*** Begin Patch`/`*** End Patch`)
 - `read_text_file` / `read_media_file` / `read_files` / `write_file` / `edit_file` / `list_directory` / `search_files` - Filesystem read/write/search
 - `webfetch` - Paged web fetching with markdown extraction and policy guards
-- MCP resource access - `list_mcp_resources`, `read_mcp_resource`
+- MCP resource access - `list_mcp_resources`, `list_mcp_resource_templates`, `read_mcp_resource`
 - `update_plan` - Structured task progress management
+- `read_skill` - Load skill instructions on demand
 - `get_memory` - Persistent memory reading
+- Agent collaboration - `spawn_agent` / `send_message` / `followup_task` / `wait_agent` / `interrupt_agent` / `list_agents`
 
 ---
 
@@ -148,8 +149,8 @@ base_url = "https://api.openai.com/v1"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
 
-# Skills
-active_skills = ["./skills/doc-writing/SKILL.md"]
+# Skills (absolute paths to SKILL.md files)
+active_skills = ["/path/to/skills/doc-writing/SKILL.md"]
 ```
 
 ---

@@ -52,7 +52,7 @@ Memo 诞生于一个简单的想法：**我想验证一个最简单的 Agent 是
 | **终端模式**         | 终端 TUI 交互流畅                                                  |
 | **智能上下文管理**  | 自动压缩长会话上下文，支持配置压缩阈值，毫秒级 token 估算               |
 | **Skills 技能系统** | Skills 技能集成，自动发现 `SKILL.md`，支持按场景激活                    |
-| **MCP 深度集成**    | 支持本地/远程 MCP 服务器，OAuth 登录，运行时动态切换                    |
+| **MCP 深度集成**    | 支持本地/远程 MCP 服务器，OAuth 登录，会话级动态切换                    |
 | **企业级安全**      | 工具分级审批机制（自动批准/手动批准），支持单次/会话/拒绝三种模式       |
 | **OpenAI 兼容**     | 支持任意 OpenAI 兼容 API，灵活配置多 Provider 切换                      |
 
@@ -93,29 +93,30 @@ memo
 ```
 memo-code/
 ├── packages/
-│   ├── core/          # 核心逻辑：Session 状态机、Config 处理
-│   ├── tools/         # Tool 路由、MCP Client管理、内置工具实现（exec_command, read_text_file, apply_patch...）
-│   ├── tui/           # 终端运行时：CLI 入口、交互式 TUI
-└── docs/              # 技术文档
+│   ├── core/          # 核心引擎：Session 状态机、LLM/工具循环、内置工具、MCP 客户端、技能
+│   └── tui/           # 终端运行时：CLI 入口、交互式 TUI (Ink)
+└── site/              # 文档网站（Next.js 静态导出）
 ```
 
 **技术亮点：**
 
-- **架构**：清晰的 Core / Tools / TUI 分层，状态机驱动会话管理
-- **测试**：Core + Tools 覆盖率 > 70%，完整的单元 + 集成测试
+- **架构**：核心引擎内置工具路由，TUI 薄壳，状态机驱动会话管理
+- **测试**：单元 + 集成测试，覆盖率门槛 ≥70%
 - **协议**：原生支持 MCP (Model Context Protocol)，可接入任意 MCP 工具服务器
 - **Token 估算**：基于 tiktoken 的实时上下文监控，支持可配置的自动压缩策略
-- **分发**：npm 包热加载无感知
+- **分发**：发布至 npm，CI 版本驱动自动发版
 
 ## 🔧 内置工具
 
 - `exec_command` / `write_stdin` - 执行 Shell 命令
-- `apply_patch` - 字符串级代码编辑（单文件/批量）
+- `apply_patch` - 结构化补丁编辑（`*** Begin Patch`/`*** End Patch`）
 - `read_text_file` / `read_media_file` / `read_files` / `write_file` / `edit_file` / `list_directory` / `search_files` - 文件系统读写与检索
 - `webfetch` - 支持分页、Markdown 提取与策略防护的网页抓取
-- MCP 资源访问 - `list_mcp_resources`, `read_mcp_resource`
+- MCP 资源访问 - `list_mcp_resources`, `list_mcp_resource_templates`, `read_mcp_resource`
 - `update_plan` - 结构化任务进度管理
+- `read_skill` - 按需加载技能指令
 - `get_memory` - 持久化记忆读取
+- Agent 协作 - `spawn_agent` / `send_message` / `followup_task` / `wait_agent` / `interrupt_agent` / `list_agents`
 
 ## ⚙️ 配置示例
 
@@ -134,8 +135,8 @@ base_url = "https://api.openai.com/v1"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
 
-# Skills
-active_skills = ["./skills/doc-writing/SKILL.md"]
+# Skills（SKILL.md 的绝对路径）
+active_skills = ["/path/to/skills/doc-writing/SKILL.md"]
 ```
 
 ---
