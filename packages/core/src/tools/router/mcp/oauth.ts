@@ -287,7 +287,10 @@ function browserCommand(url: string): { command: string; args: string[] } {
         if (/["']/.test(url)) {
             throw new Error(`Refusing to open URL containing a quote character: ${url}`)
         }
-        return { command: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', `Start-Process '${url}'`] }
+        return {
+            command: 'powershell.exe',
+            args: ['-NoProfile', '-NonInteractive', '-Command', `Start-Process '${url}'`],
+        }
     }
     return { command: 'xdg-open', args: [url] }
 }
