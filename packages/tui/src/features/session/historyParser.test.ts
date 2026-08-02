@@ -28,6 +28,17 @@ describe('parseHistoryLog', () => {
             line({ type: 'turn_start', turn: 1, content: 'plan this task' }),
             line({ type: 'assistant', turn: 1, step: 0, content: 'thinking...' }),
             line({
+                type: 'agent_status',
+                content: 'review complete',
+                meta: {
+                    agent_id: 'agent-1',
+                    agent_path: '/root/review',
+                    task_name: 'review',
+                    status: 'completed',
+                    updated_at: '2026-01-01T00:00:00.000Z',
+                },
+            }),
+            line({
                 type: 'action',
                 turn: 1,
                 step: 0,
@@ -80,6 +91,16 @@ describe('parseHistoryLog', () => {
                 tool: 'read_file',
                 observation: 'loaded',
                 status: TOOL_STATUS.SUCCESS,
+            },
+        ])
+        assert.deepStrictEqual(parsed.agents, [
+            {
+                agentId: 'agent-1',
+                agentPath: '/root/review',
+                taskName: 'review',
+                status: 'completed',
+                lastMessage: 'review complete',
+                updatedAt: '2026-01-01T00:00:00.000Z',
             },
         ])
     })

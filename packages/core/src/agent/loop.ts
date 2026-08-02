@@ -48,6 +48,8 @@ import {
 import type { ToolApprovalHooks } from '@memo/core/tools/sdk_tools'
 import { runWithRuntimeContext } from '@memo/core/tools/runtime/context'
 import type { ToolExecutionContext } from '@memo/core/tools/sdk_tools'
+import { formatInterAgentCommunication, type InterAgentCommunication } from '@memo/core/agent/communication'
+import type { CollabSessionBinding } from '@memo/core/agent/control'
 import { createStepGate } from '@memo/core/tools/runtime/step_gate'
 import {
     isToolSkippedOutput,
@@ -84,6 +86,11 @@ type ActiveSessionOperation = {
     done: Promise<void>
 }
 
+export type AgentSessionRuntimeOptions = {
+    initialHistory?: ChatMessage[]
+    collab?: CollabSessionBinding
+}
+
 /** In-process conversation Session, implements multi-turn execution and log writing. */
 export class AgentSessionImpl implements AgentSession {
     public title?: string
@@ -111,6 +118,7 @@ export class AgentSessionImpl implements AgentSession {
     private toolPermissionMode: ToolPermissionMode | 'auto' = 'auto'
     /** Thinking override; undefined follows the provider model profile. */
     private thinkingOverride: boolean | undefined
+    private collab?: CollabSessionBinding
 
     constructor(
         private deps: AgentSessionDeps & {
@@ -121,10 +129,11 @@ export class AgentSessionImpl implements AgentSession {
         systemPrompt: string,
         tokenCounter: TokenCounter,
         historyFilePath?: string,
+        runtimeOptions: AgentSessionRuntimeOptions = {},
     ) {
         this.id = options.sessionId || randomUUID()
         this.mode = options.mode || DEFAULT_SESSION_MODE
-        this.history = [{ role: 'system', content: systemPrompt }]
+        this.history = runtimeOptions.initialHistory?.slice() ?? [{ role: 'system', content: systemPrompt }]
         this.tokenCounter = tokenCounter
         this.sinks = deps.historySinks ?? []
         this.hooks = buildHookRunners(deps)
@@ -137,6 +146,7 @@ export class AgentSessionImpl implements AgentSession {
             mode: resolvedPermission.approvalMode,
         })
         this.thinkingOverride = options.thinking
+        this.collab = runtimeOptions.collab
     }
 
     /** 运行时切换思考模式（undefined 恢复为跟随模型 profile）。 */
@@ -451,16 +461,17 @@ export class AgentSessionImpl implements AgentSession {
     private buildToolApprovalHooks(turn: number, step: number): ToolApprovalHooks {
         return {
             onApprovalRequest: async (request: ApprovalRequest) => {
+                const contextualRequest = this.contextualizeApprovalRequest(request)
                 await runHook(this.hooks, 'onApprovalRequest', {
                     sessionId: this.id,
                     turn,
                     step,
-                    request,
+                    request: contextualRequest,
                 })
             },
             requestApproval: async (request: ApprovalRequest): Promise<ApprovalDecision> => {
                 if (this.deps.requestApproval) {
-                    return this.deps.requestApproval(request)
+                    return this.deps.requestApproval(this.contextualizeApprovalRequest(request))
                 }
                 return 'deny'
             },
@@ -476,8 +487,51 @@ export class AgentSessionImpl implements AgentSession {
         }
     }
 
+    private contextualizeApprovalRequest(request: ApprovalRequest): ApprovalRequest {
+        return {
+            ...request,
+            sessionId: this.id,
+            agentId: this.collab?.agentId,
+            agentPath: this.collab?.agentPath,
+        }
+    }
+
+    private async recordAgentMessages(
+        turn: number,
+        messages: InterAgentCommunication[],
+        step?: number,
+    ): Promise<boolean> {
+        if (messages.length === 0) return false
+        for (const message of messages) {
+            const content = formatInterAgentCommunication(message)
+            this.history.push({ role: 'user', content })
+            await this.emitEvent('agent_message', {
+                turn,
+                step,
+                content,
+                role: 'user',
+                meta: {
+                    author: message.author,
+                    recipient: message.recipient,
+                    trigger_turn: message.triggerTurn,
+                },
+            })
+        }
+        return true
+    }
+
+    private async drainPendingAgentMessages(turn: number, step: number): Promise<void> {
+        const messages = this.collab?.inputQueue.drainAll() ?? []
+        await this.recordAgentMessages(turn, messages, step)
+    }
+
+    private async drainTriggeredAgentMessages(turn: number, step: number): Promise<boolean> {
+        const messages = this.collab?.inputQueue.drainTriggeredBatch() ?? []
+        return this.recordAgentMessages(turn, messages, step)
+    }
+
     private async maybeGenerateSessionTitle(turn: number, originalPrompt: string) {
-        if (turn !== 1 || this.title) return
+        if (turn !== 1 || this.title || (this.collab && this.collab.agentPath !== '/root')) return
 
         const title = fallbackSessionTitleFromPrompt(originalPrompt)
         this.title = title
@@ -566,6 +620,7 @@ export class AgentSessionImpl implements AgentSession {
 
                 // ReAct 主循环
                 for (let step = 0; ; step++) {
+                    await this.drainPendingAgentMessages(turn, step)
                     let estimatedPrompt = this.tokenCounter.countMessages(this.history)
                     await this.emitContextUsage(
                         turn,
@@ -631,6 +686,7 @@ export class AgentSessionImpl implements AgentSession {
                         toolsDisabled: this.toolsDisabled,
                         gate: createStepGate(),
                         skillIndex: this.deps.skillIndex,
+                        collab: this.collab,
                     }
                     try {
                         const llmResult = await this.deps.callLLM(
@@ -639,13 +695,13 @@ export class AgentSessionImpl implements AgentSession {
                                 if (chunk) {
                                     receivedAssistantChunk = true
                                 }
-                                this.deps.onAssistantStep?.(chunk, step)
+                                this.deps.onAssistantStep?.(chunk, step, this.id)
                             },
                             {
                                 signal: abortController.signal,
                                 toolContext,
                                 thinking: this.thinkingOverride,
-                                onReasoningChunk: (chunk) => this.deps.onReasoningChunk?.(chunk, step),
+                                onReasoningChunk: (chunk) => this.deps.onReasoningChunk?.(chunk, step, this.id),
                             },
                         )
                         const normalized = normalizeLLMResponse(llmResult)
@@ -702,7 +758,7 @@ export class AgentSessionImpl implements AgentSession {
                     }
 
                     if (!receivedAssistantChunk && assistantText) {
-                        this.deps.onAssistantStep?.(assistantText, step)
+                        this.deps.onAssistantStep?.(assistantText, step, this.id)
                     }
 
                     const textToolCall =
@@ -998,6 +1054,9 @@ export class AgentSessionImpl implements AgentSession {
 
                     // 无工具调用：文本即最终回复
                     if (toolUseBlocks.length === 0) {
+                        if (await this.drainTriggeredAgentMessages(turn, step)) {
+                            continue
+                        }
                         this.resetActionRepetition()
                         const shouldFallbackFromPreviousText =
                             toolUseBlocks.length === 0 &&
@@ -1068,6 +1127,7 @@ export class AgentSessionImpl implements AgentSession {
                         stepCount: steps.length,
                         durationMs: Date.now() - turnStartedAt,
                         tokens: turnUsage,
+                        error_message: errorMessage,
                         protocol_violation_count: protocolViolationCount || undefined,
                     },
                 })
@@ -1113,6 +1173,10 @@ export class AgentSessionImpl implements AgentSession {
 
     private async closeInternal() {
         await this.activeOperation?.done
+        if (this.collab?.agentPath === '/root') {
+            await this.collab.control.shutdownDescendants(this.collab.agentId)
+        }
+        this.collab?.inputQueue.close()
         // 空会话（从未 runTurn）不写 session_end，避免空会话落盘；sink 清理始终执行。
         if (this.sessionStartEmitted) {
             await this.emitEvent('session_end', {
@@ -1150,7 +1214,13 @@ export class AgentSessionImpl implements AgentSession {
             step: payload.step,
             content: payload.content,
             role: payload.role,
-            meta: payload.meta,
+            meta: this.collab
+                ? {
+                      ...payload.meta,
+                      agent_id: this.collab.agentId,
+                      agent_path: this.collab.agentPath,
+                  }
+                : payload.meta,
         })
         await emitEventToSinks(event, this.sinks)
     }

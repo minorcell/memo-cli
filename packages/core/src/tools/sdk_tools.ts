@@ -5,6 +5,7 @@ import type { ApprovalDecision, ApprovalManager, ApprovalRequest } from '@memo/c
 import { getMaxToolResultChars } from '@memo/core/tools/runtime/tool_output_limits'
 import type { StepGate } from '@memo/core/tools/runtime/step_gate'
 import type { SkillIndex } from '@memo/core/skills/skills'
+import type { CollabSessionBinding } from '@memo/core/agent/control'
 
 const TOOL_SKIPPED_AFTER_REJECTION_MESSAGE = 'Skipped tool execution after previous rejection.'
 export const TOOL_SKIPPED_DISABLED_MESSAGE = 'Tool execution skipped: tools are disabled in current permission mode.'
@@ -25,6 +26,8 @@ export type ToolExecutionContext = {
     gate: StepGate
     /** Deduped skill snapshot for the current session (read_skill). */
     skillIndex?: SkillIndex
+    /** Session-scoped multi-agent control binding. */
+    collab?: CollabSessionBinding
 }
 
 function escapeXmlAttr(value: string) {

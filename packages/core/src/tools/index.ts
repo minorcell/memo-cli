@@ -20,7 +20,14 @@ import { updatePlanTool } from '@memo/core/tools/tools/update_plan'
 import { getMemoryTool } from '@memo/core/tools/tools/get_memory'
 import { readSkillTool } from '@memo/core/tools/tools/read_skill'
 import { webfetchTool } from '@memo/core/tools/tools/webfetch'
-import { closeAgentTool, resumeAgentTool, sendInputTool, spawnAgentTool, waitTool } from '@memo/core/tools/tools/collab'
+import {
+    followupTaskTool,
+    interruptAgentTool,
+    listAgentsTool,
+    sendMessageTool,
+    spawnAgentTool,
+    waitAgentTool,
+} from '@memo/core/tools/tools/collab'
 
 function buildCodexTools(): Record<string, Tool> {
     const tools: Record<string, Tool> = {}
@@ -62,10 +69,11 @@ function buildCodexTools(): Record<string, Tool> {
 
     if (collabEnabled) {
         tools.spawn_agent = spawnAgentTool
-        tools.send_input = sendInputTool
-        tools.resume_agent = resumeAgentTool
-        tools.wait = waitTool
-        tools.close_agent = closeAgentTool
+        tools.send_message = sendMessageTool
+        tools.followup_task = followupTaskTool
+        tools.wait_agent = waitAgentTool
+        tools.interrupt_agent = interruptAgentTool
+        tools.list_agents = listAgentsTool
     }
 
     return tools

@@ -16,11 +16,12 @@ export const DEFAULT_TOOL_RISK_LEVELS: Record<string, RiskLevel> = {
     read_files: 'read',
     list_directory: 'read',
     search_files: 'read',
-    wait: 'read',
+    wait_agent: 'read',
     spawn_agent: 'read',
-    send_input: 'read',
-    resume_agent: 'read',
-    close_agent: 'read',
+    send_message: 'read',
+    followup_task: 'read',
+    interrupt_agent: 'read',
+    list_agents: 'read',
 
     // Write tools: require approval.
     apply_patch: 'write',
@@ -40,10 +41,11 @@ export const DEFAULT_TOOL_RISK_LEVELS: Record<string, RiskLevel> = {
  */
 export const ALWAYS_AUTO_APPROVE_TOOLS = new Set<string>([
     'spawn_agent',
-    'send_input',
-    'resume_agent',
-    'wait',
-    'close_agent',
+    'send_message',
+    'followup_task',
+    'wait_agent',
+    'interrupt_agent',
+    'list_agents',
 ])
 
 /** Risk level ordering for comparisons. */

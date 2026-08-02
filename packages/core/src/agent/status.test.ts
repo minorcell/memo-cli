@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest'
-import { deriveAgentStatusFromEvent, isFinalAgentStatus } from './status'
+import { deriveAgentStatusFromEvent, isFinalAgentStatus, type AgentStatusSnapshot } from './status'
 
 describe('agent status', () => {
     test('derives lifecycle status from session events', () => {
-        let status = { status: 'pending_init' as const }
+        let status: AgentStatusSnapshot = { status: 'pending_init' }
         status = deriveAgentStatusFromEvent(status, { type: 'turn_start' })
         expect(status.status).toBe('running')
         status = deriveAgentStatusFromEvent(status, { type: 'final', content: 'done' })

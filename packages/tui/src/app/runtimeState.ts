@@ -24,6 +24,7 @@ export type ActiveRuntimeOperation = ActiveTurn | ActiveCompact
 
 export type RuntimeState = {
     active: ActiveRuntimeOperation | null
+    pendingApproval: ApprovalRequest | null
     queuedTurns: TurnRequest[]
     nextOperationId: number
 }
@@ -40,6 +41,7 @@ export type RuntimeAction =
 export function createInitialRuntimeState(): RuntimeState {
     return {
         active: null,
+        pendingApproval: null,
         queuedTurns: [],
         nextOperationId: 1,
     }
@@ -53,20 +55,21 @@ function activateTurn(state: RuntimeState, request: TurnRequest, queuedTurns = s
             request,
             stage: 'running',
         },
+        pendingApproval: state.pendingApproval,
         queuedTurns,
         nextOperationId: state.nextOperationId + 1,
     }
 }
 
 export function runtimeStatus(state: RuntimeState): RuntimeStatus {
+    if (state.pendingApproval) return 'awaiting_approval'
     if (!state.active) return 'idle'
     if (state.active.kind === 'compact') return 'compacting'
     return state.active.stage
 }
 
 export function pendingRuntimeApproval(state: RuntimeState): ApprovalRequest | null {
-    if (state.active?.kind !== 'turn' || state.active.stage !== 'awaiting_approval') return null
-    return state.active.approval ?? null
+    return state.pendingApproval
 }
 
 export function runtimeReducer(state: RuntimeState, action: RuntimeAction): RuntimeState {
@@ -85,25 +88,23 @@ export function runtimeReducer(state: RuntimeState, action: RuntimeAction): Runt
             }
 
         case 'approval_requested':
-            if (state.active?.kind !== 'turn' || state.active.stage === 'cancelling') return state
             return {
                 ...state,
-                active: {
-                    ...state.active,
-                    stage: 'awaiting_approval',
-                    approval: action.request,
-                },
+                pendingApproval: action.request,
+                active:
+                    state.active?.kind === 'turn' && state.active.stage !== 'cancelling'
+                        ? { ...state.active, stage: 'awaiting_approval', approval: action.request }
+                        : state.active,
             }
 
         case 'approval_resolved':
-            if (state.active?.kind !== 'turn' || state.active.stage !== 'awaiting_approval') return state
             return {
                 ...state,
-                active: {
-                    ...state.active,
-                    stage: 'running',
-                    approval: undefined,
-                },
+                pendingApproval: null,
+                active:
+                    state.active?.kind === 'turn' && state.active.stage === 'awaiting_approval'
+                        ? { ...state.active, stage: 'running', approval: undefined }
+                        : state.active,
             }
 
         case 'cancel_requested':
@@ -127,6 +128,7 @@ export function runtimeReducer(state: RuntimeState, action: RuntimeAction): Runt
         case 'reset':
             return {
                 active: null,
+                pendingApproval: null,
                 queuedTurns: [],
                 nextOperationId: state.nextOperationId,
             }

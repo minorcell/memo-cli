@@ -9,6 +9,7 @@ type FooterProps = {
     /** Thinking mode state (toggled with Tab on an empty input). */
     thinkingOn?: boolean
     followOutput?: boolean
+    activeAgentCount?: number
 }
 
 export const Footer = memo(function Footer({
@@ -17,6 +18,7 @@ export const Footer = memo(function Footer({
     contextPercent,
     thinkingOn = true,
     followOutput = true,
+    activeAgentCount = 0,
 }: FooterProps) {
     const { stdout } = useStdout()
     const compact = (stdout.columns ?? 80) < 72
@@ -43,12 +45,13 @@ export const Footer = memo(function Footer({
                     : compact
                       ? 'Enter send • /help'
                       : 'Enter send • Shift+Enter newline • Tab thinking • Esc×2 cancel • /help'
-    const metrics =
+    const baseMetrics =
         compact && queuedCount > 0
             ? `ctx:${Math.round(contextPercent)}%`
             : compact
               ? `think:${thinkingOn ? 'on' : 'off'} • ctx:${context}`
               : `thinking: ${thinkingOn ? 'on' : 'off'} • context: ${context}`
+    const metrics = activeAgentCount > 0 ? `${baseMetrics} • agents:${activeAgentCount}` : baseMetrics
     const queueText = queuedCount > 0 ? `${queuedCount} queued` : null
 
     return (

@@ -56,6 +56,9 @@ export const ApprovalOverlay = memo(function ApprovalOverlay({ request, onDecisi
                 </Text>
                 <Text color="gray">{request.riskLevel}</Text>
             </Box>
+            {request.agentPath && request.agentPath !== '/root' ? (
+                <Text color="gray">Agent {request.agentPath}</Text>
+            ) : null}
             <Text bold color="cyan">
                 {request.toolName}
             </Text>

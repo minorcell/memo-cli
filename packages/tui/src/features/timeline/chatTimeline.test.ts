@@ -40,6 +40,23 @@ describe('chatTimelineReducer', () => {
         assert.strictEqual(state.systemMessages[0]?.sequence, 1)
     })
 
+    test('upserts structured agent activity by agent id', () => {
+        let state = createInitialTimelineState()
+        const base = {
+            agentId: 'agent-1',
+            agentPath: '/root/review',
+            taskName: 'review',
+            status: 'running' as const,
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        }
+        state = chatTimelineReducer(state, { type: 'agent_status', activity: base })
+        state = chatTimelineReducer(state, {
+            type: 'agent_status',
+            activity: { ...base, status: 'completed', lastMessage: 'done' },
+        })
+        assert.deepStrictEqual(state.agents, [{ ...base, status: 'completed', lastMessage: 'done' }])
+    })
+
     test('updates context prompt tokens at step granularity', () => {
         let state = createInitialTimelineState()
 

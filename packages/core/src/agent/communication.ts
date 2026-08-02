@@ -5,7 +5,7 @@ export type InterAgentCommunication = {
     triggerTurn: boolean
 }
 
-export type InputQueueActivity = 'mailbox' | 'closed' | 'aborted'
+export type InputQueueActivity = 'mailbox' | 'timeout' | 'closed' | 'aborted'
 
 type ActivityWaiter = (activity: InputQueueActivity) => void
 
@@ -56,7 +56,7 @@ export class InputQueue {
                 resolve(activity)
             }
             const onAbort = () => finish('aborted')
-            const timer = setTimeout(() => finish('closed'), timeoutMs)
+            const timer = setTimeout(() => finish('timeout'), timeoutMs)
 
             this.waiters.add(finish)
             signal?.addEventListener('abort', onAbort, { once: true })
@@ -74,7 +74,7 @@ export class InputQueue {
     }
 
     private publish(activity: InputQueueActivity): void {
-        for (const waiter of [...this.waiters]) waiter(activity)
+        for (const waiter of this.waiters) waiter(activity)
     }
 }
 

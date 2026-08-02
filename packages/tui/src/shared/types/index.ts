@@ -1,4 +1,4 @@
-import type { LanguageModelUsage, TurnStatus } from '@memo/core'
+import type { AgentStatus, LanguageModelUsage, TurnStatus } from '@memo/core'
 
 export const TOOL_STATUS = {
     PENDING: 'pending',
@@ -61,6 +61,17 @@ export type SystemMessage = {
     content: string
     sequence: number
     tone?: SystemMessageTone
+}
+
+export type AgentActivityView = {
+    agentId: string
+    agentPath: string
+    taskName: string
+    parentId?: string
+    status: AgentStatus
+    lastMessage?: string
+    error?: string
+    updatedAt: string
 }
 
 export type TimelineItem =

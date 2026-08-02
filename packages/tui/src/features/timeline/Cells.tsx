@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { Box, Text, useStdout } from 'ink'
 import {
     TOOL_STATUS,
+    type AgentActivityView,
     type SystemMessage,
     type StepView,
     type ToolAction,
@@ -87,6 +88,44 @@ export const SystemCell = memo(function SystemCell({ message }: { message: Syste
                 {message.title}
             </Text>
             <Text color="gray"> · {message.content}</Text>
+        </Box>
+    )
+})
+
+function agentStatusPresentation(status: AgentActivityView['status']): { glyph: string; color: string; label: string } {
+    if (status === 'running') return { glyph: '›', color: 'yellow', label: 'Running' }
+    if (status === 'completed') return { glyph: '✓', color: 'green', label: 'Completed' }
+    if (status === 'interrupted') return { glyph: '!', color: 'yellow', label: 'Interrupted' }
+    if (status === 'errored') return { glyph: '×', color: 'red', label: 'Failed' }
+    if (status === 'shutdown') return { glyph: '·', color: 'gray', label: 'Shutdown' }
+    return { glyph: '○', color: 'gray', label: 'Starting' }
+}
+
+export const AgentCell = memo(function AgentCell({ agent }: { agent: AgentActivityView }) {
+    const { stdout } = useStdout()
+    const presentation = agentStatusPresentation(agent.status)
+    const detail = agent.error ?? agent.lastMessage
+    const preview = detail
+        ? previewText(detail.replace(/\s+/g, ' ').trim(), {
+              columns: Math.max(1, (stdout?.columns ?? 80) - 6),
+              maxLines: 1,
+              from: 'end',
+          }).text
+        : null
+    return (
+        <Box flexDirection="column">
+            <Text wrap="truncate-end">
+                <Text color={presentation.color}>{presentation.glyph} </Text>
+                <Text color="cyan">{agent.agentPath}</Text>
+                <Text color="gray"> · {presentation.label}</Text>
+            </Text>
+            {preview ? (
+                <Box paddingLeft={2}>
+                    <Text color="gray" dimColor wrap="truncate-end">
+                        {preview}
+                    </Text>
+                </Box>
+            ) : null}
         </Box>
     )
 })

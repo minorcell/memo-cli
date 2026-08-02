@@ -268,6 +268,7 @@ export function App({
         dispatchTimeline({
             type: 'replace_history',
             turns: initialHistory.turns,
+            agents: initialHistory.agents,
             maxSequence: initialHistory.maxSequence,
         })
         dispatchPlan({ type: 'restore_history', turns: initialHistory.turns })
@@ -290,7 +291,8 @@ export function App({
 
     const deps = useMemo<AgentSessionDeps>(
         () => ({
-            onAssistantStep: (chunk: string, step: number) => {
+            onAssistantStep: (chunk: string, step: number, sessionId?: string) => {
+                if (sessionId && sessionId !== sessionRef.current?.id) return
                 const turn = currentTurnRef.current
                 if (!turn) return
                 visibleUpdateQueue.enqueue({
@@ -298,12 +300,19 @@ export function App({
                     action: { type: 'assistant_chunk', turn, step, chunk },
                 })
             },
-            onReasoningChunk: (chunk: string, step: number) => {
+            onReasoningChunk: (chunk: string, step: number, sessionId?: string) => {
+                if (sessionId && sessionId !== sessionRef.current?.id) return
                 const turn = currentTurnRef.current
                 if (!turn) return
                 visibleUpdateQueue.enqueue({
                     kind: 'timeline',
                     action: { type: 'reasoning_chunk', turn, step, chunk },
+                })
+            },
+            onAgentActivity: (activity) => {
+                visibleUpdateQueue.enqueue({
+                    kind: 'timeline',
+                    action: { type: 'agent_status', activity },
                 })
             },
             requestApproval:
@@ -703,6 +712,7 @@ export function App({
                 dispatchTimeline({
                     type: 'replace_history',
                     turns: parsed.turns,
+                    agents: parsed.agents,
                     maxSequence: parsed.maxSequence,
                 })
                 dispatchPlan({ type: 'restore_history', turns: parsed.turns })
@@ -727,7 +737,7 @@ export function App({
 
     const handleCancelRun = useCallback(() => {
         if (runtime.active?.kind !== 'turn') return
-        approvalQueue.denyAll()
+        approvalQueue.denySource(session?.id)
         dispatchRuntime({ type: 'cancel_requested' })
         session?.cancelCurrentTurn?.()
     }, [approvalQueue, runtime.active, session])
@@ -917,6 +927,7 @@ export function App({
                 systemMessages={timeline.systemMessages}
                 turns={timeline.turns}
                 historicalTurns={timeline.historicalTurns}
+                agents={timeline.agents}
             />
 
             {activePlan ? <PlanPanel plan={activePlan} /> : null}
@@ -967,6 +978,10 @@ export function App({
                 contextPercent={contextPercent}
                 thinkingOn={thinkingOn}
                 followOutput={followOutput}
+                activeAgentCount={
+                    timeline.agents.filter((agent) => agent.status === 'pending_init' || agent.status === 'running')
+                        .length
+                }
             />
         </Box>
     )

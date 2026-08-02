@@ -2,10 +2,11 @@ import {
     CONTEXT_SUMMARY_PREFIX,
     parseHistoryLogToSessionDetail,
     type ChatMessage,
+    type SessionEventItem,
     type SessionTurnDetail,
     type SessionTurnStep,
 } from '@memo/core'
-import { TOOL_STATUS, type StepView, type TurnView } from '../../shared/types'
+import { TOOL_STATUS, type AgentActivityView, type StepView, type TurnView } from '../../shared/types'
 
 export type ParsedHistoryLog = {
     summary: string
@@ -17,6 +18,42 @@ export type ParsedHistoryLog = {
     toolPermissionMode?: string
     thinking?: boolean
     compactionSummary?: string
+    agents: AgentActivityView[]
+}
+
+function parseAgentActivities(events: SessionEventItem[]): AgentActivityView[] {
+    const agents = new Map<string, AgentActivityView>()
+    for (const event of events) {
+        if (event.type !== 'agent_status' || !event.meta) continue
+        const agentId = event.meta.agent_id
+        const agentPath = event.meta.agent_path
+        const taskName = event.meta.task_name
+        const status = event.meta.status
+        if (typeof agentId !== 'string' || typeof agentPath !== 'string' || typeof taskName !== 'string') continue
+        if (
+            status !== 'pending_init' &&
+            status !== 'running' &&
+            status !== 'interrupted' &&
+            status !== 'completed' &&
+            status !== 'errored' &&
+            status !== 'shutdown'
+        ) {
+            continue
+        }
+        const parentId = typeof event.meta.parent_id === 'string' ? event.meta.parent_id : undefined
+        const error = typeof event.meta.error === 'string' ? event.meta.error : undefined
+        agents.set(agentId, {
+            agentId,
+            agentPath,
+            taskName,
+            ...(parentId ? { parentId } : {}),
+            status,
+            ...(event.content !== undefined ? { lastMessage: event.content } : {}),
+            ...(error ? { error } : {}),
+            updatedAt: typeof event.meta.updated_at === 'string' ? event.meta.updated_at : event.ts,
+        })
+    }
+    return [...agents.values()].sort((left, right) => left.agentPath.localeCompare(right.agentPath))
 }
 
 function toAssistantText(turn: SessionTurnDetail): string {
@@ -109,5 +146,6 @@ export function parseHistoryLog(raw: string): ParsedHistoryLog {
         toolPermissionMode: detail.toolPermissionMode,
         thinking: detail.thinking,
         compactionSummary: detail.compactionSummary,
+        agents: parseAgentActivities(detail.events),
     }
 }

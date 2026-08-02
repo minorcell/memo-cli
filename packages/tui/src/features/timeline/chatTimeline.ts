@@ -1,6 +1,7 @@
 import type { ContextUsagePhase, LanguageModelUsage, TurnStatus } from '@memo/core'
 import type {
     StepView,
+    AgentActivityView,
     SystemMessage,
     SystemMessageTone,
     ToolAction,
@@ -14,11 +15,13 @@ export type ChatTimelineState = {
     turns: TurnView[]
     historicalTurns: TurnView[]
     systemMessages: SystemMessage[]
+    agents: AgentActivityView[]
     sequence: number
 }
 
 export type ChatTimelineAction =
     | { type: 'append_system_message'; title: string; content: string; tone?: SystemMessageTone }
+    | { type: 'agent_status'; activity: AgentActivityView }
     | { type: 'turn_start'; turn: number; input: string; promptTokens?: number }
     | {
           type: 'context_usage'
@@ -57,7 +60,7 @@ export type ChatTimelineAction =
           /** Thinking trace of the final step (rendered on the last step cell). */
           thinking?: string
       }
-    | { type: 'replace_history'; turns: TurnView[]; maxSequence: number }
+    | { type: 'replace_history'; turns: TurnView[]; agents?: AgentActivityView[]; maxSequence: number }
     | { type: 'clear_current_timeline' }
     | { type: 'reset_all' }
 
@@ -66,6 +69,7 @@ export function createInitialTimelineState(): ChatTimelineState {
         turns: [],
         historicalTurns: [],
         systemMessages: [],
+        agents: [],
         sequence: 0,
     }
 }
@@ -145,6 +149,15 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
                     }),
                 ],
             }
+        }
+
+        case 'agent_status': {
+            const existing = state.agents.findIndex((agent) => agent.agentId === action.activity.agentId)
+            const agents = state.agents.slice()
+            if (existing === -1) agents.push(action.activity)
+            else agents[existing] = action.activity
+            agents.sort((left, right) => left.agentPath.localeCompare(right.agentPath))
+            return { ...state, agents }
         }
 
         case 'turn_start': {
@@ -319,6 +332,7 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
             return {
                 ...state,
                 historicalTurns: action.turns,
+                agents: action.agents ?? [],
                 sequence: Math.max(state.sequence, action.maxSequence),
             }
         }
@@ -328,6 +342,7 @@ export function chatTimelineReducer(state: ChatTimelineState, action: ChatTimeli
                 ...state,
                 turns: [],
                 systemMessages: [],
+                agents: [],
             }
         }
 
