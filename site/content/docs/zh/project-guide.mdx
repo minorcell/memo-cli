@@ -1,109 +1,28 @@
 ---
-title: 'Agent 人格与项目指南'
-description: '使用 SOUL.md 和 AGENTS.md 配置 Agent 行为和项目指南。'
+title: '项目指南（AGENTS.md）'
+description: '使用 AGENTS.md 配置项目约定与工作流。'
 order: 12
 category: 'Core Features'
 ---
 
-# Agent 人格与项目指南
+# 项目指南（AGENTS.md）
 
-Memo 支持通过 SOUL.md 和 AGENTS.md 两个文件来自定义 Agent 的行为风格和项目特定的指南。它们分别用于不同的目的和范围。
+AGENTS.md 是一个纯 Markdown 文件，承载项目级指令：结构、约定与工作流。Memo 会自动读取它，确保在该仓库中工作的 Agent 遵循同一套规则。
 
-## 文件对比
+## AGENTS.md 存放位置
 
-| 文件          | 位置              | 作用范围 | 用途                             |
-| ------------- | ----------------- | -------- | -------------------------------- |
-| **SOUL.md**   | `~/.memo/SOUL.md` | 全局     | 用户人格、沟通风格、个人偏好     |
-| **AGENTS.md** | 项目根目录        | 项目级   | 项目结构、技术栈、工作流程、约定 |
+AGENTS.md 可以存在于仓库中的任何位置：
 
-## SOUL.md - 用户人格配置
+- 项目根目录（例如 `<project-root>/AGENTS.md`）
+- 任意子目录——每个 AGENTS.md 的作用范围是包含它的整个目录树
 
-SOUL.md 用于定义你的个人偏好、沟通风格和主观行为倾向。这是一个全局配置，影响所有项目中的 Memo 行为。
+Memo 启动时自动检测并加载 AGENTS.md：
 
-### 位置
+- 对于你接触的每个文件，Memo 都会遵守作用范围内所有 AGENTS.md 中的指令。
+- 嵌套更深的 AGENTS.md 在冲突时优先。
+- 仓库根目录的 AGENTS.md 已包含在提示中——无需重新读取。
 
-```
-~/.memo/SOUL.md
-```
-
-或当设置了 `MEMO_HOME` 时：
-
-```
-$MEMO_HOME/SOUL.md
-```
-
-### 用途
-
-SOUL.md 适合配置：
-
-- **沟通风格**：简洁/详细、正式/随意
-- **代码偏好**：函数式/面向对象、特定模式
-- **工作习惯**：喜欢的工具、常用命令别名
-- **学习偏好**：详细解释 vs 快速答案
-
-### 示例 SOUL.md
-
-```markdown
-# User Preferences
-
-## Communication Style
-
-- Prefer concise, direct responses
-- Use technical terminology freely
-- Skip greetings and sign-offs
-- One-word answers when sufficient
-
-## Code Preferences
-
-- Prefer functional programming patterns
-- Favor immutable data structures
-- Use TypeScript strict mode always
-- Prefer explicit types over inference
-
-## Workflow
-
-- Favorite editor: VS Code
-- Preferred package manager: pnpm
-- Like to see multiple solution options
-- Prefer early returns over nested conditionals
-
-## Learning Style
-
-- Show code examples over explanations
-- Ask before refactoring unrelated code
-- Point out potential pitfalls proactively
-```
-
-### 优先级规则
-
-SOUL.md 的内容被视为**软偏好层**：
-
-- ✅ 影响语气、风格和主观行为
-- ❌ 不覆盖安全规则、工具策略
-- ❌ 不覆盖 AGENTS.md 的指导
-- ❌ 不覆盖当前回合的明确用户指令
-
-### 性能建议
-
-保持 SOUL.md 简洁：
-
-- 内容会被注入到每个会话的系统提示中
-- 过长的内容会增加 token 消耗
-- 专注于真正影响行为的偏好
-
-## AGENTS.md - 项目指南
-
-AGENTS.md 用于定义项目特定的结构、约定和工作流程。它位于项目根目录，为该项目的 Agent 提供上下文。
-
-### 位置
-
-```
-<project-root>/AGENTS.md
-```
-
-Memo 会在启动时自动检测并加载项目根目录的 AGENTS.md。
-
-### 用途
+## 应该放什么内容
 
 AGENTS.md 适合记录：
 
@@ -111,226 +30,55 @@ AGENTS.md 适合记录：
 - **技术栈**：主要框架、库、工具版本
 - **开发工作流**：构建、测试、部署命令
 - **代码约定**：命名规范、文件组织、风格指南
-- **安全注意事项**：敏感文件、环境变量处理
-- **已知问题**：常见陷阱、解决方案
+- **安全注意**：敏感文件、环境变量处理
+- **已知问题**：常见陷阱及解决方案
 
-### 示例 AGENTS.md
+保持简洁，只记录项目独有信息——避免重复 `package.json` 或 README 中已有的内容。
 
-```markdown
-# Project Guide
+## 自动生成
 
-## Tech Stack
-
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript 5.x
-- **Styling**: Tailwind CSS + CSS Modules
-- **State**: Zustand
-- **Testing**: Vitest + React Testing Library
-- **Database**: PostgreSQL + Prisma
-
-## Project Structure
-```
-
-myapp/
-├── app/ # Next.js App Router
-│ ├── (marketing)/ # Route groups
-│ ├── api/ # API routes
-│ └── layout.tsx # Root layout
-├── components/ # React components
-│ ├── ui/ # Base UI components
-│ └── features/ # Feature components
-├── lib/ # Utilities and helpers
-├── prisma/ # Database schema and migrations
-├── public/ # Static assets
-└── tests/ # Test files
-
-````
-
-## Development Commands
+在会话中使用 `/init` 斜杠命令，或运行 CLI 命令：
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Development server
-pnpm dev
-
-# Run tests
-pnpm test
-pnpm test:watch
-
-# Database operations
-pnpm db:migrate
-pnpm db:seed
-pnpm db:studio
-
-# Build
-pnpm build
-
-# Lint and type check
-pnpm lint
-pnpm typecheck
-````
-
-## Code Conventions
-
-- Use named exports instead of default exports
-- Place tests next to source files: `Component.tsx` + `Component.test.tsx`
-- Use kebab-case for file names: `my-component.tsx`
-- Prefer server components by default
-- Use Zod for form validation
-
-## Environment Variables
-
-Required variables in `.env.local`:
-
-- `DATABASE_URL`: PostgreSQL connection string
-- `NEXTAUTH_SECRET`: Random secret for auth
-- `NEXTAUTH_URL`: App URL for callbacks
-
-## Important Notes
-
-- Never commit `.env.local`
-- Run `pnpm typecheck` before committing
-- Database migrations are in `/prisma/migrations`
-- API documentation is in `/docs/api.md`
-
+memo init
 ```
 
-### 自动生成
+Memo 会分析当前项目并生成一份包含技术栈、命令和约定的 `AGENTS.md`。
 
-你可以使用 `/init` 斜杠命令让 Memo 为当前项目生成 AGENTS.md：
+`memo init` 与 `git init` 一样是幂等的：
 
-```
+- 如果 `AGENTS.md` 已存在，绝不改动——Memo 会提示并跳过
+- 如需重新生成，先删除该文件
 
-/init
+## 维护责任
 
-````
-
-Memo 会分析项目结构并生成一个包含技术栈、命令和约定的模板文件。
-
-### 维护责任
-
-**重要**：如果你修改了 AGENTS.md 中提到的任何内容，记得同时更新 AGENTS.md：
+**重要**：如果你修改了 AGENTS.md 中提到的任何内容，请同步更新：
 
 - 添加/删除重要目录
 - 更改构建/测试命令
 - 更新技术栈
 - 修改代码约定
 
-## 两个文件的协同工作
+## 上下文加载顺序
 
-SOUL.md 和 AGENTS.md 在系统提示中的加载顺序：
+Memo 按以下顺序构建系统提示：
 
 1. 基础系统提示
-2. **SOUL.md**（用户人格层）
-3. **AGENTS.md**（项目指南层）
-4. Skills（如果有）
+2. **AGENTS.md**（项目指南层）
+3. Skills（如果有）
 
 这意味着：
 
-- AGENTS.md 可以覆盖 SOUL.md 中与项目冲突的偏好
-- 当前回合的用户指令优先级最高
-- 两者都不能覆盖安全规则和工具策略
+- AGENTS.md 的指令适用于其作用范围内的所有工作
+- 当前回合中用户的明确指令拥有最高优先级
+- AGENTS.md 和 skills 都不能覆盖安全规则与工具策略
 
-## 实际示例
+## 持久化偏好
 
-### 场景 1：代码审查风格
-
-**SOUL.md**:
-```markdown
-## Code Review Style
-
-- Be direct and critical
-- Focus on performance issues
-- Suggest concrete improvements
-- No need to praise working code
-````
-
-**AGENTS.md**:
-
-```markdown
-## Code Review Checklist
-
-- [ ] Type safety: no `any` types
-- [ ] Error handling: all async calls wrapped
-- [ ] Tests: new features have tests
-- [ ] Accessibility: ARIA labels for interactive elements
-```
-
-### 场景 2：技术偏好
-
-**SOUL.md**:
-
-```markdown
-## Technology Preferences
-
-- Prefer functional React components
-- Like using hooks for state management
-- Prefer explicit TypeScript types
-```
-
-**AGENTS.md**:
-
-```markdown
-## Technology Stack
-
-- React 18 with hooks
-- Zustand for state (not Redux)
-- TypeScript with strict mode
-- React Query for server state
-```
-
-## 故障排除
-
-### SOUL.md 未生效
-
-1. 确认文件位于 `~/.memo/SOUL.md`
-2. 检查文件是否有内容（非空）
-3. 重启 Memo 或创建新会话
-4. 检查 `MEMO_HOME` 是否指向正确位置
-
-### AGENTS.md 未加载
-
-1. 确认文件位于项目根目录
-2. 文件名必须是 `AGENTS.md`（大写）
-3. 从项目目录启动 Memo
-4. 检查文件内容非空
-
-### 文件内容过长
-
-- **SOUL.md**：只保留影响行为的偏好，删除描述性内容
-- **AGENTS.md**：将详细信息移到项目文档，AGENTS.md 只保留关键约定和链接
-
-### 配置冲突
-
-如果 SOUL.md 和 AGENTS.md 有冲突：
-
-- AGENTS.md 中的项目特定设置优先
-- 当前回合的明确指令优先级最高
-- 如果仍有问题，检查系统提示中两者的加载顺序
-
-## 最佳实践
-
-### SOUL.md
-
-- ✅ 保持简洁（建议 < 500 字符）
-- ✅ 专注于真正影响交互的偏好
-- ✅ 定期更新以反映变化
-- ❌ 不要包含项目特定信息
-- ❌ 不要重复通用编程原则
-
-### AGENTS.md
-
-- ✅ 包含项目独有的信息
-- ✅ 列出常用的命令和路径
-- ✅ 记录重要的技术决策
-- ✅ 添加新成员需要知道的上下文
-- ❌ 不要重复 package.json 中已有的信息
-- ❌ 不要包含临时性或频繁变化的内容
+跨项目持久化的用户级偏好，请参阅 [记忆系统](./memory.md)（`get_memory` 读取 `~/.memo/Agents.md`）。
 
 ## 相关
 
-- [记忆系统](./memory.md)：持久化用户偏好（Agents.md）
-- [配置](./configuration.md)：config.toml 详解
-- [Skills 系统](./skills.md)：领域特定专业知识
+- [记忆系统](./memory.md)：持久化用户偏好
+- [配置](./configuration.md)：config.toml 详情
+- [Skills 系统](./skills.md)：领域专业能力

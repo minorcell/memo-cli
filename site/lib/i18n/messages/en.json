@@ -26,9 +26,9 @@
                     "title": "Terminal-native",
                     "description": "Works where you already ship: directly inside your terminal workflow."
                 },
-                "webConsole": {
-                    "title": "Web console",
-                    "description": "Manage multi-workspace projects and concurrent live sessions from the browser."
+                "liveReasoning": {
+                    "title": "Live reasoning",
+                    "description": "Thinking steps, plan progress, and tool output stream into the timeline as they happen."
                 },
                 "builtInTools": {
                     "title": "Rich built-in tools",
@@ -44,7 +44,7 @@
                 },
                 "skills": {
                     "title": "Skills",
-                    "description": "Use markdown-based skills with activation control in both CLI and Web."
+                    "description": "Markdown-based skills with auto-discovery, dedup, and on-demand activation."
                 }
             }
         },

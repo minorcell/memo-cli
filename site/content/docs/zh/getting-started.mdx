@@ -11,7 +11,7 @@ category: 'Getting Started'
 
 ## 前置条件
 
-- Node.js `>= 20`
+- Node.js `>= 22`
 - 至少一个兼容的 API 密钥（例如 `DEEPSEEK_API_KEY` 或 `OPENAI_API_KEY`）
 
 ## 安装
@@ -84,18 +84,17 @@ memo -d
 
 仅在受信任的仓库和受控环境中使用此模式。
 
-## Web 控制台
+## 其他入口
 
-启动本地 Web 服务与 UI：
+除了交互式会话，Memo 还提供独立的子命令：
 
 ```bash
-memo web --host 127.0.0.1 --port 5494 --open
+memo init               # 为当前项目生成 AGENTS.md
+memo mcp list           # 列出已配置的 MCP 服务器
+memo skills list        # 列出发现的 skills
 ```
 
-- npm 分发包已包含 web 静态资源。
-- 如果从源码仓库运行，请先执行 `pnpm run build`。
-- 登录凭据来自 `~/.memo/server.yaml`（`auth.username` / `auth.password`）。
-- UI 提供聊天时间线、项目/会话管理、MCP 管理和 Skills 管理。
+完整说明见 [MCP 集成](./mcp.md) 与 [Skills 系统](./skills.md)。
 
 ## 下一步
 

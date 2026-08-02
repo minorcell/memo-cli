@@ -1,336 +1,84 @@
 ---
-title: 'Agent Persona & Project Guide'
-description: 'Configure Agent behavior and project guidelines using SOUL.md and AGENTS.md.'
+title: 'Project Guide (AGENTS.md)'
+description: 'Configure project conventions and workflows with AGENTS.md.'
 order: 12
 category: 'Core Features'
 ---
 
-# Agent Persona & Project Guide
+# Project Guide (AGENTS.md)
 
-Memo supports customizing Agent behavior styles and project-specific guidelines through two files: SOUL.md and AGENTS.md. They serve different purposes and scopes.
+AGENTS.md is a plain Markdown file that carries project-level instructions: structure, conventions, and workflows. Memo reads it automatically so that any agent working in the repository follows the same rules.
 
-## File Comparison
+## Where AGENTS.md Lives
 
-| File          | Location          | Scope         | Purpose                                                 |
-| ------------- | ----------------- | ------------- | ------------------------------------------------------- |
-| **SOUL.md**   | `~/.memo/SOUL.md` | Global        | User persona, communication style, personal preferences |
-| **AGENTS.md** | Project root      | Project-level | Project structure, tech stack, workflows, conventions   |
+AGENTS.md files may exist anywhere in the repository:
 
-## SOUL.md - User Persona Configuration
+- Project root (for example `<project-root>/AGENTS.md`)
+- Any subdirectory — each AGENTS.md applies to the entire directory tree rooted at the folder that contains it
 
-SOUL.md is used to define your personal preferences, communication style, and subjective behavioral tendencies. This is a global configuration that affects Memo behavior across all projects.
+Memo automatically detects and loads AGENTS.md at startup:
 
-### Location
+- For every file you touch, Memo obeys instructions in any AGENTS.md whose scope includes that file.
+- More-deeply-nested AGENTS.md files take precedence on conflict.
+- The AGENTS.md at the repo root is included in the prompt — no need to re-read it.
 
-```
-~/.memo/SOUL.md
-```
+## What to Put In It
 
-Or when `MEMO_HOME` is set:
+AGENTS.md is a good place for:
 
-```
-$MEMO_HOME/SOUL.md
-```
+- **Project Structure**: directory organization, important file locations
+- **Tech Stack**: main frameworks, libraries, tool versions
+- **Development Workflow**: build, test, deploy commands
+- **Code Conventions**: naming, file organization, style guides
+- **Security Notes**: sensitive files, environment variable handling
+- **Known Issues**: common pitfalls and their solutions
 
-### Use Cases
+Keep it concise and focused on information unique to the project — avoid repeating what is already in `package.json` or the README.
 
-SOUL.md is suitable for configuring:
+## Auto-Generation
 
-- **Communication Style**: Concise/detailed, formal/casual
-- **Code Preferences**: Functional/OOP, specific patterns
-- **Work Habits**: Favorite tools, common command aliases
-- **Learning Preferences**: Detailed explanations vs quick answers
-
-### Example SOUL.md
-
-```markdown
-# User Preferences
-
-## Communication Style
-
-- Prefer concise, direct responses
-- Use technical terminology freely
-- Skip greetings and sign-offs
-- One-word answers when sufficient
-
-## Code Preferences
-
-- Prefer functional programming patterns
-- Favor immutable data structures
-- Use TypeScript strict mode always
-- Prefer explicit types over inference
-
-## Workflow
-
-- Favorite editor: VS Code
-- Preferred package manager: pnpm
-- Like to see multiple solution options
-- Prefer early returns over nested conditionals
-
-## Learning Style
-
-- Show code examples over explanations
-- Ask before refactoring unrelated code
-- Point out potential pitfalls proactively
-```
-
-### Priority Rules
-
-SOUL.md content is treated as a **soft preference layer**:
-
-- ✅ Influences tone, style, and subjective behavior
-- ❌ Does not override safety rules or tool policies
-- ❌ Does not override AGENTS.md guidance
-- ❌ Does not override explicit user instructions in the current turn
-
-### Performance Tips
-
-Keep SOUL.md concise:
-
-- Content is injected into every session's system prompt
-- Long content increases token consumption
-- Focus on preferences that truly affect behavior
-
-## AGENTS.md - Project Guide
-
-AGENTS.md is used to define project-specific structure, conventions, and workflows. It resides in the project root and provides context for Agents working on that project.
-
-### Location
-
-```
-<project-root>/AGENTS.md
-```
-
-Memo automatically detects and loads AGENTS.md from the project root at startup.
-
-### Use Cases
-
-AGENTS.md is suitable for documenting:
-
-- **Project Structure**: Directory organization, important file locations
-- **Tech Stack**: Main frameworks, libraries, tool versions
-- **Development Workflow**: Build, test, deploy commands
-- **Code Conventions**: Naming conventions, file organization, style guides
-- **Security Notes**: Sensitive files, environment variable handling
-- **Known Issues**: Common pitfalls, solutions
-
-### Example AGENTS.md
-
-```markdown
-# Project Guide
-
-## Tech Stack
-
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript 5.x
-- **Styling**: Tailwind CSS + CSS Modules
-- **State**: Zustand
-- **Testing**: Vitest + React Testing Library
-- **Database**: PostgreSQL + Prisma
-
-## Project Structure
-```
-
-myapp/
-├── app/ # Next.js App Router
-│ ├── (marketing)/ # Route groups
-│ ├── api/ # API routes
-│ └── layout.tsx # Root layout
-├── components/ # React components
-│ ├── ui/ # Base UI components
-│ └── features/ # Feature components
-├── lib/ # Utilities and helpers
-├── prisma/ # Database schema and migrations
-├── public/ # Static assets
-└── tests/ # Test files
-
-````
-
-## Development Commands
+Use the `/init` slash command inside a session, or run the CLI command:
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Development server
-pnpm dev
-
-# Run tests
-pnpm test
-pnpm test:watch
-
-# Database operations
-pnpm db:migrate
-pnpm db:seed
-pnpm db:studio
-
-# Build
-pnpm build
-
-# Lint and type check
-pnpm lint
-pnpm typecheck
-````
-
-## Code Conventions
-
-- Use named exports instead of default exports
-- Place tests next to source files: `Component.tsx` + `Component.test.tsx`
-- Use kebab-case for file names: `my-component.tsx`
-- Prefer server components by default
-- Use Zod for form validation
-
-## Environment Variables
-
-Required variables in `.env.local`:
-
-- `DATABASE_URL`: PostgreSQL connection string
-- `NEXTAUTH_SECRET`: Random secret for auth
-- `NEXTAUTH_URL`: App URL for callbacks
-
-## Important Notes
-
-- Never commit `.env.local`
-- Run `pnpm typecheck` before committing
-- Database migrations are in `/prisma/migrations`
-- API documentation is in `/docs/api.md`
-
+memo init
 ```
 
-### Auto-Generation
+Memo analyzes the current project and generates an `AGENTS.md` containing tech stack, commands, and conventions.
 
-You can use the `/init` slash command to have Memo generate AGENTS.md for the current project:
+`memo init` is idempotent like `git init`:
 
-```
+- if `AGENTS.md` already exists, it is never touched — Memo skips with a message
+- delete the file first if you want to regenerate it
 
-/init
+## Maintenance Responsibility
 
-````
+**Important**: if you modify anything mentioned in AGENTS.md, update it as well:
 
-Memo will analyze the project structure and generate a template file containing tech stack, commands, and conventions.
+- add/remove important directories
+- change build/test commands
+- update tech stack
+- modify code conventions
 
-### Maintenance Responsibility
+## Context Loading Order
 
-**Important**: If you modify anything mentioned in AGENTS.md, remember to update AGENTS.md as well:
-
-- Add/remove important directories
-- Change build/test commands
-- Update tech stack
-- Modify code conventions
-
-## How Both Files Work Together
-
-SOUL.md and AGENTS.md are loaded into the system prompt in this order:
+Memo builds the system prompt in this order:
 
 1. Base system prompt
-2. **SOUL.md** (User persona layer)
-3. **AGENTS.md** (Project guide layer)
-4. Skills (if any)
+2. **AGENTS.md** (project guide layer)
+3. Skills (if any)
 
 This means:
 
-- AGENTS.md can override SOUL.md preferences that conflict with the project
-- User instructions in the current turn have highest priority
-- Neither can override safety rules and tool policies
+- AGENTS.md guidance applies to all work in its scope
+- explicit user instructions in the current turn have the highest priority
+- neither AGENTS.md nor skills can override safety rules and tool policies
 
-## Practical Examples
+## Persistent Preferences
 
-### Scenario 1: Code Review Style
-
-**SOUL.md**:
-```markdown
-## Code Review Style
-
-- Be direct and critical
-- Focus on performance issues
-- Suggest concrete improvements
-- No need to praise working code
-````
-
-**AGENTS.md**:
-
-```markdown
-## Code Review Checklist
-
-- [ ] Type safety: no `any` types
-- [ ] Error handling: all async calls wrapped
-- [ ] Tests: new features have tests
-- [ ] Accessibility: ARIA labels for interactive elements
-```
-
-### Scenario 2: Technology Preferences
-
-**SOUL.md**:
-
-```markdown
-## Technology Preferences
-
-- Prefer functional React components
-- Like using hooks for state management
-- Prefer explicit TypeScript types
-```
-
-**AGENTS.md**:
-
-```markdown
-## Technology Stack
-
-- React 18 with hooks
-- Zustand for state (not Redux)
-- TypeScript with strict mode
-- React Query for server state
-```
-
-## Troubleshooting
-
-### SOUL.md Not Taking Effect
-
-1. Confirm file is at `~/.memo/SOUL.md`
-2. Check that file has content (not empty)
-3. Restart Memo or create a new session
-4. Check `MEMO_HOME` points to the correct location
-
-### AGENTS.md Not Loading
-
-1. Confirm file is in project root
-2. Filename must be `AGENTS.md` (uppercase)
-3. Start Memo from the project directory
-4. Check that file content is not empty
-
-### File Content Too Long
-
-- **SOUL.md**: Only keep preferences that affect behavior, remove descriptive content
-- **AGENTS.md**: Move detailed info to project docs, AGENTS.md should only contain key conventions and links
-
-### Configuration Conflicts
-
-If SOUL.md and AGENTS.md conflict:
-
-- Project-specific settings in AGENTS.md take priority
-- Explicit instructions in the current turn have highest priority
-- If issues persist, check the loading order of both files in the system prompt
-
-## Best Practices
-
-### SOUL.md
-
-- ✅ Keep it concise (recommended < 500 characters)
-- ✅ Focus on preferences that truly affect interaction
-- ✅ Update regularly to reflect changes
-- ❌ Don't include project-specific information
-- ❌ Don't repeat general programming principles
-
-### AGENTS.md
-
-- ✅ Include information unique to the project
-- ✅ List commonly used commands and paths
-- ✅ Document important technical decisions
-- ✅ Add context new team members need to know
-- ❌ Don't repeat information already in package.json
-- ❌ Don't include temporary or frequently changing content
+For user-level preferences that should persist across projects, see the [Memory System](./memory.md) (`get_memory` reads `~/.memo/Agents.md`).
 
 ## Related
 
-- [Memory System](./memory.md): Persistent user preferences (Agents.md)
+- [Memory System](./memory.md): persistent user preferences
 - [Configuration](./configuration.md): config.toml details
-- [Skills System](./skills.md): Domain-specific expertise
+- [Skills System](./skills.md): domain-specific expertise

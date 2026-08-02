@@ -11,7 +11,7 @@ Set up Memo in a few minutes: install, configure an API key, and run your first 
 
 ## Prerequisites
 
-- Node.js `>= 20`
+- Node.js `>= 22`
 - At least one compatible API key (for example `DEEPSEEK_API_KEY` or `OPENAI_API_KEY`)
 
 ## Install
@@ -84,18 +84,17 @@ memo -d
 
 Only use this in trusted repositories and controlled environments.
 
-## Web Console
+## Other Entry Points
 
-Start local web server + UI:
+Besides the interactive session, Memo ships standalone subcommands:
 
 ```bash
-memo web --host 127.0.0.1 --port 5494 --open
+memo init               # generate AGENTS.md for the current project
+memo mcp list           # list configured MCP servers
+memo skills list        # list discovered skills
 ```
 
-- npm distribution already includes web assets.
-- If running from source checkout, run `pnpm run build` first.
-- Login credentials come from `~/.memo/server.yaml` (`auth.username` / `auth.password`).
-- The UI includes chat timeline, project/session management, MCP management, and skills management.
+See [MCP Integration](./mcp.md) and [Skills System](./skills.md) for full details.
 
 ## Next Steps
 

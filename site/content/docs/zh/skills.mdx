@@ -53,6 +53,23 @@ Memo 在启动时自动扫描以下位置来发现 Skills：
 ### 用户级 Skills
 
 - `$MEMO_HOME/skills`（默认为 `~/.memo/skills`）
+- `~/.claude/skills`
+- `~/.codex/skills`
+- `~/.agents/skills`
+
+### 去重
+
+Skills 会按其 `SKILL.md` 内容的 sha256 哈希去重。当同一个 skill 存在于多个位置时
+（例如同时安装在 `~/.claude/skills` 和 `~/.agents/skills`），只保留优先级最高的副本，
+顺序如下：
+
+1. 项目级根目录
+2. `$MEMO_HOME/skills`
+3. `~/.claude/skills`
+4. `~/.codex/skills`
+5. `~/.agents/skills`
+
+其余副本仍可作为别名解析——见 [配置默认激活 Skills](#配置默认激活-skills)。
 
 ### 内置 Skills
 
@@ -72,7 +89,6 @@ Memo 内置 `skill-creator` skill。每次会话启动时，如果 `$MEMO_HOME/s
 ### 排除的目录
 
 - `.git/` 和 `node_modules/`
-- Memo 主目录外的 `~/.xxx/skills` 隐藏目录
 
 ## 创建 Skill
 
@@ -163,6 +179,18 @@ A skill is a set of local instructions to follow that is stored in a SKILL.md fi
 - doc-writing: Generate and update technical documentation...
 ```
 
+技能目录受上下文预算限制；超出时描述会被截断，多余的 skills 会被省略（并附说明）。
+需要时可使用 `read_skill` 工具按需加载某个 skill 的完整 `SKILL.md`。
+
+### 使用 read_skill 工具读取 Skill
+
+当你决定使用某个 skill 时，`read_skill` 工具会加载它的完整指令：
+
+- 传入技能目录中的 skill `name`，或名称有歧义时传入精确的 `SKILL.md` `path`
+- 会自动去除 frontmatter
+- 返回结果包含 `skill_directory`，skill 中的相对路径（如 `scripts/foo.py`、`references/`）都基于它解析
+- 特别长的 skill 可能会被工具输出限制截断
+
 ## 配置默认激活 Skills
 
 在 `config.toml` 中设置默认激活的 Skills：
@@ -182,24 +210,27 @@ active_skills = [
 ```
 
 注意：`active_skills` 存储的是 SKILL.md 文件的**绝对路径**。
+指向去重副本（例如当 `~/.claude/skills` 去重胜出时指向
+`~/.agents/skills/react-hooks/SKILL.md`）的路径仍会激活该 skill。
 
-## 在 Web UI 中管理 Skills
+## 使用 CLI 管理 Skills
 
-启动 Web 控制台：
+列出所有发现的 Skills（跨项目级和用户级根目录，已去重）：
 
 ```bash
-memo web --open
+memo skills list
+memo skills list --json
 ```
 
-在侧边栏的 **Skills** 页面可以：
+读取某个 Skill 的完整指令：
 
-- 查看所有已发现的 Skills
-- 创建新的 Skill（自动生成目录结构和模板）
-- 删除 Skill
-- 切换激活状态
-- 查看 Skill 详情
+```bash
+memo skills read react-hooks
+memo skills read /absolute/path/to/.codex/skills/react-hooks/SKILL.md
+memo skills read react-hooks --json
+```
 
-Skills 的激活状态变更会自动保存到 `config.toml` 中。
+当名称匹配多个 skills 时，`read` 会列出候选路径；传入精确路径即可区分。
 
 ## Skills 使用规则
 

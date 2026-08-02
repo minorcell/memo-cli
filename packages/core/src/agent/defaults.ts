@@ -35,15 +35,7 @@ export function filterMcpServersBySelection(
     return filtered
 }
 
-/**
- * Complete dependencies with default strategy (tools, callLLM, prompt, history sinks, tokenizer).
- * Caller can provide only callbacks/overrides, rest use default implementations.
- */
-export async function withDefaultDeps(
-    deps: AgentSessionDeps,
-    options: AgentSessionOptions,
-    sessionId: string,
-): Promise<{
+export type ResolvedSessionDeps = {
     tools: ToolSet
     callLLM: CallLLM
     loadPrompt: () => Promise<string>
@@ -52,7 +44,18 @@ export async function withDefaultDeps(
     dispose: () => Promise<void>
     historyFilePath?: string
     skillIndex: SkillIndex
-}> {
+    createChildHistory: (sessionId: string) => { historySinks: HistorySink[]; historyFilePath?: string }
+}
+
+/**
+ * Complete dependencies with default strategy (tools, callLLM, prompt, history sinks, tokenizer).
+ * Caller can provide only callbacks/overrides, rest use default implementations.
+ */
+export async function withDefaultDeps(
+    deps: AgentSessionDeps,
+    options: AgentSessionOptions,
+    sessionId: string,
+): Promise<ResolvedSessionDeps> {
     const loaded = await loadMemoConfig()
     const config = loaded.config
 
@@ -146,5 +149,13 @@ export async function withDefaultDeps(
         tokenCounter: deps.tokenCounter ?? createTokenCounter(),
         historyFilePath: historyFilePath,
         skillIndex,
+        createChildHistory: (childSessionId) => {
+            if (deps.historySinks) return { historySinks: [] }
+            const childHistoryFilePath = buildSessionPath(sessionsDir, childSessionId)
+            return {
+                historySinks: [new JsonlHistorySink(childHistoryFilePath)],
+                historyFilePath: childHistoryFilePath,
+            }
+        },
     }
 }

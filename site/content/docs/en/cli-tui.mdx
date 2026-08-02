@@ -12,7 +12,7 @@ Memo has two run modes: interactive TUI for daily development, and plain mode fo
 ## Runtime Architecture (Current)
 
 - `packages/tui`: terminal runtime package (`memo` entry, argv parsing, mode dispatch, plain mode + interactive TUI runtime).
-- `packages/core`: session state machine and tool-calling runtime used by both modes.
+- `packages/core`: session state machine, tool-calling runtime, and LLM layer used by both modes.
 
 ## Run Modes
 
@@ -51,6 +51,21 @@ Important limitation:
 - `--prev` / `-prev`: preload latest local session history for current directory.
 - `--dangerous` / `-d`: bypass approval checks.
 
+## Live Streaming, Thinking, and Plan Progress
+
+The TUI timeline is live:
+
+- model output and reasoning chunks stream in as they are generated, with markdown rendered while streaming
+- an active task plan (`update_plan`) is shown as a progress panel with step statuses
+- `Ctrl+T` toggles following the live output stream
+
+Thinking mode can be toggled per session:
+
+- press `Tab` on an **empty** input to toggle thinking on/off
+- the composer turns amber while thinking is enabled
+
+The toggle is remembered across sessions and restored when resuming history (see below).
+
 ## Input Enhancements
 
 ### File Reference with `@`
@@ -60,7 +75,7 @@ Type `@` followed by a path fragment, then press `Tab` to accept suggestions.
 Examples:
 
 - `Review @package.json and explain scripts`
-- `Compare @packages/core/src/runtime/session.ts with @packages/tools/src/index.ts`
+- `Compare @packages/core/src/agent/loop.ts with @packages/core/src/tools/index.ts`
 
 ### Session Resume (`resume`)
 
@@ -72,6 +87,8 @@ Type in the input box:
 
 Then select a session suggestion to load historical context.
 
+Resuming also restores the session's UI state: provider, model, thinking toggle, tool permission mode, context window, and input history.
+
 ## Slash Commands
 
 Use `/` to open command suggestions.
@@ -81,6 +98,7 @@ Use `/` to open command suggestions.
 - `/exit`: exit Memo
 - `/resume`: show guidance for history loading
 - `/models`: list/switch configured providers and models
+- `/tools`: switch tool permission mode (`none` / `once` / `full`)
 - `/compact`: manually compact current session context
 - `/mcp`: show configured MCP servers
 - `/init`: ask Memo to generate `AGENTS.md` in current project
@@ -90,25 +108,34 @@ Notes:
 - Typing `exit` (without slash) also exits.
 - `/models <provider-or-model>` also works (for direct switch).
 
-## Web Mode Command
+## CLI Subcommands
+
+Memo also ships standalone subcommands:
 
 ```bash
-memo web --host 127.0.0.1 --port 5494 --open
+memo init               # generate AGENTS.md for the current project (idempotent)
+memo mcp list           # list configured MCP servers
+memo mcp add <name> -- <command...>
+memo mcp login <name>   # OAuth login for remote MCP servers
+memo skills list        # list discovered skills
+memo skills read <name> # read a skill's full SKILL.md
 ```
 
-This starts the local web server and opens the browser UI.
+See [MCP Integration](./mcp.md) and [Skills System](./skills.md) for details.
 
 ## Shortcuts
 
 - `Enter`: send message
 - `Shift+Enter`: insert newline
-- `Tab`: accept current suggestion
+- `Tab`: accept current suggestion; on an empty input, toggle thinking mode
 - `Up/Down`: move in suggestion list, or browse input history
 - `Esc`: close suggestion panel
 - `Esc Esc`:
     - while running: cancel current turn
     - while idle: clear current input
+- `Ctrl+T`: toggle following live output
 - `Ctrl+L`: clear screen and start a new session
+- `Ctrl+D`: exit (press twice on an empty input); deletes the char at the cursor otherwise
 - `Ctrl+C`: exit
 
 ## Approvals in TUI

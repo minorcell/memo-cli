@@ -54,6 +54,14 @@ Current behavior:
 - selecting one loads historical conversation context into current session
 - the current active session file is excluded from resume suggestions
 
+Resuming also restores the session's UI state that was persisted with the log:
+
+- provider and model
+- thinking toggle
+- tool permission mode (`none` / `once` / `full`)
+- context window
+- input history
+
 ## Practical Tips
 
 - Share relevant `.jsonl` path when asking others to investigate behavior.

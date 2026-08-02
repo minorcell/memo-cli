@@ -42,12 +42,12 @@ const toolEvents: ToolEvent[] = [
 ]
 
 const responseLines = [
-    'Memo Code is a TypeScript monorepo CLI tool with three main packages:',
+    'Memo Code is a TypeScript monorepo CLI tool with two main packages:',
     '',
     'Core Structure:',
     '- packages/tui/: terminal runtime (CLI entry + interactive TUI, built with Ink/React)',
-    '- packages/core/: Session management, config handling, shared types',
-    '- packages/tools/: Built-in MCP-like tools (exec_command, read_text_file, etc.)',
+    '- packages/core/: Session state machine, LLM layer, config handling',
+    '- packages/core/src/tools/: Built-in tools (exec_command, read_text_file, etc.)',
     '',
     'Key Features:',
     '- Terminal-based coding agent with interactive TUI',
@@ -56,7 +56,7 @@ const responseLines = [
     '- Monorepo with pnpm workspace, TypeScript ESM',
     '',
     'Development:',
-    '- Node.js ≥18, pnpm for package management',
+    '- Node.js ≥22, pnpm for package management',
     '- Build with pnpm run build, test with pnpm test',
     '- Config stored in ~/.memo/config.toml',
     '- Runtime logs in ~/.memo/',
