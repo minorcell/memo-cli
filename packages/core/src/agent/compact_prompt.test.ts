@@ -35,8 +35,9 @@ describe('compact_prompt', () => {
         const prompt = buildCompactionUserPrompt(messages)
         assert.ok(prompt.includes('[0] ASSISTANT (tool_calls: exec_command)'))
         assert.ok(prompt.includes('[1] TOOL (exec_command)'))
-        // Truncation keeps the tail (tool result/error at the end carries the info).
-        assert.ok(prompt.includes(`...${'x'.repeat(4_000)}`))
+        // Long tool output is NOT truncated per-message: the budget selector is
+        // the only truncation point, so the compaction model sees full outputs.
+        assert.ok(prompt.includes(longToolOutput))
         assert.ok(prompt.includes('Return only the summary body in plain text. Do not add markdown fences.'))
     })
 
@@ -93,13 +94,80 @@ describe('compact_prompt', () => {
         )
     })
 
-    test('selectCompactionMessages keeps the newest message even when it exceeds the budget', () => {
+    test('selectCompactionMessages truncates a newest message that alone exceeds the budget', () => {
         const messages: ChatMessage[] = [
             { role: 'user', content: 'old' },
             { role: 'assistant', content: 'x'.repeat(500) },
         ]
         const selected = selectCompactionMessages(messages, 10, (text) => text.length)
-        assert.deepStrictEqual(selected, [messages[1]])
+        assert.strictEqual(selected.length, 1)
+        const content = selected[0]?.content
+        assert.strictEqual(typeof content, 'string')
+        // Tail kept (with the truncation marker), head dropped.
+        assert.ok(String(content).startsWith('...'))
+        assert.ok(String(content).endsWith('x'))
+        assert.ok(String(content).length < 500)
+    })
+
+    test('plan from update_plan tool results survives into the compaction prompt', () => {
+        const planJson = JSON.stringify({
+            message: 'Plan updated',
+            plan: [
+                { step: 'Implement the parser', status: 'in_progress' },
+                { step: 'Wire up the CLI flag', status: 'pending' },
+                { step: 'Add tests for edge cases', status: 'pending' },
+            ],
+        })
+        const messages: ChatMessage[] = [
+            { role: 'user', content: 'Refactor the parser' },
+            {
+                role: 'assistant',
+                content: [{ type: 'text', text: 'Let me update the plan' }],
+            },
+            {
+                role: 'tool',
+                content: [
+                    {
+                        type: 'tool-result',
+                        toolCallId: 'plan-1',
+                        toolName: 'update_plan',
+                        output: { type: 'text', value: planJson },
+                    },
+                ],
+            },
+            { role: 'user', content: 'Continue with step two' },
+        ]
+
+        const selected = selectCompactionMessages(messages, 10_000, (text) => text.length)
+        const prompt = buildCompactionUserPrompt(selected)
+        assert.ok(prompt.includes('Implement the parser'), 'plan steps must reach the compaction model')
+        assert.ok(prompt.includes('Wire up the CLI flag'))
+        assert.ok(prompt.includes('update_plan'))
+    })
+
+    test('selectCompactionMessages truncates oversized tool results keeping the tail', () => {
+        const messages: ChatMessage[] = [
+            {
+                role: 'tool',
+                content: [
+                    {
+                        type: 'tool-result',
+                        toolCallId: 'call-1',
+                        toolName: 'exec_command',
+                        output: { type: 'text', value: `head-noise\n${'y'.repeat(1_000)}` },
+                    },
+                ],
+            },
+        ]
+        const selected = selectCompactionMessages(messages, 20, (text) => text.length)
+        assert.strictEqual(selected.length, 1)
+        const part = selected[0]?.content
+        assert.ok(Array.isArray(part))
+        const value = part?.[0]?.type === 'tool-result' ? part[0].output.value : ''
+        assert.ok(String(value).startsWith('...'))
+        assert.ok(String(value).endsWith('y'))
+        assert.ok(String(value).length < 1_000)
+        assert.ok(!String(value).includes('head-noise'), 'tool output head is dropped')
     })
 
     test('selectCompactionMessages returns empty for an empty array', () => {
