@@ -253,11 +253,21 @@ describe('apply_patch tool (structured patch)', () => {
         assertPatchError(result, 'Unexpected line found in update hunk')
     })
 
-    test('rejects absolute file paths', async () => {
+    test('allows absolute file paths inside writable roots', async () => {
+        const absolutePath = join(tempDir, 'absolute.txt')
         const result = await executePatch(
-            ['*** Begin Patch', `*** Add File: ${join(tempDir, 'absolute.txt')}`, '+x', '*** End Patch'].join('\n'),
+            ['*** Begin Patch', `*** Add File: ${absolutePath}`, '+x', '*** End Patch'].join('\n'),
         )
-        assertPatchError(result, 'File references must be relative, NEVER ABSOLUTE')
+        assertPatchOk(result)
+        assert.strictEqual(await readText(absolutePath), 'x\n')
+    })
+
+    test('rejects absolute file paths outside writable roots', async () => {
+        const outsidePath = join(tempDir, '..', 'outside-absolute.txt')
+        const result = await executePatch(
+            ['*** Begin Patch', `*** Add File: ${outsidePath}`, '+x', '*** End Patch'].join('\n'),
+        )
+        assertPatchError(result, 'sandbox write denied')
     })
 
     test('rejects empty file paths in headers', async () => {

@@ -36,6 +36,9 @@ Each operation starts with one of three headers:
 *** Add File: <path> - create a new file. Every following line is a + line (the initial contents).
 *** Delete File: <path> - remove an existing file. Nothing follows.
 *** Update File: <path> - patch an existing file in place (optionally with a rename).
+<path> is resolved relative to the current working directory; an absolute path
+(e.g. \`*** Update File: /abs/path/to/file.ts\`) is also accepted, but only if it
+stays within the allowed writable directories - otherwise the patch is denied.
 
 May be immediately followed by *** Move to: <new path> if you want to rename the file.
 Then one or more “hunks”, each introduced by @@ (optionally followed by a hunk header).
@@ -88,7 +91,8 @@ It is important to remember:
 
 - You must include a header with your intended action (Add/Delete/Update)
 - You must prefix new lines with \`+\` even when creating a new file
-- File references can only be relative, NEVER ABSOLUTE.
+- File paths are relative to the current working directory, or absolute
+  (e.g. \`*** Update File: /abs/path/to/file.ts\`) within the allowed writable directories.
 `
 
 type AddFileHunk = {
@@ -165,9 +169,6 @@ function parsePathFromHeader(path: string, lineNumber: number): string {
     const value = path.trim()
     if (!value) {
         invalidHunk('path cannot be empty', lineNumber)
-    }
-    if (isAbsolute(value)) {
-        invalidHunk(`File references must be relative, NEVER ABSOLUTE: ${value}`, lineNumber)
     }
     return value
 }
@@ -552,7 +553,7 @@ function deriveNewContentsFromChunks(originalContents: string, displayPath: stri
 }
 
 function resolvePatchPath(cwd: string, patchPath: string): string {
-    return normalizePath(join(cwd, patchPath))
+    return normalizePath(isAbsolute(patchPath) ? patchPath : join(cwd, patchPath))
 }
 
 async function canonicalWritePath(absPath: string): Promise<string> {
