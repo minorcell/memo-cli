@@ -14,7 +14,6 @@ export type ParsedHistoryLog = {
     maxSequence: number
     providerName?: string
     modelName?: string
-    contextWindow?: number
     toolPermissionMode?: string
     thinking?: boolean
     compactionSummary?: string
@@ -107,7 +106,6 @@ export function parseHistoryLog(raw: string): ParsedHistoryLog {
         maxSequence: sequence,
         providerName: detail.providerName,
         modelName: detail.modelName,
-        contextWindow: detail.contextWindow,
         toolPermissionMode: detail.toolPermissionMode,
         thinking: detail.thinking,
         compactionSummary: detail.compactionSummary,

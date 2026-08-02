@@ -21,7 +21,6 @@ describe('parseHistoryLog', () => {
                     cwd: '/tmp/demo',
                     providerName: 'deepseek',
                     modelName: 'deepseek-chat',
-                    contextWindow: 64000,
                     toolPermissionMode: 'once',
                     thinking: true,
                 },
@@ -56,7 +55,6 @@ describe('parseHistoryLog', () => {
         const parsed = parseHistoryLog(raw)
         assert.strictEqual(parsed.providerName, 'deepseek')
         assert.strictEqual(parsed.modelName, 'deepseek-chat')
-        assert.strictEqual(parsed.contextWindow, 64000)
         assert.strictEqual(parsed.toolPermissionMode, 'once')
         assert.strictEqual(parsed.thinking, true)
         assert.strictEqual(parsed.messages.length, 2)

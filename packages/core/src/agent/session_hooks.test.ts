@@ -503,7 +503,6 @@ describe('session hooks & middleware', () => {
             assert.strictEqual(sessionStart?.meta?.cwd, process.cwd())
             assert.strictEqual(sessionStart?.meta?.providerName, 'mock')
             assert.strictEqual(sessionStart?.meta?.modelName, 'mock-model')
-            assert.strictEqual(sessionStart?.meta?.contextWindow, 64_000)
             assert.strictEqual(sessionStart?.meta?.toolPermissionMode, 'once')
             assert.strictEqual(sessionStart?.meta?.thinking, true)
             assert.strictEqual(events.find((event) => event.type === 'turn_start')?.meta?.thinking, true)

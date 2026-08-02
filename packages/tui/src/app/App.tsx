@@ -246,14 +246,12 @@ export function App({
             thinkingOnRef.current = parsed.thinking
             setThinkingOn(parsed.thinking)
         }
-        if (parsed.contextWindow) setContextLimit(parsed.contextWindow)
         if (restoredToolPermissionMode) setToolPermissionMode(restoredToolPermissionMode)
         setInputHistory(parsed.turns.map((turn) => turn.userInput.trim()).filter(Boolean))
         setSessionOptionsState((prev) => ({
             ...prev,
             providerName: parsed.providerName ?? prev.providerName,
             modelName: parsed.modelName ?? prev.modelName,
-            contextWindow: parsed.contextWindow ?? prev.contextWindow,
             toolPermissionMode: restoredToolPermissionMode ?? prev.toolPermissionMode,
             dangerous:
                 restoredToolPermissionMode === undefined
