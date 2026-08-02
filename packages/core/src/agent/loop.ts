@@ -58,7 +58,7 @@ import {
     toToolHistoryMessage,
 } from './messages'
 
-const DEFAULT_AUTO_COMPACT_THRESHOLD_PERCENT = 80
+const DEFAULT_AUTO_COMPACT_THRESHOLD_PERCENT = 90
 const COMPACT_USER_MESSAGE_MAX_TOKENS = 20_000
 
 export type SessionOperationKind = 'turn' | 'compact'
