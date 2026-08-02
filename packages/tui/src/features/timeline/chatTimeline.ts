@@ -74,6 +74,10 @@ export function createInitialTimelineState(): ChatTimelineState {
     }
 }
 
+export function activeAgentActivities(agents: AgentActivityView[]): AgentActivityView[] {
+    return agents.filter((agent) => agent.status === 'pending_init' || agent.status === 'running')
+}
+
 function createEmptyTurn(index: number, sequence: number): TurnView {
     return {
         index,

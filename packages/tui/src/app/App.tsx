@@ -29,6 +29,7 @@ import { VisibleUpdateQueue, type VisibleUpdate } from './visibleUpdateQueue'
 import { ChatWidget } from '../features/timeline/ChatWidget'
 import { Composer } from '../features/composer/Composer'
 import { Footer } from '../shared/ui/Footer'
+import { AgentStatusList } from '../features/agents/AgentStatusList'
 import { ApprovalOverlay } from '../features/approval/ApprovalOverlay'
 import { McpActivationOverlay } from '../features/mcp/McpActivationOverlay'
 import { notifyApprovalRequested } from '../features/approval/approvalNotification'
@@ -36,7 +37,11 @@ import { PlanPanel } from '../features/plan/PlanPanel'
 import { planStateReducer } from '../features/plan/planState'
 import { SetupWizard } from '../features/setup/SetupWizard'
 import { parseHistoryLog } from '../features/session/historyParser'
-import { chatTimelineReducer, createInitialTimelineState } from '../features/timeline/chatTimeline'
+import {
+    activeAgentActivities,
+    chatTimelineReducer,
+    createInitialTimelineState,
+} from '../features/timeline/chatTimeline'
 import { calculateContextPercent, inferParallelToolStatuses, inferToolStatus } from '../shared/lib/utils'
 import { checkForUpdate, findLocalPackageInfoSync } from '../shared/lib/version'
 import type { SessionHistoryEntry } from '../features/session/sessionHistory'
@@ -879,6 +884,7 @@ export function App({
     }, [pendingHistoryMessages, session])
 
     const contextPercent = calculateContextPercent(currentContextTokens, contextLimit)
+    const activeAgents = useMemo(() => activeAgentActivities(timeline.agents), [timeline.agents])
     const chatHeader = useMemo(
         () => ({
             providerName: currentProvider,
@@ -927,7 +933,6 @@ export function App({
                 systemMessages={timeline.systemMessages}
                 turns={timeline.turns}
                 historicalTurns={timeline.historicalTurns}
-                agents={timeline.agents}
             />
 
             {activePlan ? <PlanPanel plan={activePlan} /> : null}
@@ -978,11 +983,9 @@ export function App({
                 contextPercent={contextPercent}
                 thinkingOn={thinkingOn}
                 followOutput={followOutput}
-                activeAgentCount={
-                    timeline.agents.filter((agent) => agent.status === 'pending_init' || agent.status === 'running')
-                        .length
-                }
             />
+
+            <AgentStatusList agents={activeAgents} />
         </Box>
     )
 }

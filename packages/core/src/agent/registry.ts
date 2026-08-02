@@ -8,6 +8,7 @@ export type AgentMetadata = AgentStatusSnapshot & {
     taskName: string
     parentId?: string
     parentPath?: string
+    contextPercent?: number
     updatedAt: string
 }
 
@@ -104,7 +105,10 @@ export class AgentRegistry {
         return this.getByPath(joinAgentPath(senderPath, target)) ?? this.getByPath(`${ROOT_AGENT_PATH}/${target}`)
     }
 
-    update(agentId: string, update: Partial<AgentStatusSnapshot>): AgentMetadata | undefined {
+    update(
+        agentId: string,
+        update: Partial<AgentStatusSnapshot> & { contextPercent?: number },
+    ): AgentMetadata | undefined {
         const current = this.byId.get(agentId)
         if (!current) return undefined
         const next = { ...current, ...update, updatedAt: new Date().toISOString() }

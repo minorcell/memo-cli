@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 import { describe, test } from 'vitest'
 import type { LanguageModelUsage } from '@memo/core'
-import { chatTimelineReducer, createInitialTimelineState } from './chatTimeline'
+import { activeAgentActivities, chatTimelineReducer, createInitialTimelineState } from './chatTimeline'
 
 describe('chatTimelineReducer', () => {
     test('creates turn and appends chunks', () => {
@@ -55,6 +55,27 @@ describe('chatTimelineReducer', () => {
             activity: { ...base, status: 'completed', lastMessage: 'done' },
         })
         assert.deepStrictEqual(state.agents, [{ ...base, status: 'completed', lastMessage: 'done' }])
+        assert.deepStrictEqual(activeAgentActivities(state.agents), [])
+    })
+
+    test('only exposes agents that are starting or running', () => {
+        const base = {
+            agentId: 'agent-1',
+            agentPath: '/root/review',
+            taskName: 'review',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+        }
+        const agents = activeAgentActivities([
+            { ...base, status: 'pending_init' },
+            { ...base, agentId: 'agent-2', status: 'running', contextPercent: 12.5 },
+            { ...base, agentId: 'agent-3', status: 'completed' },
+            { ...base, agentId: 'agent-4', status: 'errored' },
+        ])
+
+        assert.deepStrictEqual(
+            agents.map((agent) => agent.agentId),
+            ['agent-1', 'agent-2'],
+        )
     })
 
     test('updates context prompt tokens at step granularity', () => {

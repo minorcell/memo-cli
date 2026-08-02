@@ -69,6 +69,7 @@ export type AgentActivityView = {
     taskName: string
     parentId?: string
     status: AgentStatus
+    contextPercent?: number
     lastMessage?: string
     error?: string
     updatedAt: string

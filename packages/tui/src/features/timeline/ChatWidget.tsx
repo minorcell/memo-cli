@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react'
 import { Box, Static, Text } from 'ink'
-import type { AgentActivityView, SystemMessage, TurnView } from '../../shared/types'
-import { AgentCell, SystemCell, TurnCell } from './Cells'
+import type { SystemMessage, TurnView } from '../../shared/types'
+import { SystemCell, TurnCell } from './Cells'
 
 type HeaderInfo = {
     providerName: string
@@ -17,7 +17,6 @@ type ChatWidgetProps = {
     systemMessages: SystemMessage[]
     turns: TurnView[]
     historicalTurns: TurnView[]
-    agents: AgentActivityView[]
 }
 
 type HeaderStaticItem = { type: 'header'; data: HeaderInfo }
@@ -41,7 +40,6 @@ export const ChatWidget = memo(function ChatWidget({
     systemMessages,
     turns,
     historicalTurns,
-    agents,
 }: ChatWidgetProps) {
     const { inProgressTurn, staticItems } = useMemo(() => {
         const allTurns = [...historicalTurns, ...turns]
@@ -92,15 +90,6 @@ export const ChatWidget = memo(function ChatWidget({
                     return <TurnCell key={`turn-${item.sequence ?? item.index}`} turn={item} cwd={header.cwd} />
                 }}
             </Static>
-
-            {agents.length > 0 ? (
-                <Box flexDirection="column" marginTop={1}>
-                    <Text bold>Sub-agents</Text>
-                    {agents.map((agent) => (
-                        <AgentCell key={agent.agentId} agent={agent} />
-                    ))}
-                </Box>
-            ) : null}
 
             {inProgressTurn ? <TurnCell turn={inProgressTurn} cwd={header.cwd} /> : null}
         </Box>

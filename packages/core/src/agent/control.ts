@@ -222,10 +222,22 @@ export class AgentControl {
         const current = this.registry.getById(agentId)
         if (!current) return
         const nextStatus = deriveAgentStatusFromEvent(current, event)
-        const updated = this.registry.update(agentId, nextStatus)
+        const contextPercent =
+            event.type === 'context_usage' && typeof event.meta?.usage_percent === 'number'
+                ? event.meta.usage_percent
+                : undefined
+        const updated = this.registry.update(agentId, {
+            ...nextStatus,
+            ...(contextPercent === undefined ? {} : { contextPercent }),
+        })
         if (!updated) return
 
-        if (event.type === 'turn_start' || event.type === 'turn_end' || event.type === 'session_end') {
+        if (
+            event.type === 'turn_start' ||
+            event.type === 'context_usage' ||
+            event.type === 'turn_end' ||
+            event.type === 'session_end'
+        ) {
             await this.publishActivity(updated)
         }
 
@@ -259,6 +271,7 @@ export class AgentControl {
             taskName: metadata.taskName,
             parentId: metadata.parentId,
             status: metadata.status,
+            contextPercent: metadata.contextPercent,
             lastMessage: metadata.lastMessage,
             error: metadata.error,
             updatedAt: metadata.updatedAt,
@@ -279,6 +292,7 @@ export class AgentControl {
                 task_name: activity.taskName,
                 parent_id: activity.parentId,
                 status: activity.status,
+                context_percent: activity.contextPercent,
                 error: activity.error,
                 updated_at: activity.updatedAt,
             },

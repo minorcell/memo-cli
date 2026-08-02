@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'vitest'
 import type { Tool, ToolExecutionOptions } from 'ai'
 import type { ToolResultOutput } from '@ai-sdk/provider-utils'
-import { createAgentSession, createTokenCounter, type CallLLM, type AgentSessionDeps, type LLMResult } from '@memo/core'
+import {
+    createAgentSession,
+    createTokenCounter,
+    type AgentActivity,
+    type AgentSessionDeps,
+    type CallLLM,
+    type LLMResult,
+} from '@memo/core'
 import type { ToolExecutionContext } from '@memo/core/tools/sdk_tools'
 import { emptyUsage } from '@memo/core/utils/usage'
 import {
@@ -60,7 +67,10 @@ async function createHarness(callLLM?: CallLLM, overrides: Partial<AgentSessionD
 
 describe('in-process collab tools', () => {
     test('spawns a stateful child and delivers completion through the parent mailbox', async () => {
-        const harness = await createHarness()
+        const activities: AgentActivity[] = []
+        const harness = await createHarness(undefined, {
+            onAgentActivity: (activity) => activities.push(activity),
+        })
         try {
             const spawnedResult = await runTool(
                 spawnAgentTool,
@@ -78,6 +88,11 @@ describe('in-process collab tools', () => {
             expect(agents).toHaveLength(1)
             expect(agents[0]).toMatchObject({ agent_path: '/root/review', status: 'completed' })
             expect(harness.context.collab?.inputQueue.drainAll()[0]?.content).toContain('agent_completion')
+            expect(
+                activities.some(
+                    (activity) => activity.status === 'running' && typeof activity.contextPercent === 'number',
+                ),
+            ).toBe(true)
         } finally {
             await harness.session.close()
         }

@@ -41,6 +41,7 @@ function parseAgentActivities(events: SessionEventItem[]): AgentActivityView[] {
             continue
         }
         const parentId = typeof event.meta.parent_id === 'string' ? event.meta.parent_id : undefined
+        const contextPercent = typeof event.meta.context_percent === 'number' ? event.meta.context_percent : undefined
         const error = typeof event.meta.error === 'string' ? event.meta.error : undefined
         agents.set(agentId, {
             agentId,
@@ -48,6 +49,7 @@ function parseAgentActivities(events: SessionEventItem[]): AgentActivityView[] {
             taskName,
             ...(parentId ? { parentId } : {}),
             status,
+            ...(contextPercent === undefined ? {} : { contextPercent }),
             ...(event.content !== undefined ? { lastMessage: event.content } : {}),
             ...(error ? { error } : {}),
             updatedAt: typeof event.meta.updated_at === 'string' ? event.meta.updated_at : event.ts,
