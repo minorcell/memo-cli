@@ -408,7 +408,7 @@ describe('resolveContextWindowForProvider', () => {
             { name: 'openai', model: 'gpt-5', env_api_key: 'OPENAI_API_KEY' },
         )
 
-        expect(contextWindow).toBe(120000)
+        expect(contextWindow).toBe(1_000_000)
     })
 
     test('matches keys case-insensitively and trims surrounding spaces', () => {

@@ -128,7 +128,7 @@ Session context window is resolved with this priority:
 
 1. `model_profiles."provider:model".context_window`
 2. `model_profiles."<model>".context_window`
-3. default `120000`
+3. default `1000000`
 
 Memo applies this at startup and re-applies it when switching models with `/models`.
 
@@ -146,7 +146,7 @@ Result:
 
 - `openai:gpt-5` -> `128000`
 - other providers using `gpt-5` -> `272000`
-- any model without `context_window` override -> `120000`
+- any model without `context_window` override -> `1000000`
 
 ## MCP Server Configuration
 
