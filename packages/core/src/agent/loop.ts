@@ -52,6 +52,7 @@ import { formatInterAgentCommunication, type InterAgentCommunication } from '@me
 import type { CollabSessionBinding } from '@memo/core/agent/control'
 import { createStepGate } from '@memo/core/tools/runtime/step_gate'
 import {
+    buildMissingToolResultMessages,
     isToolSkippedOutput,
     mapOutputStatus,
     normalizeLLMResponse,
@@ -882,6 +883,15 @@ export class AgentSessionImpl implements AgentSession {
 
                     if (assistantHistoryMessage) {
                         this.history.push(assistantHistoryMessage)
+                    }
+
+                    // 补齐缺失的工具结果：AI SDK 在工具不可用（如 MCP 断开）或执行被中断时
+                    // 不会为该 tool-call 产生 result。未配对的 tool-call 会让下一轮 streamText
+                    // 抛 MissingToolResultsError，导致会话无法继续。
+                    if (toolUseBlocks.length > 0) {
+                        for (const message of buildMissingToolResultMessages(toolUseBlocks, toolResults)) {
+                            this.history.push(message)
+                        }
                     }
 
                     // 工具调用已由 AI SDK 在 streamText 内执行（execute 包装器：审批/截断/禁用跳过）。

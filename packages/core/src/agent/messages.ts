@@ -4,7 +4,6 @@ import type { ToolResultOutput } from '@ai-sdk/provider-utils'
 import type { ChatMessage, LLMResult, ToolRegistry } from '@memo/core/types'
 import type { ToolActionStatus } from '@memo/core/tools/approval'
 import { TOOL_SKIPPED_DISABLED_MESSAGE } from '@memo/core/tools/sdk_tools'
-
 export function parseToolArguments(
     raw: string,
 ): { ok: true; data: unknown } | { ok: false; raw: string; error: string } {
@@ -69,6 +68,34 @@ export function toToolHistoryMessage(result: ToolResultPart): ChatMessage {
         role: 'tool',
         content: [result],
     }
+}
+
+/**
+ * 为没有对应结果的 tool-call 生成合成 tool 消息。AI SDK 在工具不可用
+ * （如 MCP 断开）或执行被中断时不会为该 tool-call 产生 result；未配对的
+ * tool-call 会让下一轮 streamText 抛 MissingToolResultsError，导致会话无法继续。
+ */
+export function buildMissingToolResultMessages(toolCalls: ToolCallPart[], toolResults: ToolResultPart[]): ChatMessage[] {
+    const resultIds = new Set(toolResults.map((tr) => tr.toolCallId))
+    const messages: ChatMessage[] = []
+    for (const block of toolCalls) {
+        if (block.providerExecuted || resultIds.has(block.toolCallId)) continue
+        messages.push({
+            role: 'tool',
+            content: [
+                {
+                    type: 'tool-result',
+                    toolCallId: block.toolCallId,
+                    toolName: block.toolName,
+                    output: {
+                        type: 'error-text',
+                        value: `Tool result missing: "${block.toolName}" could not be executed (tool unavailable or execution interrupted).`,
+                    },
+                },
+            ],
+        })
+    }
+    return messages
 }
 
 /** Detect the tools-disabled skip output (non-standard 'skipped' replaced by an error-text sentinel). */

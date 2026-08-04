@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest'
 import type { HistorySink } from '@memo/core/types'
 import { emitEventToSinks } from '@memo/core/agent/loop'
-import { parseTextToolCall, toToolHistoryMessage } from '@memo/core/agent/messages'
+import { buildMissingToolResultMessages, parseTextToolCall, toToolHistoryMessage } from '@memo/core/agent/messages'
 
 describe('emitEventToSinks', () => {
     test('writes structured error payload to stderr when sink append fails', async () => {
@@ -89,5 +89,49 @@ describe('tool result helpers', () => {
                 },
             ],
         })
+    })
+})
+
+describe('buildMissingToolResultMessages', () => {
+    test('returns empty when every tool call has a matching result', () => {
+        const toolCalls = [
+            { type: 'tool-call', toolCallId: 'c1', toolName: 'read_file', input: {} },
+            { type: 'tool-call', toolCallId: 'c2', toolName: 'exec', input: {} },
+        ] as never
+        const toolResults = [
+            { type: 'tool-result', toolCallId: 'c1', toolName: 'read_file', output: { type: 'text', value: 'ok' } },
+            { type: 'tool-result', toolCallId: 'c2', toolName: 'exec', output: { type: 'text', value: 'ok' } },
+        ] as never
+        expect(buildMissingToolResultMessages(toolCalls, toolResults)).toEqual([])
+    })
+
+    test('backfills a synthetic error result for an orphan tool call', () => {
+        const toolCalls = [
+            { type: 'tool-call', toolCallId: 'c1', toolName: 'read_file', input: {} },
+            { type: 'tool-call', toolCallId: 'c2', toolName: 'lost_tool', input: {} },
+        ] as never
+        const toolResults = [
+            { type: 'tool-result', toolCallId: 'c1', toolName: 'read_file', output: { type: 'text', value: 'ok' } },
+        ] as never
+        const messages = buildMissingToolResultMessages(toolCalls, toolResults)
+        expect(messages).toHaveLength(1)
+        expect(messages[0]).toEqual({
+            role: 'tool',
+            content: [
+                {
+                    type: 'tool-result',
+                    toolCallId: 'c2',
+                    toolName: 'lost_tool',
+                    output: { type: 'error-text', value: expect.stringContaining('Tool result missing') },
+                },
+            ],
+        })
+    })
+
+    test('skips provider-executed tool calls', () => {
+        const toolCalls = [
+            { type: 'tool-call', toolCallId: 'c1', toolName: 'server_tool', input: {}, providerExecuted: true },
+        ] as never
+        expect(buildMissingToolResultMessages(toolCalls, [])).toEqual([])
     })
 })
