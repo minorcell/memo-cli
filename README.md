@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/logo.svg" width="96" height="96" alt="Memo Code logo">
+  <img src="https://raw.githubusercontent.com/minorcell/memo-code/main/public/logo.svg" width="96" height="96" alt="Memo Code logo">
   <h1>Memo Code</h1>
   <p><strong>A lightweight coding agent for terminal workflows.</strong></p>
   <p>
@@ -23,7 +23,7 @@
 </div>
 
 <p align="center">
-  <img src="public/demo.png" width="100%" alt="Memo Code demo">
+  <img src="https://raw.githubusercontent.com/minorcell/memo-code/main/public/demo.png" width="100%" alt="Memo Code demo">
 </p>
 
 ---
