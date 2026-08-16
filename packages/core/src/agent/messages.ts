@@ -75,7 +75,10 @@ export function toToolHistoryMessage(result: ToolResultPart): ChatMessage {
  * （如 MCP 断开）或执行被中断时不会为该 tool-call 产生 result；未配对的
  * tool-call 会让下一轮 streamText 抛 MissingToolResultsError，导致会话无法继续。
  */
-export function buildMissingToolResultMessages(toolCalls: ToolCallPart[], toolResults: ToolResultPart[]): ChatMessage[] {
+export function buildMissingToolResultMessages(
+    toolCalls: ToolCallPart[],
+    toolResults: ToolResultPart[],
+): ChatMessage[] {
     const resultIds = new Set(toolResults.map((tr) => tr.toolCallId))
     const messages: ChatMessage[] = []
     for (const block of toolCalls) {

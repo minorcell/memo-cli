@@ -15,6 +15,8 @@ export default defineConfig({
         'commands/mcp/remove': 'packages/tui/src/commands/mcp/remove.tsx',
         'commands/mcp/login': 'packages/tui/src/commands/mcp/login.tsx',
         'commands/mcp/logout': 'packages/tui/src/commands/mcp/logout.tsx',
+        'commands/skills/list': 'packages/tui/src/commands/skills/list.tsx',
+        'commands/skills/read': 'packages/tui/src/commands/skills/read.tsx',
     },
     outDir: 'dist',
     format: ['esm'],
@@ -28,6 +30,12 @@ export default defineConfig({
     external: WEBFETCH_EXTERNALS,
     esbuildOptions(options) {
         options.jsx = 'automatic'
+        // CJS dependencies (e.g. the AI SDK toolchain) are inlined into the ESM
+        // output; without a require binding their bundled shims throw at import
+        // time because "type": "module" files have no require in scope.
+        options.banner = {
+            js: 'import { createRequire as __memoCreateRequire } from "node:module";const require=__memoCreateRequire(import.meta.url);',
+        }
     },
     async onSuccess() {
         copyFileSync(join('packages/core/src/prompt/prompt.md'), join('dist/prompt.md'))
