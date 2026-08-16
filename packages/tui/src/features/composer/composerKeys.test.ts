@@ -41,6 +41,16 @@ describe('resolveModifiedEnter', () => {
         assert.strictEqual(resolveModifiedEnter('\u001b[27;1;13~'), 'newline')
     })
 
+    test('maps the bare form after Ink strips the leading ESC', () => {
+        assert.strictEqual(resolveModifiedEnter('[27;2;13~'), 'newline')
+        assert.strictEqual(resolveModifiedEnter('[27;1;13~'), 'newline')
+    })
+
+    test('plain text resembling the sequence passes through', () => {
+        assert.strictEqual(resolveModifiedEnter('[27;abc'), 'none')
+        assert.strictEqual(resolveModifiedEnter('[27;2;13~suffix'), 'none')
+    })
+
     test('ignores other modifyOtherKeys keys instead of inserting them', () => {
         assert.strictEqual(resolveModifiedEnter('\u001b[27;2;9~'), 'ignore')
     })

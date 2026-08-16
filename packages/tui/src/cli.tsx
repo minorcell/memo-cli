@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import Pastel from 'pastel'
+import { patchStdinForModifiedKeys } from './shared/lib/inputCompat'
+
+patchStdinForModifiedKeys()
 
 const app = new Pastel({
     name: 'memo',

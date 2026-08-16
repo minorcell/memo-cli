@@ -35,7 +35,10 @@ export function resolveDeleteKind(input: string, key: KeyLike): DeleteKind {
 
 export type ModifiedEnterKind = 'newline' | 'ignore' | 'none'
 
-const MODIFIED_ENTER_PATTERN = /^\u001b\[27;\d+;(\d+)~$/
+// xterm modifyOtherKeys: ESC[27;<modifier>;<code>~. Ink's parser does not
+// recognize this variant, and its useInput hook strips a leading ESC before
+// handing the input to handlers, so the bare form must match too.
+const MODIFIED_ENTER_PATTERN = /^(?:\u001b)?\[27;\d+;(\d+)~$/
 
 /**
  * Recognizes Enter variants that Ink's parser does not map to `key.return`,
@@ -44,8 +47,9 @@ const MODIFIED_ENTER_PATTERN = /^\u001b\[27;\d+;(\d+)~$/
  * garbage), so anything unrecognized starting with ESC is ignored.
  */
 export function resolveModifiedEnter(input: string): ModifiedEnterKind {
-    if (!input.startsWith('\u001b')) return 'none'
     const match = MODIFIED_ENTER_PATTERN.exec(input)
-    if (match && match[1] === '13') return 'newline'
-    return 'ignore'
+    if (match) {
+        return match[1] === '13' ? 'newline' : 'ignore'
+    }
+    return input.startsWith('\u001b') ? 'ignore' : 'none'
 }
