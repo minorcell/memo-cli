@@ -16,10 +16,11 @@ A subagent is a child Memo run created by the current session to execute a scope
 Subagent tool family:
 
 - `spawn_agent`
-- `send_input`
-- `resume_agent`
-- `wait`
-- `close_agent`
+- `send_message`
+- `followup_task`
+- `wait_agent`
+- `interrupt_agent`
+- `list_agents`
 
 ## When to Use
 
@@ -64,50 +65,54 @@ Defaults:
 Typical flow:
 
 1. `spawn_agent` to create an agent and start its first submission.
-2. `wait` to poll until one target agent reaches a final status.
-3. `send_input` to continue the same agent.
-4. `close_agent` when done.
-5. `resume_agent` only if you need to reopen a closed agent record.
+2. `wait_agent` to wait for activity until the agent reaches a final status.
+3. `followup_task` to send follow-up work (starts a turn if the agent is idle).
+4. `send_message` to queue a message without starting a turn.
+5. `interrupt_agent` to interrupt a running turn while keeping the agent available.
 
 ## Behavior Notes
 
 ### `spawn_agent`
 
+- requires `message` and `task_name`; optional `agent_type` and `fork_turns`
 - starts immediately with `message`
-- fails if running-agent count reaches `MEMO_SUBAGENT_MAX_AGENTS`
+- fails if the running-agent count reaches `MEMO_SUBAGENT_MAX_AGENTS`
 
-### `send_input`
+### `send_message`
 
-- fails with busy error if agent is running
-- use `interrupt=true` to cancel current submission and send new input
+- queues a message for an agent without starting a turn
 
-### `wait`
+### `followup_task`
 
-- timeout range is clamped to `10s` to `300s`
+- sends follow-up work and starts a turn if the target agent is idle
+
+### `wait_agent`
+
+- `timeout_ms` is clamped to `10s` to `300s`
 - default timeout is `30s`
-- returns only final statuses in `status/details`
-- returns `timed_out=true` if none reached final state before timeout
+- child result content is delivered separately to the next model request
+- returns `timed_out=true` if nothing happened before the timeout
 
-### `close_agent`
+### `interrupt_agent`
 
-- marks agent as `closed`
-- terminates running submission if present
+- interrupts the agent's current turn
+- keeps the agent available for follow-up work
 
-### `resume_agent`
+### `list_agents`
 
-- reopens closed status
-- does not start a new submission by itself
+- lists live sub-agents in the current agent subtree
+- optional `path_prefix` to narrow the listing
 
 ## Status Values
 
 Main statuses:
 
+- `pending_init`
 - `running`
+- `interrupted`
 - `completed`
 - `errored`
-- `closed`
-
-`wait` may also report `not_found` for unknown IDs.
+- `shutdown`
 
 ## Safety
 

@@ -11,15 +11,16 @@ category: 'Core Features'
 
 ## 什么是子代理
 
-子代理是由当前会话创建的子 Memo 运行，用于执行有范围的任务。
+子代理是由当前会话创建的进程内子 Memo 运行，用于执行有范围的任务。
 
 子代理工具族：
 
 - `spawn_agent`
-- `send_input`
-- `resume_agent`
-- `wait`
-- `close_agent`
+- `send_message`
+- `followup_task`
+- `wait_agent`
+- `interrupt_agent`
+- `list_agents`
 
 ## 何时使用
 
@@ -63,159 +64,55 @@ export MEMO_SUBAGENT_MAX_AGENTS=4
 
 典型流程：
 
-1. `spawn_agent` 创建代理并开始其第一个提交。
-2. `wait` 轮询直到一个目标代理达到最终状态。
-3. `send_input` 继续同一代理。
-4. `close_agent` 完成时。
-5. `resume_agent` 仅在你需要重新打开已关闭的代理记录时使用。
-
-## Tool Call / Tool Result 分析
-
-### 1) `spawn_agent` 是否异步？
-
-结论：**子代理执行是异步的**，但要区分两个层次：
-
-- `spawn_agent` 这个工具调用本身会同步返回一次结果（返回 `agent_id` / `submission_id` / `status`）。
-- 真正的子代理任务在独立子进程里继续运行，主 agent 后续可以继续做别的事情（例如调用其他工具，或稍后再 `wait`）。
-
-另外，`spawn_agent` / `send_input` / `wait` / `close_agent` / `resume_agent` 这些协作工具都声明了 `supportsParallelToolCalls: false`，因此它们**不应作为同一批并行 tool_calls 的一部分**。
-
-### 2) 使用 subagent 时，`messages` 是什么结构？
-
-Memo 的消息结构里，工具往返遵循标准配对：
-
-- assistant 消息里放 `tool_calls[]`
-- tool 消息里放 `tool_call_id`（必须对应前面的 `tool_calls[i].id`）
-- `tool_calls[*].function.arguments` 在协议中是 **JSON 字符串**（不是已解析对象）
-
-简化示例（只展示关键字段）：
-
-```json
-[
-    { "role": "user", "content": "并行分析两个目录的 TODO" },
-    {
-        "role": "assistant",
-        "content": "",
-        "tool_calls": [
-            {
-                "id": "call_spawn_1",
-                "type": "function",
-                "function": {
-                    "name": "spawn_agent",
-                    "arguments": "{\"message\":\"分析 packages/core 的 TODO\"}"
-                }
-            }
-        ]
-    },
-    {
-        "role": "tool",
-        "tool_call_id": "call_spawn_1",
-        "name": "spawn_agent",
-        "content": "{\"agent_id\":\"a1\",\"submission_id\":\"s1\",\"status\":\"running\"}"
-    },
-    {
-        "role": "assistant",
-        "content": "",
-        "tool_calls": [
-            {
-                "id": "call_wait_1",
-                "type": "function",
-                "function": {
-                    "name": "wait",
-                    "arguments": "{\"ids\":[\"a1\"],\"timeout_ms\":30000}"
-                }
-            }
-        ]
-    },
-    {
-        "role": "tool",
-        "tool_call_id": "call_wait_1",
-        "name": "wait",
-        "content": "{\"status\":{\"a1\":\"completed\"},\"details\":{\"a1\":{\"last_output\":\"...\"}},\"timed_out\":false}"
-    }
-]
-```
-
-### 3) 模拟一次 subagent 调用（伪代码）
-
-```ts
-// 简化流程示例： 省略实际实现细节（如 hooks、事件记录、审批中间层）
-// 假设输入：task = 用户当前问题
-const task = '并行分析两个目录的 TODO'
-// llm(messages) 表示一次模型调用，返回 assistant 消息（可能包含 tool_calls）
-// 用户问题进入主 agent
-messages.push({ role: 'user', content: task })
-
-// 第一次模型决策：发起子代理
-assistant = llm(messages)
-// -> tool_calls: [{ id: "call_spawn_1", function: { name: "spawn_agent", arguments: ... } }]
-messages.push(assistant)
-
-spawnResult = callTool('spawn_agent', { message: `分析任务：${task}` })
-messages.push({
-    role: 'tool',
-    tool_call_id: 'call_spawn_1',
-    name: 'spawn_agent',
-    content: JSON.stringify(spawnResult),
-})
-
-// 主 agent 可以继续其他操作；也可以稍后等待
-assistant = llm(messages)
-// -> tool_calls: [{ id: "call_wait_1", function: { name: "wait", arguments: ... } }]
-messages.push(assistant)
-
-waitResult = callTool('wait', { ids: [spawnResult.agent_id], timeout_ms: 30000 })
-messages.push({
-    role: 'tool',
-    tool_call_id: 'call_wait_1',
-    name: 'wait',
-    content: JSON.stringify(waitResult),
-})
-
-// 子代理结果回到上下文后，模型给出最终回答
-assistant = llm(messages)
-return assistant.content
-```
+1. `spawn_agent` 创建代理并开始其第一个任务。
+2. `wait_agent` 等待活动，直到代理达到最终状态。
+3. `followup_task` 发送后续工作（代理空闲时启动新的一轮）。
+4. `send_message` 排队一条消息，不启动新的轮次。
+5. `interrupt_agent` 中断正在运行的一轮，同时保持代理可用。
 
 ## 行为说明
 
 ### `spawn_agent`
 
+- 必填 `message` 和 `task_name`；可选 `agent_type` 和 `fork_turns`
 - 立即以 `message` 开始
 - 如果运行代理计数达到 `MEMO_SUBAGENT_MAX_AGENTS` 则失败
 
-### `send_input`
+### `send_message`
 
-- 如果代理正在运行则返回忙碌错误
-- 使用 `interrupt=true` 取消当前提交并发送新输入
+- 向代理排队一条消息，不启动新的轮次
 
-### `wait`
+### `followup_task`
 
-- 超时范围被限制在 `10s` 到 `300s`
+- 发送后续工作，目标代理空闲时启动新的一轮
+
+### `wait_agent`
+
+- `timeout_ms` 被限制在 `10s` 到 `300s`
 - 默认超时为 `30s`
-- 仅在 `status/details` 中返回最终状态
-- 如果在超时前没有达到最终状态则返回 `timed_out=true`
+- 子代理结果内容会单独传递到下一次模型请求
+- 如果超时前没有任何活动则返回 `timed_out=true`
 
-### `close_agent`
+### `interrupt_agent`
 
-- 将代理标记为 `closed`
-- 如果有正在运行的提交则终止
+- 中断代理当前正在运行的一轮
+- 保持代理可用于后续工作
 
-### `resume_agent`
+### `list_agents`
 
-- 重新打开已关闭状态
-- 本身不会开始新的提交
+- 列出当前代理子树中的活跃子代理
+- 可选 `path_prefix` 缩小列出范围
 
 ## 状态值
 
 主要状态：
 
-- `running`（运行中）
-- `completed`（已完成）
-- `errored`（出错）
-- `closed`（已关闭）
-
-`wait` 也可能对未知 ID 报告 `not_found`。
+- `pending_init`
+- `running`
+- `interrupted`
+- `completed`
+- `errored`
+- `shutdown`
 
 ## 安全性
 

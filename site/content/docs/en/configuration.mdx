@@ -1,39 +1,39 @@
 ---
-title: '配置'
-description: '提供商、config.toml、环境变量和 MCP 设置。'
+title: 'Configuration'
+description: 'Providers, config.toml, environment variables, and MCP setup.'
 order: 3
 category: 'Getting Started'
 ---
 
-# 配置
+# Configuration
 
-Memo 使用 `config.toml` 来管理提供商选择、模型配置覆盖和 MCP 服务器。
-本页重点介绍每个键的含义以及 Memo 如何在运行时解析模型行为。
+Memo uses `config.toml` to manage provider selection, per-model overrides, and MCP servers.
+This page focuses on what each key means and how Memo resolves model behavior at runtime.
 
-## 配置文件位置
+## Config File Location
 
-默认：
+Default:
 
 - `~/.memo/config.toml`
 
-如果设置了 `MEMO_HOME`：
+When `MEMO_HOME` is set:
 
-- 配置路径变为 `$MEMO_HOME/config.toml`
+- The config path becomes `$MEMO_HOME/config.toml`
 
-## 配置如何应用
+## How Configuration Is Applied
 
-Memo 运行时使用以下顺序的配置：
+Memo applies configuration in this order at runtime:
 
-1. 通过 `current_provider` 选择活跃提供商。
-2. 读取该提供商的 `model`。
-3. 从 `model_profiles` 解析模型配置覆盖。
-4. 从 `context_window` 策略解析会话上下文窗口。
+1. Selects the active provider via `current_provider`.
+2. Reads that provider's `model`.
+3. Resolves model-level overrides from `model_profiles`.
+4. Resolves the session context window from the `context_window` policy.
 
-TUI 中的 `/models` 切换会为选定的提供商/模型重新运行此解析。
+Switching models in the TUI with `/models` re-runs this resolution for the selected provider/model.
 
-## 提供商配置
+## Provider Configuration
 
-### 最小示例
+### Minimal Example
 
 ```toml
 current_provider = "deepseek"
@@ -45,7 +45,7 @@ model = "deepseek-chat"
 base_url = "https://api.deepseek.com"
 ```
 
-### 多个提供商
+### Multiple Providers
 
 ```toml
 current_provider = "deepseek"
@@ -63,24 +63,24 @@ model = "gpt-4.1-mini"
 base_url = "https://api.openai.com/v1"
 ```
 
-### 提供商键
+### Provider Keys
 
 - `current_provider`
-    - 新会话的默认提供商名称。
-    - 必须匹配一个已配置的提供商 `name`。
+    - Default provider name for new sessions.
+    - Must match a configured provider `name`.
 - `providers.<name>.name`
-    - 在 `/models` 中显示的提供商标识符。
+    - Provider identifier shown in `/models`.
 - `providers.<name>.env_api_key`
-    - 用作第一优先级 API 密钥查找的环境变量名称。
+    - Name of the environment variable used as the first-priority API key lookup.
 - `providers.<name>.model`
-    - 发送到上游 API 的模型 ID。
-- `providers.<name>.base_url`（可选）
-    - OpenAI 兼容端点。
-    - 适用于自定义网关或兼容提供商。
+    - Model ID sent to the upstream API.
+- `providers.<name>.base_url` (optional)
+    - OpenAI-compatible endpoint.
+    - Useful for custom gateways or compatible providers.
 
-## 模型配置（覆盖）
+## Model Configuration (Overrides)
 
-Memo 对模型能力使用保守默认值，并通过本地 `config.toml` 覆盖来控制请求选项：
+Memo uses conservative defaults for model capabilities, controlled by local `config.toml` overrides:
 
 ```toml
 [model_profiles.gpt-5]
@@ -88,45 +88,45 @@ supports_parallel_tool_calls = true
 supports_reasoning_content = true
 context_window = 272000
 
-# 提供商特定覆盖，键格式："<provider>:<model>"
+# Provider-specific override; key format: "<provider>:<model>"
 [model_profiles."openai:gpt-5"]
 supports_parallel_tool_calls = false
 ```
 
-### 支持的字段
+### Supported Fields
 
 - `supports_parallel_tool_calls`
-    - 控制 Memo 是否发送 `parallel_tool_calls`。
+    - Controls whether Memo sends `parallel_tool_calls`.
 - `supports_reasoning_content`
-    - 控制推理内容是否携带在工具调用后续轮次中。
+    - Controls whether reasoning content is carried into follow-up turns after tool calls.
 - `context_window`
-    - Memo 运行时使用的会话提示/上下文硬限制。
-    - 必须是正数。
+    - Hard prompt/context limit used by the Memo runtime for the session.
+    - Must be a positive number.
 
-### 键格式
+### Key Formats
 
 - `[model_profiles.<model>]`
-    - 模型级覆盖，适用于所有使用此模型名称的提供商。
+    - Model-level override; applies to all providers using this model name.
 - `[model_profiles."provider:model"]`
-    - 提供商特定覆盖，适用于一个提供商 + 模型对。
-    - 因为键中有 `:`，所以使用引号。
+    - Provider-specific override; applies to one provider + model pair.
+    - Quoted because the key contains `:`.
 
-示例：
+Examples:
 
-- `[model_profiles.gpt-5]` 适用于任何使用 `gpt-5` 的提供商。
-- `[model_profiles."openai:gpt-5"]` 仅在提供商为 `openai` 且模型为 `gpt-5` 时适用。
+- `[model_profiles.gpt-5]` applies to any provider using `gpt-5`.
+- `[model_profiles."openai:gpt-5"]` applies only when the provider is `openai` and the model is `gpt-5`.
 
-## 上下文窗口策略
+## Context Window Policy
 
-会话上下文窗口按以下优先级解析：
+The session context window resolves with this priority:
 
 1. `model_profiles."provider:model".context_window`
 2. `model_profiles."<model>".context_window`
-3. 默认 `1000000`
+3. Default `1000000`
 
-Memo 在启动时应用此设置，并在使用 `/models` 切换模型时重新应用。
+Memo applies this setting at startup and re-applies it when you switch models with `/models`.
 
-### 实际示例
+### Practical Example
 
 ```toml
 [model_profiles.gpt-5]
@@ -136,65 +136,65 @@ context_window = 272000
 context_window = 128000
 ```
 
-结果：
+Results:
 
 - `openai:gpt-5` -> `128000`
-- 其他使用 `gpt-5` 的提供商 -> `272000`
-- 任何没有 `context_window` 覆盖的模型 -> `1000000`
+- Other providers using `gpt-5` -> `272000`
+- Any model without a `context_window` override -> `1000000`
 
-## 上下文压缩
+## Context Compaction
 
-当上下文使用量超过阈值时，长会话会被自动压缩：
+Long sessions are compacted automatically when context usage exceeds a threshold:
 
 ```toml
-auto_compact_threshold_percent = 90 # 默认：90（1-100）
+auto_compact_threshold_percent = 90 # default: 90 (1-100)
 ```
 
-- 有效范围为 `1` 到 `100`；非法值回退为 `90`
-- 压缩会总结早期上下文并继续会话，保持会话可用
-- `/compact` 可随时手动压缩
+- Valid range is `1` to `100`; invalid values fall back to `90`
+- Compaction summarizes earlier context and continues the session, keeping it usable
+- Use `/compact` to compact manually at any time
 
-## MCP 服务器配置
+## MCP Server Configuration
 
-### OAuth 设置（远程服务器）
+### OAuth Settings (Remote Servers)
 
 ```toml
-# OAuth 浏览器回调使用的本地端口（可选）
+# Local port for the OAuth browser callback (optional)
 mcp_oauth_callback_port = 38433
 
-# 凭据存储方式："auto"（默认）/ "keyring" / "file"
+# Credential storage: "auto" (default) / "keyring" / "file"
 mcp_oauth_credentials_store_mode = "auto"
 ```
 
-- `mcp_oauth_callback_port`：`memo mcp login` 使用的固定回调端口；未设置时自动选择空闲端口。
-- `mcp_oauth_credentials_store_mode`：OAuth 令牌的持久化位置。
+- `mcp_oauth_callback_port`: fixed callback port used by `memo mcp login`; an available port is picked automatically when unset.
+- `mcp_oauth_credentials_store_mode`: where OAuth tokens are persisted.
 
-### 本地 Stdio MCP
+### Local Stdio MCP
 
 ```toml
 [mcp_servers.local_tools]
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "/your/path"]
-# 可选
+# Optional
 # type = "stdio"
-# stderr = "inherit" # 或 "pipe" / "ignore"
+# stderr = "inherit" # or "pipe" / "ignore"
 # [mcp_servers.local_tools.env]
 # FOO = "bar"
 ```
 
-### 远程 Streamable HTTP MCP
+### Remote Streamable HTTP MCP
 
 ```toml
 [mcp_servers.remote]
 type = "streamable_http"
 url = "https://your-mcp-server.com/mcp"
 bearer_token_env_var = "MCP_TOKEN"
-# 可选自定义头部
+# Optional custom headers
 # http_headers = { "X-Team" = "platform" }
-# 或 headers = { "X-Team" = "platform" }
+# or headers = { "X-Team" = "platform" }
 ```
 
-## 使用 CLI 管理 MCP
+## Managing MCP with the CLI
 
 ```bash
 memo mcp list
@@ -204,42 +204,42 @@ memo mcp add <name> --url <url> --bearer-token-env-var <ENV_VAR>
 memo mcp remove <name>
 ```
 
-也可使用：
+Also available:
 
 ```bash
 memo mcp help
 ```
 
-`streamable_http` MCP 服务器支持 OAuth 登录/注销：
+`streamable_http` MCP servers support OAuth login/logout:
 
 ```bash
 memo mcp login <name> [--scopes read,write]
 memo mcp logout <name>
 ```
 
-## 运行时环境变量
+## Runtime Environment Variables
 
-### 模型调用必需
+### Required for Model Calls
 
-- `<provider.env_api_key>`：提供商配置中配置的环境变量名，用作第一优先级的 API 密钥查找。
-- `OPENAI_API_KEY`：当提供商特定密钥缺失时的回退 API 密钥。
-- `DEEPSEEK_API_KEY`：当提供商特定密钥和 `OPENAI_API_KEY` 都缺失时的回退 API 密钥。
+- `<provider.env_api_key>`: environment variable name configured on the provider, used as the first-priority API key lookup.
+- `OPENAI_API_KEY`: fallback API key when the provider-specific key is missing.
+- `DEEPSEEK_API_KEY`: fallback API key when both the provider-specific key and `OPENAI_API_KEY` are missing.
 
-### 常用可选
+### Commonly Used Optional
 
-- `MEMO_HOME`：覆盖 Memo 主目录。
+- `MEMO_HOME`: overrides the Memo home directory.
 
-## Skills 发现
+## Skills Discovery
 
-Memo 在启动时自动发现 Agent Skills（`SKILL.md`）并将可用的 skill 元数据附加到运行时系统提示中。
+Memo discovers agent skills (`SKILL.md`) automatically at startup and attaches the available skill metadata to the runtime system prompt.
 
-### 发现路径
+### Discovery Roots
 
-- 项目范围：项目根目录 `.<agent>/skills` 目录（例如：`.agents/skills`、`.claude/skills`、`.codex/skills`）
-- 用户范围：`$MEMO_HOME/skills`（或 `~/.memo/skills`）
-- 不扫描：Memo 主目录外的 `~/.xxx/skills` 隐藏目录
+- Project scope: `.<agent>/skills` directories at the project root (e.g. `.agents/skills`, `.claude/skills`, `.codex/skills`)
+- User scope: `$MEMO_HOME/skills` (or `~/.memo/skills`)
+- Not scanned: hidden `~/.xxx/skills` directories outside the Memo home directory
 
-### 最小 `SKILL.md`
+### Minimal `SKILL.md`
 
 ```md
 ---
@@ -250,47 +250,47 @@ description: Generate and update technical documentation.
 # Doc Writing
 ```
 
-Memo 读取 `name` + `description` frontmatter，并将每个发现的 skill 暴露给模型：
+Memo reads the `name` + `description` frontmatter and exposes each discovered skill to the model:
 
 - `- <name>: <description> (file: <absolute-path-to-SKILL.md>)`
 
-用户可以通过在提示中提及 `$skill-name` 来显式调用（例如：`$doc-writing`）。
+You can invoke a skill explicitly by mentioning `$skill-name` in a prompt (e.g. `$doc-writing`).
 
-### 默认激活 Skills
+### Default Active Skills
 
-可以持久化默认激活 skill 集合：
+You can persist the default set of active skills:
 
 ```toml
-# 未设置：默认激活所有已发现 skills
-# []：默认不激活任何 skill
+# Unset: all discovered skills are active by default
+# []: no skills active by default
 active_skills = [
   "/absolute/path/to/.codex/skills/doc-writing/SKILL.md"
 ]
 ```
 
-`active_skills` 保存的是 `SKILL.md` 的绝对路径。
+`active_skills` stores absolute paths to `SKILL.md` files.
 
-### 高级工具/运行时开关
+### Advanced Tool / Runtime Switches
 
-- `MEMO_SHELL_TOOL_TYPE`：`unified_exec`（默认）/ `shell` / `shell_command` / `disabled`。
-- `MEMO_FS_ALLOWED_ROOTS`：文件系统工具额外允许访问的根目录，逗号分隔。
-- `MEMO_ENABLE_MEMORY_TOOL=0`：禁用 `get_memory`。
-- `MEMO_ENABLE_COLLAB_TOOLS=0`：禁用子代理工具。
-- `MEMO_SUBAGENT_COMMAND`：用于生成子代理的命令。
-- `MEMO_SUBAGENT_MAX_AGENTS`：最大并发运行的子代理数（默认 `4`）。
-- `MEMO_TOOL_RESULT_MAX_CHARS`：单个工具结果在省略提示前保留的最大字符数。
-- `MEMO_SANDBOX_WRITABLE_ROOTS`：逗号分隔的绝对路径，附加到本地写入工具的写入沙箱根目录。
+- `MEMO_SHELL_TOOL_TYPE`: `unified_exec` (default) / `shell` / `shell_command` / `disabled`.
+- `MEMO_FS_ALLOWED_ROOTS`: additional roots the filesystem tools may access, comma-separated.
+- `MEMO_ENABLE_MEMORY_TOOL=0`: disable `get_memory`.
+- `MEMO_ENABLE_COLLAB_TOOLS=0`: disable subagent tools.
+- `MEMO_SUBAGENT_COMMAND`: command used to spawn subagents.
+- `MEMO_SUBAGENT_MAX_AGENTS`: maximum concurrent subagents (default `4`).
+- `MEMO_TOOL_RESULT_MAX_CHARS`: maximum characters kept from a single tool result before it is elided.
+- `MEMO_SANDBOX_WRITABLE_ROOTS`: comma-separated absolute paths appended to the write sandbox roots of local write tools.
 
-### MCP 配置认证
+### MCP Config Authentication
 
-- `<bearer_token_env_var>`：如果在 MCP 服务器配置中设置，Memo 会读取此环境变量并为该服务器注入 `Authorization: Bearer <token>`。
+- `<bearer_token_env_var>`: when set on an MCP server config, Memo reads this environment variable and injects `Authorization: Bearer <token>` for that server.
 
-### 注意
+### Notes
 
-- `SHELL`、`USER` 和 `USERNAME` 是作为运行时回退读取的系统环境变量；它们不是 Memo 特定的功能开关。
+- `SHELL`, `USER`, and `USERNAME` are system environment variables read as runtime fallbacks; they are not Memo-specific feature switches.
 
-## 相关
+## Related
 
-- [MCP 集成](./mcp.md)
-- [内置工具](./tools.md)
-- [会话与历史](./sessions-history.md)
+- [MCP Integration](./mcp.md)
+- [Built-in Tools](./tools.md)
+- [Sessions & History](./sessions-history.md)

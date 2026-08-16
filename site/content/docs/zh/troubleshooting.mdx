@@ -103,17 +103,15 @@ category: 'Operations'
 修复：
 
 - 增加限制
-- 关闭已完成/未使用的代理
-- 减少并行分散
+- 减少并行分散（子代理达到最终状态后会自动关闭）
 
-### `send_input` 忙碌错误
+### `followup_task` 没有启动新的一轮
 
-修复：
+- `followup_task` 仅在目标代理空闲时启动新的一轮
+- 使用 `send_message` 排队工作而不启动轮次
+- 使用 `interrupt_agent` 先中断正在运行的一轮
 
-- 等待当前提交完成，或
-- 使用 `interrupt=true` 发送
-
-### `wait` 持续超时
+### `wait_agent` 持续超时
 
 修复：
 

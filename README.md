@@ -53,10 +53,11 @@ This project grew from a small demo into an indispensable "productivity assistan
 
 | Feature                       | Description                                                                                           |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **Terminal Mode**            | Smooth TUI in terminal                                                               |
-| **Smart Context Management**  | Auto-compact long session context, configurable threshold, millisecond-level token estimation         |
-| **Skills System**             | Skills integration, auto-discover `SKILL.md`, activate by scenario                                    |
-| **Deep MCP Integration**      | Local/remote MCP servers, OAuth login, per-session dynamic switching                                   |
+| **Terminal TUI**             | Interactive terminal UI with streaming markdown, thinking previews, and live plan progress            |
+| **Smart Context Management**  | Auto-compact long session context, configurable threshold, byte-based token estimation                |
+| **Session Resume**            | Resume past sessions with model, thinking mode, and UI state restored                                 |
+| **Skills System**             | Auto-discover `SKILL.md` across project and user roots, dedup, built-in skill-creator                 |
+| **Deep MCP Integration**      | Local/remote MCP servers, OAuth login, per-session dynamic switching                                  |
 | **Enterprise-Grade Security** | Tool approval system (auto-approve/manual-approve), supports once/session/deny modes                  |
 | **OpenAI Compatible**         | Works with any OpenAI-compatible API, flexible multi-Provider configuration                           |
 
@@ -96,6 +97,14 @@ First run will guide you through Provider/Model setup and save config to `~/.mem
 | One-shot       | `memo --once "prompt"`                         | Run once and exit                         |
 | Resume Session | `memo --prev`                                  | Load latest session for current directory |
 
+### CLI Subcommands
+
+```bash
+memo init               # generate AGENTS.md for the current project
+memo mcp list|add|login # manage MCP servers
+memo skills list|read   # discover and read skills
+```
+
 ---
 
 ## 🏗️ Architecture
@@ -113,7 +122,7 @@ memo-code/
 - **Architecture**: Core engine with integrated tool routing, thin TUI on top, state-machine driven session management
 - **Testing**: Unit + integration tests, coverage threshold ≥70%
 - **Protocol**: Native MCP (Model Context Protocol) support, can integrate any MCP tool server
-- **Token Estimation**: Real-time context monitoring based on tiktoken, configurable auto-compaction strategy
+- **Token Estimation**: Real-time context monitoring with byte-based estimation, configurable auto-compaction strategy
 - **Distribution**: Published to npm with version-driven auto releases via CI
 
 ---

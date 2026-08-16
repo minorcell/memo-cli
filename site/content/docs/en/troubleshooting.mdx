@@ -103,17 +103,15 @@ Cause:
 Fix:
 
 - increase limit
-- close finished/unused agents
-- reduce parallel fan-out
+- reduce parallel fan-out (finished agents shut down automatically once they reach a final status)
 
-### `send_input` Busy Error
+### `followup_task` Does Not Start a Turn
 
-Fix:
+- `followup_task` only starts a turn when the target agent is idle
+- use `send_message` to queue work without starting a turn
+- use `interrupt_agent` first to interrupt a running turn
 
-- wait for current submission to complete, or
-- send with `interrupt=true`
-
-### `wait` Keeps Timing Out
+### `wait_agent` Keeps Timing Out
 
 Fix:
 
