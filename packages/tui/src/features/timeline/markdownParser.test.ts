@@ -52,6 +52,41 @@ describe('markdown parser', () => {
         assert.ok(kinds.includes('hr'))
     })
 
+    test('parses nested lists with depth levels', () => {
+        const markdown = ['- top one', '  - nested a', '  - nested b', '- top two', '  - nested c'].join('\n')
+
+        const blocks = parseMarkdownContent(markdown)
+        assert.deepStrictEqual(blocks, [
+            {
+                type: 'list',
+                ordered: false,
+                items: [
+                    { depth: 0, text: 'top one' },
+                    { depth: 1, text: 'nested a' },
+                    { depth: 1, text: 'nested b' },
+                    { depth: 0, text: 'top two' },
+                    { depth: 1, text: 'nested c' },
+                ],
+            },
+        ])
+    })
+
+    test('parses tables into header and rows', () => {
+        const markdown = ['| Name | Value |', '| ---- | ----- |', '| a    | 1     |', '| b    | 2     |'].join('\n')
+
+        const blocks = parseMarkdownContent(markdown)
+        assert.deepStrictEqual(blocks, [
+            {
+                type: 'table',
+                header: ['Name', 'Value'],
+                rows: [
+                    ['a', '1'],
+                    ['b', '2'],
+                ],
+            },
+        ])
+    })
+
     test('parses incomplete fenced code during streaming', () => {
         const blocks = parseMarkdownContent('```ts\nconst value = 1')
 

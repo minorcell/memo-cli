@@ -22,6 +22,6 @@ describe('MarkdownRenderer', () => {
     })
 
     test('uses codex-style short horizontal rule glyph', () => {
-        assert.strictEqual(MARKDOWN_RENDERER_TEST_EXPORTS.HORIZONTAL_RULE_TEXT, '———')
+        assert.strictEqual(MARKDOWN_RENDERER_TEST_EXPORTS.HORIZONTAL_RULE_TEXT, '─'.repeat(60))
     })
 })

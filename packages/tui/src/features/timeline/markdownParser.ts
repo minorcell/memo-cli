@@ -7,13 +7,16 @@ export type InlineNode =
     | { type: 'inlineCode'; content: string }
     | { type: 'link'; label: string; href: string }
 
+export type ListItem = { depth: number; text: string }
+
 export type MarkdownBlock =
     | { type: 'think'; content: string }
     | { type: 'heading'; level: number; content: string }
     | { type: 'paragraph'; content: string }
     | { type: 'code'; language?: string; content: string }
     | { type: 'blockquote'; content: string }
-    | { type: 'list'; items: string[]; ordered: boolean }
+    | { type: 'list'; items: ListItem[]; ordered: boolean }
+    | { type: 'table'; header: string[]; rows: string[][] }
     | { type: 'hr' }
     | { type: 'html'; content: string }
 
@@ -109,13 +112,42 @@ export function parseInlineNodes(text: string): InlineNode[] {
     })
 }
 
-function parseListItemText(item: { text?: string; tokens?: unknown[] }): string {
+function parseListItemText(item: { text?: string; tokens?: Array<{ type?: string }> }): string {
+    const ownTokens = (item.tokens ?? []).filter((token) => token.type !== 'list')
+    if (ownTokens.length > 0) {
+        const own = extractTextFromInlineTokens(ownTokens)
+        if (own.trim().length > 0) return own
+    }
     if (typeof item.text === 'string' && item.text.length > 0) {
-        return item.text
+        // When the item nests a sublist, item.text spans multiple lines;
+        // the first line is the item's own text.
+        return item.text.split('\n')[0] ?? ''
     }
-    if (Array.isArray(item.tokens)) {
-        return extractTextFromInlineTokens(item.tokens)
+    return ''
+}
+
+type MarkedListItem = { text?: string; tokens?: Array<{ type?: string; items?: MarkedListItem[] }> }
+
+function flattenListItems(items: MarkedListItem[], depth: number): ListItem[] {
+    const flat: ListItem[] = []
+    for (const item of items) {
+        const text = parseListItemText(item)
+        if (text.trim().length > 0) {
+            flat.push({ depth, text })
+        }
+        for (const token of item.tokens ?? []) {
+            if (token.type === 'list' && Array.isArray(token.items)) {
+                flat.push(...flattenListItems(token.items, depth + 1))
+            }
+        }
     }
+    return flat
+}
+
+function extractCellText(cell: { text?: string; tokens?: unknown[]; raw?: string }): string {
+    if (typeof cell.text === 'string') return cell.text
+    if (Array.isArray(cell.tokens)) return extractTextFromInlineTokens(cell.tokens)
+    if (typeof cell.raw === 'string') return cell.raw
     return ''
 }
 
@@ -190,13 +222,29 @@ export function parseMarkdownContent(markdown: string): MarkdownBlock[] {
                 break
             }
             case 'list': {
-                const items = Array.isArray(token.items)
-                    ? token.items
-                          .map((item: { text?: string; tokens?: unknown[] }) => parseListItemText(item))
-                          .filter((line: string) => line.trim().length > 0)
-                    : []
+                const items = Array.isArray(token.items) ? flattenListItems(token.items, 0) : []
                 if (items.length > 0) {
                     nodes.push({ type: 'list', items, ordered: Boolean(token.ordered) })
+                }
+                break
+            }
+            case 'table': {
+                const header = Array.isArray(token.header)
+                    ? token.header.map((cell: { text?: string; tokens?: unknown[]; raw?: string }) =>
+                          extractCellText(cell),
+                      )
+                    : []
+                const rows = Array.isArray(token.rows)
+                    ? token.rows.map((row: unknown[]) =>
+                          Array.isArray(row)
+                              ? row.map((cell) =>
+                                    extractCellText(cell as { text?: string; tokens?: unknown[]; raw?: string }),
+                                )
+                              : [],
+                      )
+                    : []
+                if (header.length > 0) {
+                    nodes.push({ type: 'table', header, rows })
                 }
                 break
             }
