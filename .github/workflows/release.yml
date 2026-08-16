@@ -119,3 +119,9 @@ jobs:
               run: pnpm publish --no-git-checks
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ needs.tag.outputs.tag_name }}
+                  generate_release_notes: true
