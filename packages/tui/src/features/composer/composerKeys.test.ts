@@ -1,6 +1,6 @@
 import assert from 'node:assert'
 import { describe, test } from 'vitest'
-import { resolveDeleteKind } from './composerKeys'
+import { resolveDeleteKind, resolveModifiedEnter } from './composerKeys'
 
 describe('composer_keys', () => {
     test('prefers explicit backspace flag', () => {
@@ -32,5 +32,26 @@ describe('composer_keys', () => {
 
     test('non delete-like input stays none', () => {
         assert.strictEqual(resolveDeleteKind('a', {}), 'none')
+    })
+})
+
+describe('resolveModifiedEnter', () => {
+    test('maps xterm modifyOtherKeys enter variants to newline', () => {
+        assert.strictEqual(resolveModifiedEnter('\u001b[27;2;13~'), 'newline')
+        assert.strictEqual(resolveModifiedEnter('\u001b[27;1;13~'), 'newline')
+    })
+
+    test('ignores other modifyOtherKeys keys instead of inserting them', () => {
+        assert.strictEqual(resolveModifiedEnter('\u001b[27;2;9~'), 'ignore')
+    })
+
+    test('ignores unrecognized escape sequences instead of inserting them', () => {
+        assert.strictEqual(resolveModifiedEnter('\u001b[13;2u'), 'ignore')
+        assert.strictEqual(resolveModifiedEnter('\u001b[1;5D'), 'ignore')
+    })
+
+    test('plain text passes through untouched', () => {
+        assert.strictEqual(resolveModifiedEnter('a'), 'none')
+        assert.strictEqual(resolveModifiedEnter(''), 'none')
     })
 })

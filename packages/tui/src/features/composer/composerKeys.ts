@@ -32,3 +32,20 @@ export function resolveDeleteKind(input: string, key: KeyLike): DeleteKind {
 
     return 'none'
 }
+
+export type ModifiedEnterKind = 'newline' | 'ignore' | 'none'
+
+const MODIFIED_ENTER_PATTERN = /^\u001b\[27;\d+;(\d+)~$/
+
+/**
+ * Recognizes Enter variants that Ink's parser does not map to `key.return`,
+ * such as xterm modifyOtherKeys (`\x1b[27;2;13~` for Shift+Enter). Unknown
+ * escape sequences must not reach the editor as raw text (that renders as
+ * garbage), so anything unrecognized starting with ESC is ignored.
+ */
+export function resolveModifiedEnter(input: string): ModifiedEnterKind {
+    if (!input.startsWith('\u001b')) return 'none'
+    const match = MODIFIED_ENTER_PATTERN.exec(input)
+    if (match && match[1] === '13') return 'newline'
+    return 'ignore'
+}

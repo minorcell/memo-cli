@@ -21,6 +21,7 @@ import {
     type EditorBuffer,
 } from './composerInput'
 import { resolveDeleteKind } from './composerKeys'
+import { resolveModifiedEnter } from './composerKeys'
 import { resolveComposerColor } from './composerColor'
 import { PasteBurst, type PasteBurstFlushResult } from './pasteBurst'
 import {
@@ -543,6 +544,18 @@ export const Composer = memo(function Composer({
         (input, key) => {
             const now = Date.now()
             applyPasteBurstFlush(pasteBurstRef.current.flushIfDue(now))
+
+            // Enter variants Ink does not recognize (e.g. xterm modifyOtherKeys
+            // Shift+Enter) map to newline; unknown escape sequences are dropped
+            // so they never render as garbage in the editor.
+            const modifiedEnter = resolveModifiedEnter(input)
+            if (modifiedEnter !== 'none') {
+                if (modifiedEnter === 'newline') {
+                    flushPasteBurstBeforeModifiedInput(true)
+                    applyEditorInsert('\n', true)
+                }
+                return
+            }
 
             const hasSuggestions = mode !== 'none'
             const canNavigate = hasSuggestions && items.length > 0
