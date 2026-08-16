@@ -57,7 +57,10 @@ This project grew from a small demo into an indispensable "productivity assistan
 | **Smart Context Management**  | Auto-compact long session context, configurable threshold, byte-based token estimation                |
 | **Session Resume**            | Resume past sessions with model, thinking mode, and UI state restored                                 |
 | **Skills System**             | Auto-discover `SKILL.md` across project and user roots, dedup, built-in skill-creator                 |
+| **Multi-Agent Collaboration** | Parallel subagents with independent context, split large tasks and collect results                    |
 | **Deep MCP Integration**      | Local/remote MCP servers, OAuth login, per-session dynamic switching                                  |
+| **Built-in Tools**            | File I/O and search, command execution, structured patching, web fetch, MCP resource browsing         |
+| **Memory System**             | Persistent memory read, keeps preferences and project context across sessions                         |
 | **Enterprise-Grade Security** | Tool approval system (auto-approve/manual-approve), supports once/session/deny modes                  |
 | **OpenAI Compatible**         | Works with any OpenAI-compatible API, flexible multi-Provider configuration                           |
 
