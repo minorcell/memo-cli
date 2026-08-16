@@ -17,6 +17,7 @@ import { parsePlanUpdateObservation, planProgress } from '../plan/planState'
 
 const TOOL_PARAM_MAX_COLUMNS = 70
 const THINKING_PREFIX_COLUMNS = 11
+const THINKING_LIVE_LINES = 3
 
 function toolStatusPresentation(status?: ToolStatus): { glyph: string; verb: string; color: string } {
     if (status === TOOL_STATUS.ERROR) return { glyph: '×', verb: 'Failed', color: 'red' }
@@ -143,6 +144,29 @@ const ToolRow = memo(function ToolRow({
     )
 })
 
+function resolveStepActions(step: StepView): ToolAction[] {
+    const isParallel = Boolean(step.parallelActions && step.parallelActions.length > 1)
+    return isParallel ? (step.parallelActions ?? []) : step.action ? [step.action] : []
+}
+
+function resolveActionResult(step: StepView, action: ToolAction, index: number): ToolResultView | undefined {
+    const actions = resolveStepActions(step)
+    const matched = action.toolCallId
+        ? step.toolResults?.find((result) => result.toolCallId === action.toolCallId)
+        : undefined
+    if (matched) return matched
+    if (step.toolResults?.[index]) return step.toolResults[index]
+    if (actions.length === 1 && step.observation) {
+        return {
+            toolCallId: action.toolCallId,
+            tool: action.tool,
+            observation: step.observation,
+            status: step.toolStatus ?? TOOL_STATUS.PENDING,
+        }
+    }
+    return undefined
+}
+
 const StepCell = memo(function StepCell({
     step,
     cwd,
@@ -154,52 +178,51 @@ const StepCell = memo(function StepCell({
     terminalWidth: number
     showText?: boolean
 }) {
-    const isParallel = Boolean(step.parallelActions && step.parallelActions.length > 1)
-    const actions: ToolAction[] = isParallel ? (step.parallelActions ?? []) : step.action ? [step.action] : []
+    const actions = resolveStepActions(step)
     const thinking = step.thinking ?? step.streamingThinking
-    const thinkingPreview = thinking
-        ? previewText(thinking.replace(/\s+/g, ' ').trim(), {
-              columns: Math.max(1, terminalWidth - THINKING_PREFIX_COLUMNS),
-              maxLines: 1,
-              from: 'end',
-          }).text
-        : null
+    const isLiveThinking = Boolean(step.streamingThinking && !step.action)
+    const thinkingColumns = Math.max(1, terminalWidth - THINKING_PREFIX_COLUMNS)
+    // While thinking is streaming, show a rolling tail of the latest lines;
+    // once it completes, collapse to a single-line preview.
+    const thinkingLines = thinking
+        ? isLiveThinking
+            ? previewText(thinking, {
+                  columns: thinkingColumns,
+                  maxLines: THINKING_LIVE_LINES,
+                  from: 'end',
+              }).text.split('\n')
+            : [
+                  previewText(thinking.replace(/\s+/g, ' ').trim(), {
+                      columns: thinkingColumns,
+                      maxLines: 1,
+                      from: 'end',
+                  }).text,
+              ]
+        : []
 
-    const resultForAction = (action: ToolAction, index: number): ToolResultView | undefined => {
-        const matched = action.toolCallId
-            ? step.toolResults?.find((result) => result.toolCallId === action.toolCallId)
-            : undefined
-        if (matched) return matched
-        if (step.toolResults?.[index]) return step.toolResults[index]
-        if (actions.length === 1 && step.observation) {
-            return {
-                toolCallId: action.toolCallId,
-                tool: action.tool,
-                observation: step.observation,
-                status: step.toolStatus ?? TOOL_STATUS.PENDING,
-            }
-        }
-        return undefined
-    }
+    const resultForAction = (action: ToolAction, index: number): ToolResultView | undefined =>
+        resolveActionResult(step, action, index)
 
     return (
         <Box flexDirection="column">
-            {thinkingPreview ? (
-                <Box>
-                    <Text wrap="truncate-end">
-                        <Text color={step.streamingThinking && !step.action ? 'yellow' : 'gray'} italic>
-                            Thinking
-                        </Text>
-                        <Text color="gray" dimColor>
-                            {' · '}
-                            {thinkingPreview}
-                        </Text>
-                    </Text>
+            {thinkingLines.length > 0 ? (
+                <Box flexDirection="column">
+                    {thinkingLines.map((line, index) => (
+                        <Box key={index}>
+                            <Text color={isLiveThinking ? 'yellow' : 'gray'} italic>
+                                {index === 0 ? 'Thinking' : '        '}
+                            </Text>
+                            <Text color="gray" dimColor>
+                                {' · '}
+                                {line}
+                            </Text>
+                        </Box>
+                    ))}
                 </Box>
             ) : null}
 
             {showText && step.assistantText ? (
-                <Box marginTop={thinkingPreview ? 1 : 0}>
+                <Box marginTop={thinkingLines.length > 0 ? 1 : 0}>
                     <Text color="green">● </Text>
                     <Box flexDirection="column" flexShrink={1}>
                         <MarkdownRenderer content={step.assistantText} />
@@ -224,6 +247,99 @@ const StepCell = memo(function StepCell({
         </Box>
     )
 })
+
+const MERGED_TOOL_LABELS: Record<string, (count: number) => string> = {
+    read: (count) => `Read ${count} files`,
+    list_directory: (count) => `Listed ${count} directories`,
+    search_files: (count) => `Searched ${count} patterns`,
+}
+
+export type MergedToolGroup = {
+    type: 'merged'
+    tool: string
+    label: string
+    params: string[]
+}
+
+export type TimelineItem = { type: 'step'; step: StepView } | MergedToolGroup
+
+/**
+ * Collapses runs of consecutive, completed read-only tool calls into one
+ * merged item (e.g. three consecutive `read` calls render as "Read 3 files"),
+ * so long tool sequences don't flood the timeline.
+ */
+export function collectTimelineItems(steps: StepView[], cwd: string, terminalWidth: number): TimelineItem[] {
+    const items: TimelineItem[] = []
+    let group: { tool: string; steps: StepView[] } | null = null
+
+    const flushGroup = () => {
+        if (!group) return
+        if (group.steps.length >= 2) {
+            const labelFor = MERGED_TOOL_LABELS[group.tool]
+            const params = group.steps.map((step) => {
+                const action = resolveStepActions(step)[0]
+                return action ? (mainParam(action.input, cwd, terminalWidth) ?? group.tool) : group.tool
+            })
+            items.push({
+                type: 'merged',
+                tool: group.tool,
+                label: labelFor ? labelFor(group.steps.length) : `${group.tool} ×${group.steps.length}`,
+                params,
+            })
+        } else {
+            for (const step of group.steps) {
+                items.push({ type: 'step', step })
+            }
+        }
+        group = null
+    }
+
+    for (const step of steps) {
+        const actions = resolveStepActions(step)
+        const singleAction = actions.length === 1 ? actions[0] : undefined
+        // Only bare, successful, single-action steps can fold into a group;
+        // thinking, text, or failures interrupt the run.
+        const absorbable = Boolean(singleAction) && !step.assistantText && !step.thinking && !step.streamingThinking
+        const mergable =
+            absorbable &&
+            Boolean(singleAction) &&
+            (singleAction as ToolAction).tool in MERGED_TOOL_LABELS &&
+            resolveActionResult(step, singleAction as ToolAction, 0)?.status === TOOL_STATUS.SUCCESS
+
+        if (!mergable || !singleAction) {
+            flushGroup()
+            items.push({ type: 'step', step })
+            continue
+        }
+
+        if (!group || group.tool !== singleAction.tool) {
+            flushGroup()
+            group = { tool: singleAction.tool, steps: [] }
+        }
+        group.steps.push(step)
+    }
+    flushGroup()
+
+    return items
+}
+
+function MergedToolRow({ label, params }: { label: string; params: string[] }) {
+    return (
+        <Box flexDirection="column">
+            <Box>
+                <Text color="green">✓ </Text>
+                <Text color="gray">{label}</Text>
+            </Box>
+            {params.map((param, index) => (
+                <Box key={index} paddingLeft={2}>
+                    <Text color="gray" dimColor>
+                        {index === params.length - 1 ? '└' : '├'} {param}
+                    </Text>
+                </Box>
+            ))}
+        </Box>
+    )
+}
 
 function formatTurnMeta(turn: TurnView): string | null {
     const parts: string[] = []
@@ -258,11 +374,26 @@ export const TurnCell = memo(function TurnCell({ turn, cwd }: { turn: TurnView; 
 
             {turn.steps.length > 0 ? (
                 <Box flexDirection="column" marginTop={1}>
-                    {turn.steps.map((step, index) => (
-                        <Box key={`${turn.index}-${step.index}`} flexDirection="column" marginTop={index > 0 ? 1 : 0}>
-                            <StepCell step={step} cwd={cwd} terminalWidth={terminalWidth} showText={inProgress} />
-                        </Box>
-                    ))}
+                    {collectTimelineItems(turn.steps, cwd, terminalWidth).map((item, index) =>
+                        item.type === 'merged' ? (
+                            <Box key={`${turn.index}-merged-${index}`} marginTop={index > 0 ? 1 : 0}>
+                                <MergedToolRow label={item.label} params={item.params} />
+                            </Box>
+                        ) : (
+                            <Box
+                                key={`${turn.index}-${item.step.index}`}
+                                flexDirection="column"
+                                marginTop={index > 0 ? 1 : 0}
+                            >
+                                <StepCell
+                                    step={item.step}
+                                    cwd={cwd}
+                                    terminalWidth={terminalWidth}
+                                    showText={inProgress}
+                                />
+                            </Box>
+                        ),
+                    )}
                 </Box>
             ) : null}
 
