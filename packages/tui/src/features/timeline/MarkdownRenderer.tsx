@@ -1,4 +1,4 @@
-import { Fragment, memo, useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { Box, Text, useStdout } from 'ink'
 import stringWidth from 'string-width'
 import { table as formatTable } from 'table'
