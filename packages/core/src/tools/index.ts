@@ -4,9 +4,7 @@ import { shellCommandTool } from '@memo/core/tools/tools/shell_command'
 import { execCommandTool } from '@memo/core/tools/tools/exec_command'
 import { writeStdinTool } from '@memo/core/tools/tools/write_stdin'
 import { applyPatchTool } from '@memo/core/tools/tools/apply_patch'
-import { readTextFileTool } from '@memo/core/tools/tools/read_text_file'
-import { readMediaFileTool } from '@memo/core/tools/tools/read_media_file'
-import { readFilesTool } from '@memo/core/tools/tools/read_files'
+import { readTool } from '@memo/core/tools/tools/read'
 import { writeFileTool } from '@memo/core/tools/tools/write_file'
 import { editFileTool } from '@memo/core/tools/tools/edit_file'
 import { listDirectoryTool } from '@memo/core/tools/tools/list_directory'
@@ -53,9 +51,7 @@ function buildCodexTools(): Record<string, Tool> {
     tools.update_plan = updatePlanTool
     tools.read_skill = readSkillTool
     tools.apply_patch = applyPatchTool
-    tools.read_text_file = readTextFileTool
-    tools.read_media_file = readMediaFileTool
-    tools.read_files = readFilesTool
+    tools.read = readTool
     tools.write_file = writeFileTool
     tools.edit_file = editFileTool
     tools.list_directory = listDirectoryTool

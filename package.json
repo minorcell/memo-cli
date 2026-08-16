@@ -65,6 +65,7 @@
         "react-reconciler": "^0.33.0",
         "robots-parser": "^3.0.1",
         "string-width": "^7.2.0",
+        "table": "^6.9.0",
         "toml": "^3.0.0",
         "turndown": "^7.2.2",
         "undici": "^6.28.0",

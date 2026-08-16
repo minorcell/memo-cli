@@ -7,9 +7,7 @@ import { basename, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, test } from 'vitest'
 import { z } from 'zod'
-import { readTextFileTool } from '@memo/core/tools/tools/read_text_file'
-import { readMediaFileTool } from '@memo/core/tools/tools/read_media_file'
-import { readFilesTool } from '@memo/core/tools/tools/read_files'
+import { readTool } from '@memo/core/tools/tools/read'
 import { writeFileTool } from '@memo/core/tools/tools/write_file'
 import { editFileTool } from '@memo/core/tools/tools/edit_file'
 import { listDirectoryTool } from '@memo/core/tools/tools/list_directory'
@@ -48,88 +46,44 @@ async function runTool(tool: Tool, input: unknown): Promise<ToolResultOutput> {
 
 describe('filesystem tools', () => {
     test('tool schemas reject invalid empty path input', () => {
-        const readSchema = readTextFileTool.inputSchema as z.ZodTypeAny
+        const readSchema = readTool.inputSchema as z.ZodTypeAny
         assert.strictEqual(readSchema.safeParse({ path: '' }).success, false)
 
         const listSchema = listDirectoryTool.inputSchema as z.ZodTypeAny
         assert.strictEqual(listSchema.safeParse({ path: '' }).success, false)
     })
 
-    test('read_text_file reads full content and supports head/tail', async () => {
+    test('read reads full text content and supports head/tail', async () => {
         const filePath = join(rootDir, 'a.txt')
         await writeFile(filePath, 'line1\nline2\nline3\n', 'utf8')
 
-        const full = await runTool(readTextFileTool, { path: filePath })
+        const full = await runTool(readTool, { path: filePath })
         assert.strictEqual(full.type, 'text')
         assert.strictEqual(textPayload(full), 'line1\nline2\nline3\n')
 
-        const head = await runTool(readTextFileTool, { path: filePath, head: 2 })
+        const head = await runTool(readTool, { path: filePath, head: 2 })
         assert.strictEqual(head.type, 'text')
         assert.strictEqual(textPayload(head), 'line1\nline2')
 
-        const tail = await runTool(readTextFileTool, { path: filePath, tail: 2 })
+        const tail = await runTool(readTool, { path: filePath, tail: 2 })
         assert.strictEqual(tail.type, 'text')
         assert.strictEqual(textPayload(tail), 'line3\n')
 
-        const invalid = await runTool(readTextFileTool, { path: filePath, head: 1, tail: 1 })
+        const invalid = await runTool(readTool, { path: filePath, head: 1, tail: 1 })
         assert.strictEqual(invalid.type, 'error-text')
         assert.ok(textPayload(invalid).includes('Cannot specify both head and tail'))
     })
 
-    test('read_media_file returns json payload with type/mimeType/data', async () => {
-        const filePath = join(rootDir, 'img.png')
-        await writeFile(filePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
-
-        const result = await runTool(readMediaFileTool, { path: filePath })
-        assert.strictEqual(result.type, 'text')
-
-        const payload = JSON.parse(textPayload(result)) as {
-            type: string
-            mimeType: string
-            data: string
-        }
-
-        assert.strictEqual(payload.type, 'image')
-        assert.strictEqual(payload.mimeType, 'image/png')
-        assert.ok(payload.data.length > 0)
-    })
-
-    test('read_text_file rejects files over the size cap', async () => {
+    test('read rejects files over the size cap', async () => {
         const filePath = join(rootDir, 'big.txt')
         const handle = await open(filePath, 'w')
         // Sparse file: logical size exceeds the 50 MiB cap without using disk.
         await handle.truncate(51 * 1024 * 1024)
         await handle.close()
 
-        const result = await runTool(readTextFileTool, { path: filePath })
+        const result = await runTool(readTool, { path: filePath })
         assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('File too large to read'))
-    })
-
-    test('read_media_file rejects files over the size cap', async () => {
-        const filePath = join(rootDir, 'big.png')
-        const handle = await open(filePath, 'w')
-        await handle.truncate(11 * 1024 * 1024)
-        await handle.close()
-
-        const result = await runTool(readMediaFileTool, { path: filePath })
-        assert.strictEqual(result.type, 'error-text')
-        assert.ok(textPayload(result).includes('file too large'))
-    })
-
-    test('read_files keeps order and does not stop on single file failure', async () => {
-        const first = join(rootDir, 'f1.txt')
-        const second = join(rootDir, 'f2.txt')
-        const missing = join(rootDir, 'missing.txt')
-        await writeFile(first, 'one', 'utf8')
-        await writeFile(second, 'two', 'utf8')
-
-        const result = await runTool(readFilesTool, { paths: [first, missing, second] })
-        assert.strictEqual(result.type, 'text')
-        const text = textPayload(result)
-        assert.ok(text.includes(`${first}:\none`))
-        assert.ok(text.includes(`${missing}: Error -`))
-        assert.ok(text.includes(`${second}:\ntwo`))
     })
 
     test('write_file writes and overwrites content', async () => {
@@ -241,7 +195,7 @@ describe('filesystem tools', () => {
         const outsideFile = join(outsideDir, 'outside.txt')
         await writeFile(outsideFile, 'outside', 'utf8')
 
-        const result = await runTool(readTextFileTool, { path: outsideFile })
+        const result = await runTool(readTool, { path: outsideFile })
         assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('Access denied - path outside allowed directories'))
     })
@@ -251,7 +205,7 @@ describe('filesystem tools', () => {
         await writeFile(outsideFile, 'outside', 'utf8')
 
         const traversalPath = join('..', basename(outsideDir), 'outside-traversal.txt')
-        const result = await runTool(readTextFileTool, { path: traversalPath })
+        const result = await runTool(readTool, { path: traversalPath })
 
         assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('Access denied - path outside allowed directories'))
@@ -272,7 +226,7 @@ describe('filesystem tools', () => {
             throw error
         }
 
-        const result = await runTool(readTextFileTool, { path: linkedPath })
+        const result = await runTool(readTool, { path: linkedPath })
         assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('Access denied - symlink target outside allowed directories'))
     })

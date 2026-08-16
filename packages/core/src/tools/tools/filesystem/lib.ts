@@ -133,7 +133,7 @@ export async function readFileContent(filePath: string, encoding: BufferEncoding
     if (stats.isFile() && stats.size > MAX_FILE_READ_BYTES) {
         throw new Error(
             `File too large to read (${formatSize(stats.size)} > ${formatSize(MAX_FILE_READ_BYTES)}). ` +
-                `Use the head/tail options of read_text_file instead.`,
+                `Use the head/tail options of read instead.`,
         )
     }
     return await fs.readFile(filePath, encoding)

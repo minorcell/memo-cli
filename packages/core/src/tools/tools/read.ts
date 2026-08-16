@@ -4,7 +4,7 @@ import { textResult } from '@memo/core/tools/tools/mcp'
 import { headFile, readFileContent, tailFile, validatePath } from '@memo/core/tools/tools/filesystem/lib'
 import { resolveAllowedDirectories } from '@memo/core/tools/tools/filesystem/roots'
 
-const READ_TEXT_FILE_INPUT_SCHEMA = z
+const READ_INPUT_SCHEMA = z
     .object({
         path: z.string().min(1),
         head: z.number().int().positive().optional(),
@@ -12,9 +12,10 @@ const READ_TEXT_FILE_INPUT_SCHEMA = z
     })
     .strict()
 
-export const readTextFileTool = tool({
-    description: 'Read the complete file content as text, optionally with head/tail line limits.',
-    inputSchema: READ_TEXT_FILE_INPUT_SCHEMA,
+export const readTool = tool({
+    description:
+        'Read a text file. Returns the complete content, optionally limited to the first `head` or last `tail` lines.',
+    inputSchema: READ_INPUT_SCHEMA,
     metadata: { memo: { supportsParallelToolCalls: true, isMutating: false } },
 
     execute: async (input) => {
@@ -37,7 +38,7 @@ export const readTextFileTool = tool({
 
             return textResult(content)
         } catch (err) {
-            return textResult(`read_text_file failed: ${(err as Error).message}`, true)
+            return textResult(`read failed: ${(err as Error).message}`, true)
         }
     },
 })

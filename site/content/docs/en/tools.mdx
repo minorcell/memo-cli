@@ -41,9 +41,7 @@ Disable execution tools:
 
 ### File and Search
 
-- `read_text_file`
-- `read_media_file`
-- `read_files`
+- `read`
 - `write_file`
 - `edit_file`
 - `list_directory`
@@ -53,7 +51,7 @@ Disable execution tools:
 Notes:
 
 - filesystem tools are constrained to allowed roots (runtime `cwd` + `MEMO_FS_ALLOWED_ROOTS`).
-- `read_media_file` returns JSON text with `type`, `mimeType`, and base64 `data`.
+- `read` returns the complete file content as text, optionally limited with `head`/`tail` line counts.
 - `apply_patch` is the structured write tool.
 
 ### MCP Resource Tools

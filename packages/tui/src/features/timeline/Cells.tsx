@@ -40,7 +40,7 @@ function toolActionText(tool: string, param: string | null, status?: ToolStatus,
     }
 
     const running = status === TOOL_STATUS.EXECUTING
-    if (tool === 'read_text_file') return `${running ? 'Reading' : 'Read'} ${param ?? tool}`
+    if (tool === 'read') return `${running ? 'Reading' : 'Read'} ${param ?? tool}`
     if (tool === 'list_directory') return `${running ? 'Listing' : 'Listed'} ${param ?? tool}`
     if (tool === 'search_files') return `${running ? 'Searching' : 'Searched'} ${param ?? tool}`
 

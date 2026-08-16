@@ -46,7 +46,7 @@ export function summarizeToolResult(result: ToolResultView, cwd: string, columns
     const lines = meaningfulLines(result.observation)
     if (result.status === TOOL_STATUS.ERROR) return tailSummary(lines, columns)
 
-    if (result.tool === 'read_text_file') return []
+    if (result.tool === 'read') return []
     if (result.tool === 'list_directory') return [`${lines.length} ${lines.length === 1 ? 'entry' : 'entries'}`]
     if (result.tool === 'search_files') return searchSummary(lines, cwd, columns)
 

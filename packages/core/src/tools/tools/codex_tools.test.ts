@@ -10,8 +10,7 @@ import { runWithRuntimeContext } from '@memo/core/tools/runtime/context'
 import { execCommandTool } from '@memo/core/tools/tools/exec_command'
 import { writeStdinTool } from '@memo/core/tools/tools/write_stdin'
 import { applyPatchTool } from '@memo/core/tools/tools/apply_patch'
-import { readTextFileTool } from '@memo/core/tools/tools/read_text_file'
-import { readFilesTool } from '@memo/core/tools/tools/read_files'
+import { readTool } from '@memo/core/tools/tools/read'
 import { listDirectoryTool } from '@memo/core/tools/tools/list_directory'
 import { searchFilesTool } from '@memo/core/tools/tools/search_files'
 import { updatePlanTool } from '@memo/core/tools/tools/update_plan'
@@ -233,8 +232,8 @@ describe('codex file/search family', () => {
         assert.strictEqual(await readText(target), 'A B A\n')
     })
 
-    test('read_text_file requires valid path in allowed roots', async () => {
-        const result = await runTool(readTextFileTool, { path: '/tmp/not-allowed.txt' })
+    test('read requires valid path in allowed roots', async () => {
+        const result = await runTool(readTool, { path: '/tmp/not-allowed.txt' })
         assert.strictEqual(result.type, 'error-text')
         assert.ok(textPayload(result).includes('Access denied'))
     })
@@ -247,20 +246,6 @@ describe('codex file/search family', () => {
         const result = await runTool(listDirectoryTool, { path: nested })
         const text = textPayload(result)
         assert.ok(text.includes('[FILE] a.txt'), 'should include file label')
-    })
-
-    test('read_files reads multiple files in one call', async () => {
-        const root = join(tempDir, 'read-files')
-        await mkdir(root, { recursive: true })
-        const fileA = join(root, 'a.txt')
-        const fileB = join(root, 'b.txt')
-        await writeFile(fileA, 'A', 'utf8')
-        await writeFile(fileB, 'B', 'utf8')
-
-        const result = await runTool(readFilesTool, { paths: [fileA, fileB] })
-        const text = textPayload(result)
-        assert.ok(text.includes(`${fileA}:\nA`))
-        assert.ok(text.includes(`${fileB}:\nB`))
     })
 
     test('search_files returns matching file paths', async () => {

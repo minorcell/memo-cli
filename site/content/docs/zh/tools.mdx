@@ -41,9 +41,7 @@ Memo 包含一套 codex 风格的工具集，并可通过 MCP 服务器扩展能
 
 ### 文件和搜索
 
-- `read_text_file`
-- `read_media_file`
-- `read_files`
+- `read`
 - `write_file`
 - `edit_file`
 - `list_directory`
@@ -53,7 +51,7 @@ Memo 包含一套 codex 风格的工具集，并可通过 MCP 服务器扩展能
 注意：
 
 - 文件系统工具受允许根目录约束（运行时 `cwd` + `MEMO_FS_ALLOWED_ROOTS`）。
-- `read_media_file` 会返回包含 `type`、`mimeType` 和 base64 `data` 的 JSON 文本。
+- `read` 以文本形式返回完整文件内容，可用 `head`/`tail` 限制行数。
 - `apply_patch` 是结构化写入工具。
 
 ### MCP 资源工具

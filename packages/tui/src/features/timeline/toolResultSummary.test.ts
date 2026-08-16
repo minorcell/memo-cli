@@ -9,7 +9,7 @@ function result(tool: string, observation: string, status: ToolResultView['statu
 
 describe('summarizeToolResult', () => {
     test('hides successful file contents', () => {
-        assert.deepStrictEqual(summarizeToolResult(result('read_text_file', 'full\nfile\ncontents'), '/repo', 80), [])
+        assert.deepStrictEqual(summarizeToolResult(result('read', 'full\nfile\ncontents'), '/repo', 80), [])
     })
 
     test('summarizes directory listings by entry count', () => {
@@ -39,7 +39,7 @@ describe('summarizeToolResult', () => {
 
     test('always retains an error summary for read tools', () => {
         assert.deepStrictEqual(
-            summarizeToolResult(result('read_text_file', 'permission denied', TOOL_STATUS.ERROR), '/repo', 80),
+            summarizeToolResult(result('read', 'permission denied', TOOL_STATUS.ERROR), '/repo', 80),
             ['permission denied'],
         )
     })

@@ -122,7 +122,7 @@ memo-code/
 
 - `exec_command` / `write_stdin` - 执行 Shell 命令
 - `apply_patch` - 结构化补丁编辑（`*** Begin Patch`/`*** End Patch`）
-- `read_text_file` / `read_media_file` / `read_files` / `write_file` / `edit_file` / `list_directory` / `search_files` - 文件系统读写与检索
+- `read` / `write_file` / `edit_file` / `list_directory` / `search_files` - 文件系统读写与检索
 - `webfetch` - 支持分页、Markdown 提取与策略防护的网页抓取
 - MCP 资源访问 - `list_mcp_resources`, `list_mcp_resource_templates`, `read_mcp_resource`
 - `update_plan` - 结构化任务进度管理

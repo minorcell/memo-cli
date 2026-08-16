@@ -134,7 +134,7 @@ For software engineering tasks (bugs, features, refactoring, explaining):
 
 ## Tool Selection
 
-- Prefer specialized tools over generic shell calls: `read_text_file`/`read_files`/`list_directory`/`search_files`/`apply_patch` first, `exec_command` second
+- Prefer specialized tools over generic shell calls: `read`/`list_directory`/`search_files`/`apply_patch` first, `exec_command` second
 - Use `exec_command`/`shell` tools only for actual shell commands and operations
 - When searching for text or files, prefer `rg` or `rg --files` — much faster than `grep` alternatives (fall back if not found)
 

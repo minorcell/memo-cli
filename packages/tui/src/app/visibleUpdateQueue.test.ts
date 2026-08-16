@@ -37,7 +37,7 @@ describe('VisibleUpdateQueue', () => {
                 type: 'tool_action',
                 turn: 1,
                 step: 0,
-                action: { tool: 'read_text_file', input: { path: 'README.md' } },
+                action: { tool: 'read', input: { path: 'README.md' } },
             },
         }
 
