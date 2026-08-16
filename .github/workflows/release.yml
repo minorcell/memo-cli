@@ -121,6 +121,7 @@ jobs:
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
             - name: Create GitHub Release
+              if: steps.npm.outputs.already_published != 'true'
               uses: softprops/action-gh-release@v2
               with:
                   tag_name: ${{ needs.tag.outputs.tag_name }}
