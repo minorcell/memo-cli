@@ -38,7 +38,8 @@ export type ModifiedEnterKind = 'newline' | 'ignore' | 'none'
 // xterm modifyOtherKeys: ESC[27;<modifier>;<code>~. Ink's parser does not
 // recognize this variant, and its useInput hook strips a leading ESC before
 // handing the input to handlers, so the bare form must match too.
-const MODIFIED_ENTER_PATTERN = /^(?:\u001b)?\[27;\d+;(\d+)~$/
+const ESC_CHAR = String.fromCharCode(27)
+const MODIFIED_ENTER_PATTERN = new RegExp(`^(?:${ESC_CHAR})?\\[27;\\d+;(\\d+)~$`)
 
 /**
  * Recognizes Enter variants that Ink's parser does not map to `key.return`,

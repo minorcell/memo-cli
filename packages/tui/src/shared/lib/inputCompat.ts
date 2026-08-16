@@ -15,7 +15,8 @@ const KITTY_SHIFT_ENTER = '\u001b[13;2u'
 
 const MODIFIED_ENTER_PREFIX = '\u001b[27;'
 // Prefix match: trailing plain text after the sequence must pass through.
-const MODIFIED_ENTER_PATTERN = /^\u001b\[27;(\d+);(\d+)~/
+const ESC_CHAR = String.fromCharCode(27)
+const MODIFIED_ENTER_PATTERN = new RegExp(`^${ESC_CHAR}\\[27;(\\d+);(\\d+)~`)
 
 /** Buffered bytes that may still grow into a recognizable sequence. */
 export type PendingBytes = string | null
@@ -47,18 +48,12 @@ function emitModifiedEnter(buffer: string, match: { code: string; length: number
 function couldCompleteModifiedEnter(buffer: string): boolean {
     if (buffer.length > MAX_PENDING_BYTES) return false
     // Progressive prefix match against ESC[27;<digits>;<digits>~.
-    const candidates = [
-        '\u001b',
-        '\u001b[',
-        '\u001b[2',
-        '\u001b[27',
-        '\u001b[27;',
-    ]
+    const candidates = ['\u001b', '\u001b[', '\u001b[2', '\u001b[27', '\u001b[27;']
     if (buffer.length <= candidates.length) {
         return candidates[buffer.length - 1] === buffer
     }
     if (!buffer.startsWith(MODIFIED_ENTER_PREFIX)) return false
-    return /^\u001b\[27;\d*(;\d*)?~?$/.test(buffer)
+    return new RegExp(`^${ESC_CHAR}\\[27;\\d*(;\\d*)?~?$`).test(buffer)
 }
 
 export function pushChunk(pending: PendingBytes, chunk: string): PushResult {

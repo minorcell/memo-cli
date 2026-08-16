@@ -1,5 +1,6 @@
-import { memo, useMemo } from 'react'
-import { Box, Static, Text } from 'ink'
+import { memo, useMemo, type ReactNode } from 'react'
+import { Box, Static, Text, useStdout } from 'ink'
+import stringWidth from 'string-width'
 import type { SystemMessage, TurnView } from '../../shared/types'
 import { SystemCell, TurnCell } from './Cells'
 
@@ -22,6 +23,29 @@ type ChatWidgetProps = {
 type HeaderStaticItem = { type: 'header'; data: HeaderInfo }
 type HistoryStaticItem = SystemMessage | TurnView
 type StaticItem = HeaderStaticItem | HistoryStaticItem
+
+const HEADER_MAX_LINE_WIDTH = 56
+
+function truncateHeaderText(text: string, maxWidth: number): string {
+    if (stringWidth(text) <= maxWidth) return text
+    let out = ''
+    let used = 0
+    for (const ch of text) {
+        const charWidth = stringWidth(ch)
+        if (used + charWidth > maxWidth - 1) break
+        out += ch
+        used += charWidth
+    }
+    return `${out}…`
+}
+
+function HeaderLabel({ children }: { children: ReactNode }) {
+    return (
+        <Text color="gray" dimColor>
+            {children}
+        </Text>
+    )
+}
 
 function itemSequence(item: HistoryStaticItem): number {
     return item.sequence ?? 0
@@ -60,25 +84,50 @@ export const ChatWidget = memo(function ChatWidget({
         return { completedTurns: completed, inProgressTurn: inProgress, staticItems: items }
     }, [header, historicalTurns, turns, systemMessages])
 
+    const { stdout } = useStdout()
+    const terminalWidth = stdout?.columns ?? process.stdout?.columns ?? 80
+    const lineWidth = Math.min(HEADER_MAX_LINE_WIDTH, Math.max(24, terminalWidth - 12))
+
     return (
         <Box flexDirection="column">
             <Static items={staticItems}>
                 {(item) => {
                     if (isHeaderItem(item)) {
+                        const data = item.data
                         return (
-                            <Box key={`header-${item.data.sessionId}`} flexDirection="column">
-                                <Box justifyContent="space-between">
+                            <Box
+                                key={`header-${data.sessionId}`}
+                                flexDirection="column"
+                                borderStyle="round"
+                                borderColor="cyan"
+                                borderDimColor
+                                paddingX={1}
+                                marginBottom={1}
+                            >
+                                <Text>
                                     <Text bold color="cyan">
-                                        Memo Code
+                                        ›●{' '}
                                     </Text>
-                                    <Text color="gray">v{item.data.version}</Text>
-                                </Box>
-                                <Text color="gray" wrap="truncate-end">
-                                    {item.data.providerName} / {item.data.model} · {item.data.cwd}
+                                    <Text bold>Memo Code</Text>
+                                    <Text color="gray"> v{data.version}</Text>
                                 </Text>
-                                <Text color="gray" wrap="truncate-end">
-                                    MCP {item.data.mcpNames.join(', ') || 'none'}
+                                <Text wrap="truncate-end">
+                                    <HeaderLabel>provider: </HeaderLabel>
+                                    <Text>
+                                        {data.providerName} / {data.model}
+                                    </Text>
+                                    <HeaderLabel> /models to change</HeaderLabel>
                                 </Text>
+                                <Text wrap="truncate-end">
+                                    <HeaderLabel>directory: </HeaderLabel>
+                                    <Text>{truncateHeaderText(data.cwd, lineWidth)}</Text>
+                                </Text>
+                                {data.mcpNames.length > 0 ? (
+                                    <Text wrap="truncate-end">
+                                        <HeaderLabel>MCP: </HeaderLabel>
+                                        <Text>{data.mcpNames.join(', ')}</Text>
+                                    </Text>
+                                ) : null}
                             </Box>
                         )
                     }
