@@ -95,23 +95,20 @@ export const ChatWidget = memo(function ChatWidget({
                     if (isHeaderItem(item)) {
                         const data = item.data
                         return (
-                            <Box
-                                key={`header-${data.sessionId}`}
-                                flexDirection="column"
-                                borderStyle="round"
-                                borderColor="cyan"
-                                borderDimColor
-                                paddingX={1}
-                                marginBottom={1}
-                            >
+                            <Box key={`header-${data.sessionId}`} flexDirection="column" marginBottom={1}>
                                 <Text>
-                                    <Text bold color="cyan">
-                                        ›●{' '}
+                                    <Text color="cyan" dimColor>
+                                        {'▐▛▄▄▄▄▄▜▌  '}
                                     </Text>
-                                    <Text bold>Memo Code</Text>
+                                    <Text bold color="cyan">
+                                        Memo Code
+                                    </Text>
                                     <Text color="gray"> v{data.version}</Text>
                                 </Text>
                                 <Text wrap="truncate-end">
+                                    <Text color="cyan" dimColor>
+                                        {'▝▜∙   ∙▛▘ '}
+                                    </Text>
                                     <HeaderLabel>provider: </HeaderLabel>
                                     <Text>
                                         {data.providerName} / {data.model}
@@ -119,11 +116,15 @@ export const ChatWidget = memo(function ChatWidget({
                                     <HeaderLabel> /models to change</HeaderLabel>
                                 </Text>
                                 <Text wrap="truncate-end">
+                                    <Text color="cyan" dimColor>
+                                        {' ▘▘▀▀▀▝▝  '}
+                                    </Text>
                                     <HeaderLabel>directory: </HeaderLabel>
                                     <Text>{truncateHeaderText(data.cwd, lineWidth)}</Text>
                                 </Text>
                                 {data.mcpNames.length > 0 ? (
                                     <Text wrap="truncate-end">
+                                        <Text>{'           '}</Text>
                                         <HeaderLabel>MCP: </HeaderLabel>
                                         <Text>{data.mcpNames.join(', ')}</Text>
                                     </Text>
